@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "circuit_ir_v1.schema.json",
+  "title": "Circuit IR (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "qasm": { "type": "string", "minLength": 1 },
+    "ui": { "type": "object", "additionalProperties": true }
+  },
+  "required": ["qasm", "ui"]
+}
+

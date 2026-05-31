@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent_job_v1.schema.json",
+  "title": "Quantum Compute Agent Job (v1)",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "job_id": { "type": "string" },
+    "kind": { "type": "string" },
+    "status": { "type": "string", "enum": ["queued", "running", "done", "failed", "canceled"] },
+    "progress": { "type": "number", "minimum": 0, "maximum": 1 },
+    "seed": { "type": ["integer", "null"] },
+    "created_at": { "type": ["string", "null"] },
+    "started_at": { "type": ["string", "null"] },
+    "finished_at": { "type": ["string", "null"] },
+    "error": { "type": ["string", "null"] },
+    "metrics": { "type": "object" },
+    "artifacts": { "type": "object" },
+    "logs": { "type": "array", "items": { "type": "object" } },
+    "n_qubits": { "type": "integer", "minimum": 1, "maximum": 64 },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "target": { "type": "integer", "minimum": 0 },
+          "control": { "type": ["integer", "null"], "minimum": 0 },
+          "theta": { "type": ["number", "null"] }
+        },
+        "required": ["name", "target"],
+        "additionalProperties": true
+      }
+    },
+    "bitstrings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "dtype": { "type": "string" },
+    "optimize": { "type": "string" }
+  },
+  "required": ["n_qubits", "gates"]
+}

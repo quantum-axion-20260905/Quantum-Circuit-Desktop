@@ -1,0 +1,11 @@
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+.next/
+dist/
+build/
+*.log
+*_out.txt
+*_err.txt
+backend/db.sqlite3
