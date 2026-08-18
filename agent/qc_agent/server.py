@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 from typing import Any
+import os
 
 from fastapi import FastAPI
 from fastapi import HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from .cuda import add_cuda_dll_dirs, hardware_info, require_gpu
 from .jobs import JobManager
-from .models import BenchPayload, SamplePayload, SimulatePayload, TNPayload
+from .models import BenchPayload, PreflightPayload, RunPayload, SamplePayload, SimulatePayload, TNPayload
 
 add_cuda_dll_dirs()
 
@@ -32,6 +34,8 @@ from .backends.statevector import sample as sv_sample
 from .backends.statevector import simulate
 from .backends.tn import amplitudes as tn_amplitudes
 from .backends.tn import estimate as tn_estimate
+from .backends.reference import run as reference_run
+from .backends.preflight import estimate as preflight_estimate
 
 
 app = FastAPI(title="Quantum Compute Agent", version="0.1.0")
@@ -42,6 +46,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def local_token_guard(request, call_next):
+    configured = os.environ.get("QC_AGENT_TOKEN")
+    if configured and request.url.path not in ("/health", "/docs", "/openapi.json"):
+        if request.headers.get("x-qc-agent-token") != configured:
+            return JSONResponse(status_code=401, content={"detail": "invalid agent token"})
+    return await call_next(request)
 
 jobs = JobManager()
 
@@ -54,6 +66,32 @@ def health() -> dict[str, Any]:
 @app.get("/hardware")
 def hardware() -> dict[str, Any]:
     return hardware_info(cp)
+
+
+@app.get("/capabilities")
+def capabilities() -> dict[str, Any]:
+    gpu = hardware_info(cp).get("gpu", {})
+    return {"backends": [
+        {"name": "reference", "available": True, "device": "CPU", "performance_comparable": False},
+        {"name": "tensor-network", "available": bool(gpu.get("available") and oe is not None), "device": "CUDA", "performance_comparable": True}
+    ], "gpu": gpu, "agent_version": app.version}
+
+
+@app.post("/jobs/preflight")
+def jobs_preflight(payload: PreflightPayload) -> dict[str, Any]:
+    if payload.backend == "reference":
+        return {"status": "ready", "feasible": True, "backend": "reference-cpu", "warnings": ["CPU reference performance is not comparable to CUDA"]}
+    return preflight_estimate(payload, cotengra_available=ctg is not None)
+
+
+@app.post("/jobs/run")
+def jobs_run(payload: RunPayload) -> dict[str, Any]:
+    if payload.backend == "reference" or (payload.backend == "auto" and cp is None):
+        return reference_run(payload)
+    require_gpu(cp)
+    if payload.result_type == "samples":
+        return sv_sample(cp, SamplePayload(**payload.model_dump()), progress_cb=None, cancel_cb=None)
+    return tn_amplitudes(cp, oe, ctg, TNPayload(**payload.model_dump()))
 
 
 @app.post("/jobs/simulate")

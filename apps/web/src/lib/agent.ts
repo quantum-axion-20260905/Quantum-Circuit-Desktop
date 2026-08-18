@@ -1,4 +1,5 @@
 export const AGENT_BASE_URL = "http://127.0.0.1:8788";
+import { invokeDesktop, isDesktop } from "./desktop";
 
 async function agentFetch(path: string, init?: RequestInit) {
   const res = await fetch(`${AGENT_BASE_URL}${path}`, init);
@@ -17,7 +18,23 @@ async function agentFetch(path: string, init?: RequestInit) {
 }
 
 export async function getHardware() {
+  if (isDesktop()) return invokeDesktop("get_hardware_capabilities");
   return agentFetch("/hardware");
+}
+
+export async function getCapabilities() {
+  if (isDesktop()) return invokeDesktop("get_hardware_capabilities");
+  return agentFetch("/capabilities");
+}
+
+export async function preflight(payload: any) {
+  if (isDesktop()) return invokeDesktop("run_preflight", { payload });
+  return agentFetch("/jobs/preflight", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+}
+
+export async function runJob(kind: string, circuit: any, config: any) {
+  if (isDesktop()) return invokeDesktop("submit_run", { request: { kind, circuit, config } });
+  return agentFetch("/jobs/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...circuit, ...config, backend: config.backend ?? "auto" }) });
 }
 
 export async function benchMatmul(payload: { size?: number; iters?: number; dtype?: "fp16" | "fp32" }) {

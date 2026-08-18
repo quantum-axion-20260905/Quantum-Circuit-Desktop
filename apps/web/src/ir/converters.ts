@@ -10,6 +10,8 @@ export function editorToIr(nQubits: number, ops: GateOp[]): CircuitIrV1 {
     control: g.control,
     theta: g.theta,
     col: g.col,
+    moment: g.col,
+    sequence: 0,
     x: g.x,
     y: g.y
   }));
@@ -19,6 +21,7 @@ export function editorToIr(nQubits: number, ops: GateOp[]): CircuitIrV1 {
     qasm,
     ui: {
       version: 1,
+      source_format: "qasm3",
       n_qubits: nQubits,
       nodes
     }

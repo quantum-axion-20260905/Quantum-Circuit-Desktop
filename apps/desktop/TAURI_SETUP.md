@@ -1,6 +1,6 @@
 # Tauri setup (Windows)
 
-Rust is not installed in this environment yet, so the desktop shell is scaffolded as docs only.
+The Tauri shell is now scaffolded under `apps/desktop`. Rust is still required on the development machine to compile it.
 
 ## Install Rust
 
@@ -15,7 +15,4 @@ $npmCli = Join-Path (Split-Path (Get-Command node).Source) 'node_modules\npm\bin
 node $npmCli -w apps/web run build
 ```
 
-Then create a new Tauri app that points at the web build output (or dev server), and add IPC calls to:
-
-- check `http://127.0.0.1:8788/health`
-- submit jobs to `http://127.0.0.1:8788/jobs/*`
+The shell starts the local agent, allocates a free port, stores projects and runs in SQLite, and exposes typed command boundaries to the React renderer. The renderer should use `src/lib/desktop.ts`; direct agent calls remain only as browser/dev fallback.

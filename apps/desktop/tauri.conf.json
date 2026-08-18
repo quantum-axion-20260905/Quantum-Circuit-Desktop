@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Quantum Circuit Desktop",
+  "version": "0.2.0",
+  "identifier": "io.quantumcircuit.desktop",
+  "build": {
+    "beforeDevCommand": "npm -w apps/web run dev",
+    "devUrl": "http://localhost:3000",
+    "frontendDist": "../../apps/web/out"
+  },
+  "app": {
+    "windows": [{
+      "title": "Quantum Circuit Desktop",
+      "width": 1440,
+      "height": 900,
+      "minWidth": 1100,
+      "minHeight": 700,
+      "resizable": true
+    }],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "科学",
+    "shortDescription": "Local-first quantum tensor-network research workbench",
+    "longDescription": "Design circuits, estimate tensor-network cost, run local simulations, validate results and reproduce experiments.",
+    "windows": { "webviewInstallMode": { "type": "embedBootstrapper" } }
+  }
+}

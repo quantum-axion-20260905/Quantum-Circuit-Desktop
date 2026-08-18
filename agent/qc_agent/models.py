@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -43,3 +43,20 @@ class TNPayload(BaseModel):
     bitstrings: list[str] = Field(default_factory=list, max_length=64)
     dtype: Literal["complex64", "complex128"] = "complex64"
     optimize: Literal["auto", "cotengra"] = "auto"
+
+
+class RunPayload(TNPayload):
+    backend: Literal["auto", "reference", "tensor-network"] = "auto"
+    shots: int = Field(default=1024, ge=1, le=200000)
+    seed: int | None = None
+    max_time_ms: int = Field(default=120000, ge=100, le=3600000)
+    max_mem_mb: float = Field(default=4096, gt=0, le=1048576)
+    result_type: Literal[
+        "selected_amplitudes", "samples", "full_state", "expectation_value"
+    ] = "selected_amplitudes"
+
+
+class PreflightPayload(TNPayload):
+    backend: Literal["auto", "reference", "tensor-network"] = "auto"
+    max_time_ms: int = Field(default=120000, ge=100, le=3600000)
+    max_mem_mb: float = Field(default=4096, gt=0, le=1048576)

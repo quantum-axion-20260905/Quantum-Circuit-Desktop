@@ -5,7 +5,7 @@ This repo is a monorepo for a research-grade quantum circuit tool:
 - `apps/web`: Next.js circuit editor + visualization
 - `backend`: Django REST API (projects, versions, sharing)
 - `agent`: Local Python compute agent (Qiskit/Aer + future TN/GPU backends)
-- `apps/desktop` (planned): Tauri shell that embeds the web UI and talks to the local agent
+- `apps/desktop`: Tauri 2 desktop shell with Rust local storage and managed local agent
 
 ## Docs
 
@@ -16,7 +16,20 @@ This repo is a monorepo for a research-grade quantum circuit tool:
 
 - Node.js (already detected)
 - Python 3.11+ (you have 3.14)
-- (For `apps/desktop` later) Rust toolchain + Tauri deps
+- Rust toolchain + WebView2 for the desktop build
+
+## Desktop development
+
+The desktop shell keeps the React renderer but routes desktop operations through Rust commands.
+Without CUDA it uses the deterministic `reference-cpu` backend, so the full design → preflight → run → validation → export workflow can be tested on any machine.
+
+```powershell
+npm install
+npm -w apps/desktop install
+npm -w apps/desktop run tauri dev
+```
+
+Set `QC_AGENT_COMMAND` when using a packaged agent executable. In development the shell starts `python agent/app.py` automatically.
 
 ## Getting started
 
