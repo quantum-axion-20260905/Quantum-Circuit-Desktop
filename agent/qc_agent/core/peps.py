@@ -8,7 +8,7 @@ from typing import Any
 from ..backends import mps as mps_backend
 from ..plugins.lattice import lattice_graph
 from ..plugins.models import PEPSPayload
-from .boundary_mps import contract_boundary_mps
+from .boundary_mps import checkpoint_path_for_operator, contract_boundary_mps
 from .contracts import ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
 from .observables import statevector_expectation
 from .mps_runtime import pauli_operator
@@ -43,9 +43,11 @@ class PEPSRuntime:
     helper; production paths never materialize it.
     """
 
-    def __init__(self, xp: Any, payload: PEPSPayload):
+    def __init__(self, xp: Any, payload: PEPSPayload, cancel_cb: Any = None):
         self.xp = xp
         self.payload = payload
+        self.cancel_cb = cancel_cb
+        self._boundary_resume_consumed = False
         self.graph = lattice_graph(payload.lattice)
         self.edges = [(edge["source"], edge["target"]) for edge in self.graph["edges"]]
         self.site_edges: list[list[int]] = [[] for _ in range(payload.n_qubits)]
@@ -194,12 +196,23 @@ class PEPSRuntime:
     def _contract_double_layer(self, paulis: dict[int, str] | None = None) -> float:
         """Contract ``<psi|O|psi>`` without opening all physical indices."""
         if self.payload.contraction_method == "boundary-mps":
+            resume_from = None
+            if self.payload.boundary_resume_from and not self._boundary_resume_consumed:
+                resume_from = self.payload.boundary_resume_from
             value, diagnostics = contract_boundary_mps(
                 self,
                 paulis,
                 max_bond_dim=self.payload.boundary_bond_dim,
                 cutoff=self.payload.truncation_cutoff,
+                checkpoint_path=(
+                    checkpoint_path_for_operator(self.payload.boundary_checkpoint_path, paulis)
+                    if self.payload.boundary_checkpoint_path else None
+                ),
+                resume_from=resume_from,
+                cancel_cb=self.cancel_cb,
             )
+            if resume_from:
+                self._boundary_resume_consumed = True
             self.boundary_summary = diagnostics
             return value
         if self.payload.contraction_method == "enumeration":
@@ -277,7 +290,7 @@ def run_peps(
     cancel_cb: Any = None,
 ) -> dict[str, Any]:
     started = time.perf_counter()
-    runtime = PEPSRuntime(xp, payload)
+    runtime = PEPSRuntime(xp, payload, cancel_cb=cancel_cb)
     observables = payload.observables or payload.terms
     times = [0.0]
     values = [runtime.expectation(observables)]
@@ -291,6 +304,8 @@ def run_peps(
             schedule = [(term, payload.dt / 2.0) for term in payload.terms]
             schedule.extend((term, payload.dt / 2.0) for term in reversed(payload.terms))
         for term, local_dt in schedule:
+            if cancel_cb and cancel_cb():
+                raise RuntimeError("job canceled")
             runtime.apply_term(term, local_dt * term.coefficient)
         times.append((step + 1) * payload.dt)
         values.append(runtime.expectation(observables))
@@ -351,6 +366,14 @@ def run_peps(
         "virtual_bond_count": len(runtime.edges),
         "contraction_method": payload.contraction_method if payload.contraction_method != "auto" or oe is not None else "enumeration",
         "boundary_diagnostics": runtime.boundary_summary if payload.contraction_method == "boundary-mps" else None,
+        "boundary_bond_dim_requested": (
+            boundary_diagnostics.get("boundary_bond_dim_requested")
+            if payload.contraction_method == "boundary-mps" else None
+        ),
+        "boundary_bond_dim_used": (
+            boundary_diagnostics.get("boundary_bond_dim_used")
+            if payload.contraction_method == "boundary-mps" else None
+        ),
         "resource_estimate": _resource_estimate(runtime),
         "research_result": research_result,
         "discarded_weight": runtime.discarded_weight,

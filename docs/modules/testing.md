@@ -12,6 +12,9 @@
   and reports an explicit skip reason above the bounded size/memory limit
 - TEBD timestep, norm-drift, bond-growth, discarded-weight histories, and
   cooperative cancellation are covered by contract tests
+- Finite-2D boundary-MPS: 2×2 and 3×3 exact double-layer agreement, `χ_env`
+  convergence, row diagnostics, cancellation, and checkpoint/resume
+- Bounded real-CUDA PEPS boundary-MPS agreement with the CPU path
 - Physics plugin contracts: 1D/2D/3D lattice graphs, sparse Hamiltonians,
   observable energy, TEBD trajectories, native PEPS, DMRG convergence, and
   swap-aware preflight

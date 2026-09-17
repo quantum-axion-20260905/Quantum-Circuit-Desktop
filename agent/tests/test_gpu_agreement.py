@@ -15,8 +15,10 @@ from qc_agent.plugins.models import (
     DMRGPayload,
     LatticeHamiltonianPayload,
     PauliTerm,
+    PEPSPayload,
     TEBDPayload,
 )
+from qc_agent.core.peps import run_peps
 from qc_agent.plugins.tebd import run_tebd
 
 
@@ -106,6 +108,58 @@ class GPUAgreementTests(unittest.TestCase):
         self.assertGreaterEqual(gpu["bond_growth"], 0)
         self.assertEqual(len(gpu["discarded_weight_history"]), payload.steps + 1)
         self.assertIn("truncation_diagnostics", gpu)
+
+    def test_boundary_mps_peps_agrees_with_cpu_and_reports_environment(self):
+        payload = PEPSPayload(
+            n_qubits=9,
+            lattice={"dimensions": [3, 3], "boundary": "open"},
+            terms=[
+                PauliTerm(paulis={0: "X", 1: "X"}, coefficient=0.2),
+                PauliTerm(paulis={1: "Z", 4: "Z"}, coefficient=0.3),
+            ],
+            dtype="complex64",
+            bond_dim=2,
+            boundary_bond_dim=4,
+            contraction_method="boundary-mps",
+            dt=0.02,
+            steps=1,
+        )
+        cpu = run_peps(np, payload)
+        gpu = run_peps(cp, payload)
+        self.assertEqual(gpu["contraction_method"], "boundary-mps")
+        self.assertEqual(len(gpu["boundary_diagnostics"]["rows"]), 3)
+        self.assertAlmostEqual(gpu["norm2"], cpu["norm2"], places=4)
+        self.assertAlmostEqual(gpu["energies"][-1], cpu["energies"][-1], places=4)
+        self.assertLess(abs(gpu["norm2"] - 1.0), 1e-4)
+
+    def test_2d_spin_models_run_with_bounded_boundary_mps(self):
+        for model, anisotropy in (("ising", 1.0), ("heisenberg", 1.0)):
+            with self.subTest(model=model):
+                spec = LatticeHamiltonianPayload(
+                    dimensions=[3, 3],
+                    model=model,
+                    coupling=1.0,
+                    field=0.3,
+                    anisotropy=anisotropy,
+                )
+                terms = [PauliTerm(**term) for term in build_spin_hamiltonian(spec)["terms"]]
+                payload = PEPSPayload(
+                    n_qubits=9,
+                    lattice={"dimensions": [3, 3], "boundary": "open"},
+                    terms=terms,
+                    dtype="complex64",
+                    bond_dim=2,
+                    boundary_bond_dim=4,
+                    contraction_method="boundary-mps",
+                    dt=0.01,
+                    steps=1,
+                )
+                result = run_peps(cp, payload)
+                self.assertEqual(result["contraction_method"], "boundary-mps")
+                self.assertEqual(len(result["boundary_diagnostics"]["rows"]), 3)
+                self.assertTrue(np.isfinite(result["energies"][-1]))
+                self.assertTrue(np.isfinite(result["norm2"]))
+                self.assertFalse(result["resource_estimate"].get("materializes_statevector", False))
 
 
 if __name__ == "__main__":

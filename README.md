@@ -1,4 +1,4 @@
-# Quantum Circuit Desktop 0.6.0
+# Quantum Circuit Desktop 0.7.0-alpha.1
 
 This repo is a monorepo for a local-first quantum circuit and tensor-network
 research workbench. The deliverable is a Tauri desktop application; the React
@@ -14,6 +14,7 @@ surface is embedded in that shell and the Python/CUDA agent owns numerical work:
 - Master plan: [`docs/PLAN.md`](docs/PLAN.md)
 - Compute architecture and staged research roadmap: [`docs/COMPUTE_ARCHITECTURE.md`](docs/COMPUTE_ARCHITECTURE.md)
 - Active research-grade execution plan: [`docs/RESEARCH_GRADE_EXECUTION_PLAN.md`](docs/RESEARCH_GRADE_EXECUTION_PLAN.md)
+- v0.7.0-alpha.1 release notes: [`docs/RELEASE_NOTES_v0.7.0-alpha.1.md`](docs/RELEASE_NOTES_v0.7.0-alpha.1.md)
 - v0.6.0 release notes: [`docs/RELEASE_NOTES_v0.6.0.md`](docs/RELEASE_NOTES_v0.6.0.md)
 - Module breakdown: [`docs/modules/README.md`](docs/modules/README.md)
 

@@ -421,6 +421,13 @@ button:disabled {
   white-space: nowrap;
 }
 
+.qc-diagnostics-limitations {
+  margin: 14px 0 0;
+  color: var(--qc-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .qc-diagnostics-good { color: var(--qc-success); background: #ecfdf5; }
 .qc-diagnostics-warn { color: var(--qc-warning); background: #fffbeb; }
 

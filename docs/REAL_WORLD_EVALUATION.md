@@ -31,6 +31,26 @@ The same UI study for TEBD returned `E=-2.99900469 → -2.99971583` when `dt` wa
 
 For a 2×2 PEPS smoke study, the UI compared `χ=2`, `χ=4` and `χ=4, dt/2`; it returned energy spread `2.22e-3`, maximum discarded weight `1.66e-5` and norm drift `2.99e-4`, therefore also `Needs review`. This confirms that the bounded PEPS path is usable for exploration while still exposing non-convergence.
 
+## Phase 2 finite-2D boundary-MPS slice
+
+The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices
+with physical bond `D=2`, environment `χ=4`, one second-order evolution step,
+and `complex64` tensors. It contracts rows through the PEPS environment without
+materializing a `2**9` statevector:
+
+| Model | Energy | Norm² | Physical discarded weight | Boundary discarded weight | Environment |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 2D Ising, `h=0.3` | `-12.0000 → -11.9996731` | `0.9999762` | `2.46e-5` | `1.57e-18` | `χ=4`, 3 rows |
+| 2D Heisenberg, `h=0.3` | `9.3000 → 9.2970641` | `0.9997075` | `1.79e-4` | `2.03e-8` | `χ=4`, 3 rows |
+
+These are useful bounded exploratory runs, not converged 2D ground-state
+claims. The separate physical truncation and boundary-environment truncation
+figures show why the Heisenberg point requires a larger physical bond and
+additional convergence studies. On 3×3 random PEPS tensors, `χ=16` matched
+both the opt_einsum double-layer path and the independent virtual-bond
+enumeration reference within `1e-3`; `χ=1` reported nonzero environment
+discarded weight and a larger reference error.
+
 ## Practical positioning
 
 ### Quvonchli ishlaydigan yo‘nalishlar
@@ -63,4 +83,4 @@ growth, cumulative discarded-weight history, and a structured truncation
 diagnostic. This keeps timestep and bond-dimension convergence inspectable in
 the exported/replayed result rather than leaving it as a UI-only heuristic.
 
-The current product therefore has real utility in narrow but meaningful research workflows. The current build now persists replayable local history, point-level backend `Run/RunArtifact` records and aggregate `Study` manifests, while the frontend exposes diagnostics, bounded physics convergence studies and A/B comparison. The PEPS production path now scales past the old 16-site statevector limit, subject to double-layer boundary width and GPU preflight; CTMRG/boundary-MPS environments, resumable server-side campaigns, and production-grade large-3D methods remain separate next-stage work.
+The current product therefore has real utility in narrow but meaningful research workflows. The current build now persists replayable local history, point-level backend `Run/RunArtifact` records and aggregate `Study` manifests, while the frontend exposes diagnostics, bounded physics convergence studies and A/B comparison. The PEPS path now scales past the old 16-site statevector limit, subject to double-layer boundary width and GPU preflight; CTMRG, high-entanglement full-update methods, resumable multi-step campaigns, and production-grade large-3D methods remain separate next-stage work.

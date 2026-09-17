@@ -64,6 +64,9 @@ export type AgentResult = {
   bond_dim_requested?: number;
   bond_dim_used?: number;
   bond_dim_history?: number[];
+  boundary_bond_dim_requested?: number;
+  boundary_bond_dim_used?: number;
+  boundary_diagnostics?: JsonObject | null;
   bond_growth?: number;
   truncation_cutoff?: number;
   discarded_weight?: number;

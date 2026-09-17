@@ -36,10 +36,27 @@ export function ConvergenceDiagnostics({ result }: { result: AgentResult }) {
   const final = trajectory[trajectory.length - 1];
   const energyDrift = Math.abs(final - initial);
   const norm = Number(result.norm2);
+  const isBoundaryMps = result.backend?.toString().includes("boundary-mps");
+  const boundaryDiagnostics = result.boundary_diagnostics && typeof result.boundary_diagnostics === "object"
+    ? result.boundary_diagnostics as Record<string, unknown>
+    : null;
+  const researchResult = result.research_result && typeof result.research_result === "object"
+    ? result.research_result as Record<string, unknown>
+    : null;
+  const researchTruncation = researchResult?.truncation && typeof researchResult.truncation === "object"
+    ? researchResult.truncation as Record<string, unknown>
+    : null;
+  const rawLimitations = researchResult?.limitations ?? result.limitations;
+  const limitations = Array.isArray(rawLimitations) ? rawLimitations.map(String) : [];
   const reportedNormDrift = Number(result.norm_drift);
   const normDrift = Number.isFinite(reportedNormDrift) ? reportedNormDrift : Math.abs(norm - 1);
   const bondGrowth = Number(result.bond_growth);
-  const discarded = Number(result.discarded_weight);
-  const stable = energyDrift < 1e-4 && normDrift < 1e-4;
-  return <Card className="qc-diagnostics-card"><div className="qc-diagnostics-header"><div><strong>{result.backend?.toString().includes("peps") ? "PEPS trajectory" : "TEBD convergence"}</strong><p>Energy trajectory and approximation diagnostics for the selected time step.</p></div><span className={`qc-diagnostics-badge ${stable ? "qc-diagnostics-good" : "qc-diagnostics-warn"}`}>{stable ? "Stable" : "Inspect convergence"}</span></div><MetricGrid><Metric label="Points" value={trajectory.length} /><Metric label="Energy drift" value={energyDrift.toExponential(2)} tone={energyDrift > 1e-3 ? "warning" : "success"} /><Metric label="Norm²" value={Number.isFinite(norm) ? norm.toFixed(8) : "—"} tone={normDrift > 1e-4 ? "warning" : "success"} /><Metric label="Norm drift" value={Number.isFinite(normDrift) ? normDrift.toExponential(2) : "—"} tone={normDrift > 1e-4 ? "warning" : "success"} /><Metric label="Bond dimension" value={`${result.bond_dim_used ?? "—"}/${result.bond_dim_requested ?? "—"}`} /><Metric label="Bond growth" value={Number.isFinite(bondGrowth) ? `+${bondGrowth}` : "—"} /><Metric label="Discarded weight" value={Number.isFinite(discarded) ? discarded.toExponential(2) : "—"} tone={discarded > 1e-8 ? "warning" : "success"} /><Metric label="dt" value={result.dt != null ? Number(result.dt).toString() : "—"} /></MetricGrid><LineChart values={trajectory} label="Energy over evolution points" color="#2563eb" /></Card>;
+  const discarded = Number(isBoundaryMps
+    ? researchTruncation?.discarded_weight ?? boundaryDiagnostics?.discarded_weight
+    : result.discarded_weight);
+  const environmentUsed = Number(boundaryDiagnostics?.boundary_bond_dim_used ?? result.boundary_bond_dim_used);
+  const environmentRequested = Number(boundaryDiagnostics?.boundary_bond_dim_requested ?? result.boundary_bond_dim_requested);
+  const boundaryConverged = boundaryDiagnostics?.converged !== false;
+  const stable = energyDrift < 1e-4 && normDrift < 1e-4 && boundaryConverged;
+  return <Card className="qc-diagnostics-card"><div className="qc-diagnostics-header"><div><strong>{result.backend?.toString().includes("peps") ? "PEPS trajectory" : "TEBD convergence"}</strong><p>Energy trajectory and approximation diagnostics for the selected time step.</p></div><span className={`qc-diagnostics-badge ${stable ? "qc-diagnostics-good" : "qc-diagnostics-warn"}`}>{stable ? "Stable" : "Inspect convergence"}</span></div><MetricGrid><Metric label="Points" value={trajectory.length} /><Metric label="Energy drift" value={energyDrift.toExponential(2)} tone={energyDrift > 1e-3 ? "warning" : "success"} /><Metric label="Norm²" value={Number.isFinite(norm) ? norm.toFixed(8) : "—"} tone={normDrift > 1e-4 ? "warning" : "success"} /><Metric label="Norm drift" value={Number.isFinite(normDrift) ? normDrift.toExponential(2) : "—"} tone={normDrift > 1e-4 ? "warning" : "success"} /><Metric label="Bond dimension" value={`${result.bond_dim_used ?? "—"}/${result.bond_dim_requested ?? "—"}`} /><Metric label={isBoundaryMps ? "Environment χ" : "Bond growth"} value={isBoundaryMps ? `${Number.isFinite(environmentUsed) ? environmentUsed : "—"}/${Number.isFinite(environmentRequested) ? environmentRequested : "—"}` : Number.isFinite(bondGrowth) ? `+${bondGrowth}` : "—"} /><Metric label="Discarded weight" value={Number.isFinite(discarded) ? discarded.toExponential(2) : "—"} tone={discarded > 1e-8 ? "warning" : "success"} /><Metric label="dt" value={result.dt != null ? Number(result.dt).toString() : "—"} /></MetricGrid>{limitations.length ? <p className="qc-diagnostics-limitations"><strong>Declared limits:</strong> {limitations.join(" · ")}</p> : null}<LineChart values={trajectory} label="Energy over evolution points" color="#2563eb" /></Card>;
 }

@@ -94,6 +94,13 @@ it uses an opt_einsum boundary contraction when available and a bounded
 virtual-bond enumeration fallback, rejecting requests that exceed the
 contraction budget. The larger 2D/3D path remains a snake-ordered MPS, so its
 bond-dimension and time-step convergence must still be checked.
+When `contraction_method=boundary-mps`, only open rectangular 2D is admitted.
+The environment bond dimension is `boundary_bond_dim`; results report per-row
+environment growth, cumulative boundary discarded weight, request fingerprint,
+and checkpoint manifest. `boundary_checkpoint_path` and
+`boundary_resume_from` opt into atomic row-boundary checkpoints. The checkpoint
+format is separate from physical MPS checkpoints because fused PEPS virtual
+legs do not have physical dimension two.
 
 ## Tensor-network execution modes
 

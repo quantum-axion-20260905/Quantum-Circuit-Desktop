@@ -1,12 +1,13 @@
 # Research-grade execution plan
 
-Status: Phase 1 acceptance gate passed locally; validated `v0.6.0` release
-candidate is ready for final tag and push.
+Status: Phase 2 is active; its first boundary-MPS contract slice is implemented
+and validated in `v0.7.0-alpha.1`, while the `v0.7.0` acceptance gate remains
+open.
 
-Current active slice: **Phase 1, 1D MPS/DMRG/TEBD 1.0**. The convention,
-observable-reference, DMRG stopping-classification, convergence-study helper,
-checkpoint/resume-cancellation, and acceptance-gate items are complete. The
-current action is final diff review before tagging and pushing the release.
+Current active slice: **Phase 2, finite 2D boundary-MPS 1.0**. Phase 1 is
+complete and released as `v0.6.0`. The current boundary-MPS slice covers the
+separate environment checkpoint format, 3×3 exact-reference coverage, `χ`
+convergence evidence, and the frontend environment-dimension study wiring.
 
 This is the operational plan for turning Quantum Circuit Desktop into a
 reliable tensor-network research workbench. It is intentionally narrower than
@@ -180,8 +181,10 @@ Release target: `v0.6.0` (1D research-ready, not universal).
 
 ### Phase 2 — finite 2D boundary-MPS 1.0
 
-Status: implementation exists but remains experimental. Do not label it
-production-ready until this gate is complete.
+Status: in progress. The implementation remains experimental until the full
+acceptance gate is complete. The first contract slice is now done: boundary
+environment checkpoints are versioned separately from physical MPS
+checkpoints, 3×3 exact comparisons pass, and the UI studies environment `χ`.
 
 Scope:
 
@@ -192,6 +195,33 @@ Scope:
 - explicit boundary checkpoint/resume;
 - exact small-lattice comparisons and an independent contraction path;
 - clear rejection for periodic, 3D, and unsupported geometry.
+
+Implementation order:
+
+1. **Done:** isolate the boundary-MPS environment representation and preserve
+   its arbitrary fused physical dimensions in a dedicated atomic checkpoint
+   format.
+2. **Done:** validate 2×2 and 3×3 open rectangular contractions against the
+   independent opt_einsum double-layer path, including local observables.
+3. **Done:** expose per-row environment bond usage, cumulative boundary
+   discarded weight, request fingerprints, and resume/cancellation semantics.
+4. **Done:** make the frontend finite-2D study vary environment `χ_env` and
+   show boundary truncation in the shared diagnostics surface.
+5. **Done:** added an independent finite-2D enumeration/reference path and
+   reproducible bounded 3×3 Ising/Heisenberg GPU studies. The Phase 2 gate
+   remains open for replayable local-observable evidence and final audit.
+
+Latest Phase 2 evidence:
+
+- focused backend physics suite: 28 tests passed;
+- real CUDA agreement/smoke suite: 5 tests passed, including bounded 3×3
+  Ising and Heisenberg runs without dense statevector materialization;
+- full agent suite: 78 tests passed, plus Python compile and frontend lint/build;
+- 3×3 `χ_env=16` boundary-MPS agrees with both opt_einsum and exact
+  enumeration within the test tolerance, while `χ_env=1` reports nonzero
+  boundary truncation;
+- cancellation/resume now restores the boundary environment for a local
+  observable checkpoint, with request fingerprint and per-row diagnostics.
 
 Acceptance gate:
 
@@ -312,14 +342,13 @@ and export a bounded research calculation.
 
 The only active implementation phase should be:
 
-1. Phase 1: 1D MPS/DMRG/TEBD 1.0.
-2. Phase 2: finish boundary-MPS.
-3. Phase 3: close the spin-lattice vertical slice.
-4. Phase 4: CTMRG/iPEPS.
-5. Phase 5: symmetry/high entanglement.
-6. Phase 6: bounded 3D.
-7. Phase 7: fermionic materials/chemistry.
-8. Phase 8: desktop release hardening.
+1. Phase 2: finish finite 2D boundary-MPS.
+2. Phase 3: close the spin-lattice vertical slice.
+3. Phase 4: CTMRG/iPEPS.
+4. Phase 5: symmetry/high entanglement.
+5. Phase 6: bounded 3D.
+6. Phase 7: fermionic materials/chemistry.
+7. Phase 8: desktop release hardening.
 
 Frontend work continues only when it exposes an already-supported backend
 capability, improves diagnostics, or closes an acceptance gate. It must not
@@ -365,9 +394,9 @@ When this document is used as the goal-mode brief, the agent should:
 9. If blocked, record the exact failing contract, test, or environment
    dependency here instead of opening an unrelated backend.
 
-The Phase 1 goal is complete once this validated diff is tagged and pushed as
-`v0.6.0`. A later goal-mode task may then start Phase 2; do not mix the two
-phases in one release.
+The current goal-mode task is therefore: **continue Phase 2 from the next
+incomplete item, add independent finite-2D/reference evidence, and do not
+start Phase 3 or CTMRG until the Phase 2 acceptance gate passes.**
 
 ## 7. Progress accounting
 

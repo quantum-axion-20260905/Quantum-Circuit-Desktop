@@ -20,6 +20,7 @@ from .contracts import CHECKPOINT_SCHEMA, CheckpointManifest
 
 
 _TENSOR_NAME = re.compile(r"tensor_(\d+)$")
+_BOUNDARY_TENSOR_NAME = re.compile(r"boundary_tensor_(\d+)$")
 
 
 def _to_host(value: Any) -> np.ndarray:
@@ -107,5 +108,102 @@ def load_mps_checkpoint(
             raise ValueError("checkpoint tensor entries are incomplete or non-contiguous")
         host_tensors = [archive[name] for _, name in tensor_entries]
         _validate_tensors(host_tensors)
+        tensors = [xp.asarray(tensor) for tensor in host_tensors]
+    return manifest, tensors
+
+
+def _validate_boundary_tensors(tensors: list[Any]) -> None:
+    """Validate a finite boundary-MPS with an arbitrary fused physical size."""
+    if not tensors:
+        raise ValueError("a boundary-MPS checkpoint needs at least one tensor")
+    for index, tensor in enumerate(tensors):
+        if getattr(tensor, "ndim", None) != 3:
+            raise ValueError(f"boundary_tensor_{index} must have shape (left, physical, right)")
+        if any(int(size) <= 0 for size in tensor.shape):
+            raise ValueError(f"boundary_tensor_{index} dimensions must be positive")
+        if index and int(tensors[index - 1].shape[2]) != int(tensor.shape[0]):
+            raise ValueError(f"boundary-MPS bond mismatch between tensors {index - 1} and {index}")
+    if int(tensors[0].shape[0]) != 1 or int(tensors[-1].shape[2]) != 1:
+        raise ValueError("boundary-MPS checkpoints must have open boundary bond dimension one")
+
+
+def save_boundary_mps_checkpoint(
+    path: str | os.PathLike[str],
+    tensors: list[Any],
+    manifest: CheckpointManifest,
+) -> dict[str, Any]:
+    """Atomically persist a boundary-MPS environment checkpoint.
+
+    Boundary physical legs are fused PEPS virtual bra/ket indices and therefore
+    are not restricted to the physical dimension two used by finite MPS
+    checkpoints.  Keeping this format separate prevents a future solver from
+    accidentally interpreting an environment as a physical MPS state.
+    """
+    _validate_boundary_tensors(tensors)
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    manifest_dict = manifest.to_dict()
+    metadata = dict(manifest_dict.get("metadata", {}))
+    metadata.setdefault("tensor_count", len(tensors))
+    metadata.setdefault("representation", "boundary-mps")
+    manifest_dict["metadata"] = metadata
+    arrays = {
+        f"boundary_tensor_{index}": _to_host(tensor)
+        for index, tensor in enumerate(tensors)
+    }
+
+    temporary_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", dir=target.parent, prefix=f".{target.name}.", suffix=".tmp", delete=False
+        ) as handle:
+            temporary_path = handle.name
+            np.savez_compressed(
+                handle,
+                manifest=np.asarray(json.dumps(manifest_dict, sort_keys=True)),
+                **arrays,
+            )
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, target)
+    except Exception:
+        if temporary_path:
+            try:
+                os.unlink(temporary_path)
+            except FileNotFoundError:
+                pass
+        raise
+    return manifest_dict
+
+
+def load_boundary_mps_checkpoint(
+    path: str | os.PathLike[str],
+    xp: Any = np,
+) -> tuple[dict[str, Any], list[Any]]:
+    """Load and validate a boundary-MPS environment checkpoint."""
+    source = Path(path)
+    with np.load(source, allow_pickle=False) as archive:
+        if "manifest" not in archive.files:
+            raise ValueError("boundary-MPS checkpoint is missing its manifest")
+        raw_manifest = archive["manifest"].item()
+        manifest = json.loads(str(raw_manifest))
+        if manifest.get("schema") != CHECKPOINT_SCHEMA:
+            raise ValueError("unsupported checkpoint schema")
+        if manifest.get("method") != "finite-boundary-mps":
+            raise ValueError("checkpoint method is not finite-boundary-mps")
+        if manifest.get("representation") != "boundary-mps":
+            raise ValueError("checkpoint representation is not boundary-mps")
+        if not manifest.get("resumable", False):
+            raise ValueError("checkpoint is marked non-resumable")
+        tensor_entries: list[tuple[int, str]] = []
+        for name in archive.files:
+            match = _BOUNDARY_TENSOR_NAME.fullmatch(name)
+            if match:
+                tensor_entries.append((int(match.group(1)), name))
+        tensor_entries.sort()
+        if not tensor_entries or [index for index, _ in tensor_entries] != list(range(len(tensor_entries))):
+            raise ValueError("boundary-MPS checkpoint tensor entries are incomplete or non-contiguous")
+        host_tensors = [archive[name] for _, name in tensor_entries]
+        _validate_boundary_tensors(host_tensors)
         tensors = [xp.asarray(tensor) for tensor in host_tensors]
     return manifest, tensors

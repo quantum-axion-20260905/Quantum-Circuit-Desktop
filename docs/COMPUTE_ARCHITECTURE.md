@@ -344,7 +344,7 @@ tensor arithmetic, admission, execution, provenance, and persistence.
 | VUMPS | interface registered, solver planned | uniform-MPS ground states and transfer-matrix benchmarks |
 | Finite PEPS simple update | usable for bounded 2D/3D exploration | compare with boundary-MPS/full update |
 | PEPS double-layer contraction | implemented for bounded width | environment-aware contraction path |
-| Finite boundary-MPS | experimental for open 2D | 2D convergence and exact small references |
+| Finite boundary-MPS | in progress for open 2D | replayable observables and final 2D gate |
 | CTMRG/iPEPS | planned | Ising/Heisenberg phase benchmarks |
 | Full-update PEPS | planned | energy/gradient convergence evidence |
 | 3D approximate contraction | planned | HOTRG/boundary-width benchmark suite |
@@ -438,6 +438,12 @@ creating a second tensor runtime.
 - environment bond dimension and truncation are reported;
 - 2D benchmark table is reproducible;
 - frontend shows method and convergence evidence without solver-specific code.
+
+Current progress: the first three implementation bullets and the frontend
+environment-`χ` wiring are implemented and covered by 2×2/3×3 reference tests,
+CPU/GPU smoke tests, and row-boundary checkpoint/resume tests. The independent
+finite-2D reference path and reproducible Ising/Heisenberg study are still
+required before M2 is called complete.
 
 ### M3 — thermodynamic 2D/high entanglement
 

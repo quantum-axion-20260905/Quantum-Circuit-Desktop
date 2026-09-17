@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 import numpy as np
 
 from qc_agent.core.mps_runtime import MPSRuntime
+from qc_agent.core.boundary_mps import contract_boundary_mps
 from qc_agent.core.peps import PEPSRuntime
 from qc_agent.core.ground_state import exact_ground_state
 from qc_agent.core.dmrg import run_dmrg
@@ -317,6 +318,119 @@ class PhysicsPluginTests(unittest.TestCase):
             places=5,
         )
         self.assertGreater(boundary.boundary_summary["boundary_bond_dim_used"], 1)
+
+    def test_boundary_mps_3x3_matches_exact_reference_and_reports_rows(self):
+        boundary_payload = PEPSPayload(
+            n_qubits=9,
+            lattice={"dimensions": [3, 3]},
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            bond_dim=2,
+            contraction_method="boundary-mps",
+            boundary_bond_dim=16,
+        )
+        exact_payload = boundary_payload.model_copy(update={"contraction_method": "opt_einsum"})
+        enumerated_payload = boundary_payload.model_copy(update={"contraction_method": "enumeration"})
+        boundary = PEPSRuntime(np, boundary_payload)
+        exact = PEPSRuntime(np, exact_payload)
+        enumerated = PEPSRuntime(np, enumerated_payload)
+        rng = np.random.default_rng(107)
+        tensors = [
+            (0.2 * (rng.normal(size=(2, *([2] * len(edge_ids)))
+                    ) + 1j * rng.normal(size=(2, *([2] * len(edge_ids)))))).astype(np.complex64)
+            for edge_ids in boundary.site_edges
+        ]
+        boundary.tensors = tensors
+        exact.tensors = [tensor.copy() for tensor in tensors]
+        enumerated.tensors = [tensor.copy() for tensor in tensors]
+        actual = boundary._contract_double_layer({0: "Z", 4: "X", 8: "Z"})
+        expected = exact._contract_double_layer({0: "Z", 4: "X", 8: "Z"})
+        independent_reference = enumerated._contract_double_layer({0: "Z", 4: "X", 8: "Z"})
+        self.assertLess(abs(actual - expected), 1e-3)
+        self.assertLess(abs(actual - independent_reference), 1e-3)
+        self.assertEqual(len(boundary.boundary_summary["rows"]), 3)
+        self.assertEqual(boundary.boundary_summary["rows_completed"], 3)
+        self.assertEqual(boundary.boundary_summary["discarded_weight"], 0.0)
+        self.assertTrue(boundary.boundary_summary["converged"])
+
+    def test_boundary_mps_chi_study_reports_truncation_and_convergence(self):
+        low_payload = PEPSPayload(
+            n_qubits=9,
+            lattice={"dimensions": [3, 3]},
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            bond_dim=2,
+            contraction_method="boundary-mps",
+            boundary_bond_dim=1,
+        )
+        high_payload = low_payload.model_copy(update={"boundary_bond_dim": 16})
+        exact_payload = low_payload.model_copy(update={"contraction_method": "opt_einsum"})
+        rng = np.random.default_rng(109)
+        reference_runtime = PEPSRuntime(np, exact_payload)
+        tensors = [
+            (0.2 * (rng.normal(size=(2, *([2] * len(edge_ids)))
+                    ) + 1j * rng.normal(size=(2, *([2] * len(edge_ids)))))).astype(np.complex64)
+            for edge_ids in reference_runtime.site_edges
+        ]
+        reference_runtime.tensors = [tensor.copy() for tensor in tensors]
+        reference = reference_runtime._contract_double_layer({0: "Z", 8: "X"})
+        low_runtime = PEPSRuntime(np, low_payload)
+        high_runtime = PEPSRuntime(np, high_payload)
+        low_runtime.tensors = [tensor.copy() for tensor in tensors]
+        high_runtime.tensors = [tensor.copy() for tensor in tensors]
+        low = low_runtime._contract_double_layer({0: "Z", 8: "X"})
+        high = high_runtime._contract_double_layer({0: "Z", 8: "X"})
+        self.assertGreater(low_runtime.boundary_summary["discarded_weight"], 0.0)
+        self.assertEqual(high_runtime.boundary_summary["discarded_weight"], 0.0)
+        self.assertLess(abs(high - reference), abs(low - reference))
+        self.assertEqual([row["row"] for row in high_runtime.boundary_summary["rows"]], [1, 2, 3])
+
+    def test_boundary_mps_checkpoint_resume_restores_environment(self):
+        payload = PEPSPayload(
+            n_qubits=9,
+            lattice={"dimensions": [3, 3]},
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            bond_dim=2,
+            contraction_method="boundary-mps",
+            boundary_bond_dim=4,
+        )
+        source = PEPSRuntime(np, payload)
+        rng = np.random.default_rng(113)
+        tensors = [
+            (0.2 * (rng.normal(size=(2, *([2] * len(edge_ids)))
+                    ) + 1j * rng.normal(size=(2, *([2] * len(edge_ids)))))).astype(np.complex64)
+            for edge_ids in source.site_edges
+        ]
+        source.tensors = [tensor.copy() for tensor in tensors]
+        calls = 0
+
+        def cancel():
+            nonlocal calls
+            calls += 1
+            return calls >= 2
+
+        with TemporaryDirectory() as directory:
+            checkpoint_path = f"{directory}/boundary-state.npz"
+            with self.assertRaisesRegex(RuntimeError, "job canceled"):
+                contract_boundary_mps(
+                    source,
+                    {0: "Z", 8: "X"},
+                    max_bond_dim=4,
+                    checkpoint_path=checkpoint_path,
+                    cancel_cb=cancel,
+                )
+            resumed_payload = payload.model_copy(update={
+                "boundary_resume_from": checkpoint_path,
+                "boundary_checkpoint_path": checkpoint_path,
+            })
+            resumed = PEPSRuntime(np, resumed_payload)
+            resumed.tensors = [tensor.copy() for tensor in tensors]
+            resumed_value = resumed._contract_double_layer({0: "Z", 8: "X"})
+            full = PEPSRuntime(np, payload)
+            full.tensors = [tensor.copy() for tensor in tensors]
+            full_value = full._contract_double_layer({0: "Z", 8: "X"})
+            self.assertAlmostEqual(resumed_value, full_value, places=4)
+            self.assertEqual(resumed.boundary_summary["start_row"], 1)
+            self.assertEqual(resumed.boundary_summary["rows_completed"], 3)
+            self.assertEqual(resumed.boundary_summary["checkpoint"]["step"], 3)
 
     def test_boundary_mps_reports_environment_truncation(self):
         payload = PEPSPayload(

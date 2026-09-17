@@ -8,7 +8,17 @@ controlled approximation from the exact opt_einsum path.
 
 from __future__ import annotations
 
+import hashlib
+import json
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
+
+from .checkpoints import (
+    load_boundary_mps_checkpoint,
+    save_boundary_mps_checkpoint,
+)
+from .contracts import CheckpointManifest
 
 
 def _host(value: Any) -> Any:
@@ -16,6 +26,40 @@ def _host(value: Any) -> Any:
         return value.get()
     except AttributeError:
         return value
+
+
+def _normalized_paulis(paulis: dict[int, str] | None) -> list[list[Any]]:
+    return [[int(index), str(value).upper()] for index, value in sorted((paulis or {}).items())]
+
+
+def checkpoint_path_for_operator(path: str, paulis: dict[int, str] | None) -> str:
+    """Derive a stable per-observable checkpoint path from a user base path."""
+    operator_digest = hashlib.sha256(
+        json.dumps(_normalized_paulis(paulis), separators=(",", ":")).encode("utf-8")
+    ).hexdigest()[:12]
+    target = Path(path)
+    if target.suffix:
+        return str(target.with_name(f"{target.stem}.{operator_digest}{target.suffix}"))
+    return str(target.with_name(f"{target.name}.{operator_digest}.npz"))
+
+
+def _problem_sha256(runtime: Any, paulis: dict[int, str] | None, max_bond_dim: int, cutoff: float) -> str:
+    """Fingerprint the PEPS state and boundary contraction controls."""
+    digest = hashlib.sha256()
+    metadata = {
+        "dimensions": list(runtime.payload.lattice.dimensions),
+        "boundary": runtime.payload.lattice.boundary,
+        "dtype": runtime.payload.dtype,
+        "paulis": _normalized_paulis(paulis),
+        "max_bond_dim": int(max_bond_dim),
+        "cutoff": float(cutoff),
+    }
+    digest.update(json.dumps(metadata, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+    for tensor in runtime.tensors:
+        host = _host(tensor)
+        digest.update(str(tuple(int(size) for size in host.shape)).encode("ascii"))
+        digest.update(host.tobytes(order="C"))
+    return digest.hexdigest()
 
 
 def _directions(runtime: Any) -> dict[tuple[int, str], int]:
@@ -147,6 +191,9 @@ def contract_boundary_mps(
     *,
     max_bond_dim: int,
     cutoff: float = 0.0,
+    checkpoint_path: str | None = None,
+    resume_from: str | None = None,
+    cancel_cb: Any = None,
 ) -> tuple[float, dict[str, Any]]:
     """Contract one PEPS observable and return value plus sweep diagnostics."""
     if int(max_bond_dim) < 1:
@@ -155,11 +202,35 @@ def contract_boundary_mps(
     nx, ny = (int(value) for value in runtime.payload.lattice.dimensions)
     dtype = runtime.tensors[0].dtype
     boundary = [runtime.xp.ones((1, 1, 1), dtype=dtype) for _ in range(nx)]
+    requested = paulis or {}
+    problem_sha256 = _problem_sha256(runtime, requested, max_bond_dim, cutoff)
     discarded_total = 0.0
     max_used = 1
     sweep: list[dict[str, Any]] = []
-    requested = paulis or {}
-    for row in range(ny):
+    start_row = 0
+    checkpoint_info: dict[str, Any] = {}
+    if resume_from:
+        manifest, boundary = load_boundary_mps_checkpoint(resume_from, runtime.xp)
+        if manifest.get("request_sha256") != problem_sha256:
+            raise ValueError("boundary-MPS checkpoint does not match the PEPS/operator problem")
+        if manifest.get("dtype") != runtime.payload.dtype:
+            raise ValueError("boundary-MPS checkpoint dtype does not match the requested PEPS dtype")
+        metadata = manifest.get("metadata", {})
+        if list(metadata.get("dimensions", [])) != list(runtime.payload.lattice.dimensions):
+            raise ValueError("boundary-MPS checkpoint lattice dimensions do not match the request")
+        start_row = int(manifest.get("step", 0))
+        if start_row > ny:
+            raise ValueError("boundary-MPS checkpoint is ahead of the requested lattice rows")
+        raw_sweep = metadata.get("rows", [])
+        if not isinstance(raw_sweep, list):
+            raise ValueError("boundary-MPS checkpoint sweep diagnostics are invalid")
+        sweep = [dict(point) for point in raw_sweep]
+        discarded_total = float(metadata.get("discarded_weight", 0.0))
+        max_used = int(metadata.get("boundary_bond_dim_used", 1))
+        checkpoint_info = manifest
+    for row in range(start_row, ny):
+        if cancel_cb and cancel_cb():
+            raise RuntimeError("job canceled")
         row_mpo = _row_mpo(runtime, row, requested, directions)
         boundary = _apply_row_mpo(runtime.xp, boundary, row_mpo)
         boundary, discarded, used = _compress(
@@ -175,6 +246,30 @@ def contract_boundary_mps(
             "bond_dim_used": used,
             "discarded_weight": discarded_total,
         })
+        if checkpoint_path:
+            checkpoint_info = save_boundary_mps_checkpoint(
+                checkpoint_path,
+                boundary,
+                CheckpointManifest(
+                    checkpoint_id=f"boundary-mps-{problem_sha256[:12]}-row-{row + 1}",
+                    request_sha256=problem_sha256,
+                    method="finite-boundary-mps",
+                    representation="boundary-mps",
+                    dtype=runtime.payload.dtype,
+                    device="cuda" if hasattr(runtime.xp, "cuda") else "cpu",
+                    step=row + 1,
+                    created_at=datetime.now(timezone.utc).isoformat(),
+                    metadata={
+                        "dimensions": list(runtime.payload.lattice.dimensions),
+                        "paulis": _normalized_paulis(requested),
+                        "max_bond_dim": int(max_bond_dim),
+                        "cutoff": float(cutoff),
+                        "discarded_weight": float(discarded_total),
+                        "boundary_bond_dim_used": int(max_used),
+                        "rows": sweep,
+                    },
+                ),
+            )
     value = _sum_boundary(runtime.xp, boundary)
     return value, {
         "method": "boundary-mps",
@@ -182,5 +277,9 @@ def contract_boundary_mps(
         "boundary_bond_dim_used": int(max_used),
         "discarded_weight": float(discarded_total),
         "rows": sweep,
-        "converged": discarded_total <= float(cutoff) if cutoff > 0 else discarded_total == 0.0,
+        "rows_completed": len(sweep),
+        "start_row": start_row,
+        "request_sha256": problem_sha256,
+        "checkpoint": checkpoint_info,
+        "converged": discarded_total <= max(float(cutoff), 1e-12),
     }

@@ -37,6 +37,14 @@ function energyValue(result: Record<string, unknown> | undefined): number | null
 }
 
 function discardedValue(result: Record<string, unknown> | undefined): number | null {
+  const researchResult = result?.research_result;
+  if (researchResult && typeof researchResult === "object") {
+    const truncation = (researchResult as Record<string, unknown>).truncation;
+    if (truncation && typeof truncation === "object") {
+      const value = numberValue((truncation as Record<string, unknown>).discarded_weight);
+      if (value != null) return value;
+    }
+  }
   return numberValue(result?.discarded_weight);
 }
 

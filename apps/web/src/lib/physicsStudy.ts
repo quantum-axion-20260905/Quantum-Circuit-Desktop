@@ -14,6 +14,7 @@ export type PhysicsStudyConfig = {
   terms: PauliTerm[];
   lattice?: JsonObject;
   bondDim: number;
+  boundaryBondDim?: number;
   sweeps: number;
   steps: number;
   dt: number;
@@ -31,6 +32,13 @@ function boundedNumber(value: number, minimum: number, fallback: number): number
   return Number.isFinite(value) && Math.abs(value) >= minimum ? value : fallback;
 }
 
+function isOpen2DLattice(lattice: JsonObject | undefined): boolean {
+  const dimensions = lattice?.dimensions;
+  return Array.isArray(dimensions)
+    && dimensions.length === 2
+    && lattice?.boundary !== "periodic";
+}
+
 /**
  * Build a small, deterministic set of convergence points for the Physics Lab.
  * The helper owns all UI-side bounds so a new caller cannot accidentally turn
@@ -44,6 +52,9 @@ export function buildPhysicsStudyVariants(config: PhysicsStudyConfig): PhysicsSt
   const safeCutoff = Number.isFinite(config.truncationCutoff ?? 0) ? Math.max(0, config.truncationCutoff ?? 0) : 0;
   const pepsLowBond = Math.max(1, Math.min(2, Math.floor(Math.min(4, safeBond) / 2) || 1));
   const pepsHighBond = Math.min(4, Math.max(pepsLowBond + 1, Math.min(4, safeBond)));
+  const safeBoundaryBond = boundedInteger(config.boundaryBondDim ?? 16, 1, 64, 16);
+  const boundaryLowBond = Math.max(1, Math.floor(safeBoundaryBond / 2));
+  const boundaryHighBond = Math.max(boundaryLowBond, safeBoundaryBond);
   const common: JsonObject = {
     n_qubits: config.nQubits,
     terms: config.terms,
@@ -65,11 +76,20 @@ export function buildPhysicsStudyVariants(config: PhysicsStudyConfig): PhysicsSt
         { label: "Half time step", parameters: `dt=${safeDt / 2}, steps=${Math.min(64, safeSteps * 2)}, χ=${safeBond}`, payload: { ...common, ...lattice, backend: "tensor-network", dt: safeDt / 2, steps: Math.min(64, safeSteps * 2), order: 2, bond_dim: safeBond } },
         { label: "Half dt + higher bond", parameters: `dt=${safeDt / 2}, steps=${Math.min(64, safeSteps * 2)}, χ=${Math.min(64, safeBond * 2)}`, payload: { ...common, ...lattice, backend: "tensor-network", dt: safeDt / 2, steps: Math.min(64, safeSteps * 2), order: 2, bond_dim: Math.min(64, safeBond * 2) } },
       ]
-      : [
-        { label: "Lower PEPS bond", parameters: `dt=${safeDt}, steps=${safeSteps}, χ=${pepsLowBond}`, payload: { ...common, ...lattice, backend: "tensor-network", bond_dim: pepsLowBond, dt: safeDt, steps: safeSteps, order: 2, max_contraction_states: 1_000_000 } },
-        { label: "Higher PEPS bond", parameters: `dt=${safeDt}, steps=${safeSteps}, χ=${pepsHighBond}`, payload: { ...common, ...lattice, backend: "tensor-network", bond_dim: pepsHighBond, dt: safeDt, steps: safeSteps, order: 2, max_contraction_states: 1_000_000 } },
-        { label: "Half dt", parameters: `dt=${safeDt / 2}, steps=${Math.min(64, safeSteps * 2)}, χ=${pepsHighBond}`, payload: { ...common, ...lattice, backend: "tensor-network", bond_dim: pepsHighBond, dt: safeDt / 2, steps: Math.min(64, safeSteps * 2), order: 2, max_contraction_states: 1_000_000 } },
-      ];
+      : (() => {
+        if (isOpen2DLattice(config.lattice)) {
+          return [
+            { label: "Lower environment", parameters: `D=${pepsHighBond}, χ_env=${boundaryLowBond}`, payload: { ...common, ...lattice, backend: "tensor-network", bond_dim: pepsHighBond, boundary_bond_dim: boundaryLowBond, contraction_method: "boundary-mps", dt: safeDt, steps: safeSteps, order: 2, max_contraction_states: 1_000_000 } },
+            { label: "Higher environment", parameters: `D=${pepsHighBond}, χ_env=${boundaryHighBond}`, payload: { ...common, ...lattice, backend: "tensor-network", bond_dim: pepsHighBond, boundary_bond_dim: boundaryHighBond, contraction_method: "boundary-mps", dt: safeDt, steps: safeSteps, order: 2, max_contraction_states: 1_000_000 } },
+            { label: "Higher χ + half dt", parameters: `D=${pepsHighBond}, χ_env=${boundaryHighBond}, dt=${safeDt / 2}`, payload: { ...common, ...lattice, backend: "tensor-network", bond_dim: pepsHighBond, boundary_bond_dim: boundaryHighBond, contraction_method: "boundary-mps", dt: safeDt / 2, steps: Math.min(64, safeSteps * 2), order: 2, max_contraction_states: 1_000_000 } },
+          ];
+        }
+        return [
+          { label: "Lower PEPS bond", parameters: `dt=${safeDt}, steps=${safeSteps}, D=${pepsLowBond}`, payload: { ...common, ...lattice, backend: "tensor-network", bond_dim: pepsLowBond, dt: safeDt, steps: safeSteps, order: 2, max_contraction_states: 1_000_000 } },
+          { label: "Higher PEPS bond", parameters: `dt=${safeDt}, steps=${safeSteps}, D=${pepsHighBond}`, payload: { ...common, ...lattice, backend: "tensor-network", bond_dim: pepsHighBond, dt: safeDt, steps: safeSteps, order: 2, max_contraction_states: 1_000_000 } },
+          { label: "Half dt", parameters: `dt=${safeDt / 2}, steps=${Math.min(64, safeSteps * 2)}, D=${pepsHighBond}`, payload: { ...common, ...lattice, backend: "tensor-network", bond_dim: pepsHighBond, dt: safeDt / 2, steps: Math.min(64, safeSteps * 2), order: 2, max_contraction_states: 1_000_000 } },
+        ];
+      })();
   const requestedPoints = boundedInteger(config.maxPoints ?? MAX_PHYSICS_STUDY_POINTS, 1, MAX_PHYSICS_STUDY_POINTS, MAX_PHYSICS_STUDY_POINTS);
   return variants.slice(0, requestedPoints);
 }
