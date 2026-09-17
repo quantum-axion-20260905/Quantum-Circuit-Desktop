@@ -3,8 +3,9 @@
 Status: active execution plan for the `v0.5.x` line
 
 Current active slice: **Phase 1, 1D MPS/DMRG/TEBD 1.0**. The convention,
-observable-reference, and DMRG stopping-classification items are complete. The
-next item is a bounded convergence-study helper.
+observable-reference, DMRG stopping-classification, convergence-study helper,
+and checkpoint/resume-cancellation items are complete. The next item is the
+Phase 1 acceptance-gate audit.
 
 This is the operational plan for turning Quantum Circuit Desktop into a
 reliable tensor-network research workbench. It is intentionally narrower than
@@ -110,17 +111,27 @@ Implementation order:
    residual/variance. `converged` now requires energy delta, local solver
    residual, and variance when the variance is affordable; dtype-aware
    numerical floors prevent false rejection from `complex64` round-off.
-4. Add a bounded convergence-study helper for bond dimension, sweeps, cutoff,
-   and timestep. Persist every point as a replayable run.
-5. Add checkpoint/resume and cancellation tests. A resumed run must report the
-   parent checkpoint and produce equivalent results within declared tolerance.
-6. Add TDVP/VUMPS interfaces only after the finite MPS contracts are stable;
-   they should register as separate capabilities, not be mixed into DMRG.
+4. **Done:** add a bounded convergence-study helper for bond dimension, sweeps,
+   cutoff, and timestep. `apps/web/src/lib/physicsStudy.ts` owns the typed
+   three-point cap, safe numeric bounds, deterministic variants, and shared
+   truncation-cutoff payload.
+5. **Done:** add checkpoint/resume and cancellation tests. DMRG now checkpoints
+   atomically at completed sweep boundaries, validates method/dtype/problem
+   fingerprint on resume, and exposes the checkpoint manifest in the result.
+   Cancellation stops before returning a partial success.
+6. **Done:** add separate TDVP/VUMPS interfaces and capability registration.
+   `core/mps_methods.py` defines typed solver protocols, while the backend
+   registry exposes `mps-tdvp` and `mps-vumps` as distinct planned capabilities.
+   The capability API makes their unavailable status explicit and rejects them
+   without silently falling back to TEBD or DMRG.
+7. **Next:** audit every Phase 1 acceptance-gate item, fill any remaining
+   reference/GPU/TEBD/export coverage, then run the full gate before tagging
+   `v0.6.0`.
 
 Latest evidence for completed convention and observable-reference items:
 
 - focused MPS suite: 15 tests passed;
-- full agent suite: 63 tests passed;
+- full agent suite: 67 tests passed;
 - bounded CUDA smoke: 8 qubits on device 0, norm drift below `2e-6`, left and
   right isometry residuals below `1e-6`.
 - bounded CUDA observable cross-validation: 4 qubits, passed, maximum
@@ -128,6 +139,15 @@ Latest evidence for completed convention and observable-reference items:
 - bounded CUDA DMRG stopping smoke: 2-qubit Heisenberg passed with energy
   `-2.9999995`, variance `1.91e-6`, residual `4.14e-7`, and an effective
   `complex64` variance tolerance of `8.58e-6`.
+- frontend convergence helper: maximum three bounded serial points with
+  bond/sweep, timestep, and truncation-cutoff fields centralized; lint and
+  production build passed.
+- checkpoint/resume and cancellation: CPU equivalence/cancellation tests
+  passed; bounded CUDA 2→3 sweep resume passed with matching problem
+  fingerprint and norm² `1.00000024`.
+- algorithm capability catalog: `/capabilities` reports executable DMRG/TEBD
+  plus separate planned TDVP/VUMPS entries; unsupported-method rejection tests
+  confirm there is no silent solver substitution.
 
 Acceptance gate for Phase 1:
 
@@ -330,9 +350,9 @@ When this document is used as the goal-mode brief, the agent should:
 9. If blocked, record the exact failing contract, test, or environment
    dependency here instead of opening an unrelated backend.
 
-The next goal-mode task is therefore: **complete Phase 1, item 4 — add a
-bounded convergence-study helper for bond dimension, sweeps, cutoff, and
-timestep.**
+The next goal-mode task is therefore: **complete the Phase 1 acceptance-gate
+audit and close any remaining 1D reference, convergence, export, or replay
+evidence before the `v0.6.0` release decision.**
 
 ## 7. Progress accounting
 

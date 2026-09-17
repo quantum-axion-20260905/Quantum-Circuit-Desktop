@@ -2,8 +2,7 @@
 
 import React from "react";
 import { Button, Card, Metric, MetricGrid } from "../ui";
-
-export type PhysicsStudyMode = "dmrg" | "tebd" | "peps";
+import type { PhysicsStudyMode } from "../lib/physicsStudy";
 
 export type PhysicsStudyRow = {
   id: string;

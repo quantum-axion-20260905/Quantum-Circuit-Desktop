@@ -1,5 +1,6 @@
 import unittest
 import math
+from tempfile import TemporaryDirectory
 
 import numpy as np
 
@@ -141,6 +142,57 @@ class PhysicsPluginTests(unittest.TestCase):
         self.assertIn("energy variance did not reach the requested tolerance", result["warnings"])
         self.assertEqual(result["research_result"]["status"], "needs_review")
         self.assertIn("energy_variance", result["history"][-1])
+
+    def test_dmrg_checkpoint_resume_matches_a_fresh_bounded_run(self):
+        terms = [
+            *[PauliTerm(paulis={index: "Z"}, coefficient=0.2) for index in range(4)],
+            *[PauliTerm(paulis={index: "X", index + 1: "X"}, coefficient=0.7) for index in range(3)],
+        ]
+        common = {
+            "n_qubits": 4,
+            "terms": terms,
+            "bond_dim": 2,
+            "tolerance": 1e-12,
+            "residual_tolerance": 1e-5,
+            "variance_tolerance": 1e-12,
+            "lanczos_maxiter": 8,
+        }
+        with TemporaryDirectory() as directory:
+            checkpoint_path = f"{directory}/dmrg-state.npz"
+            partial = run_dmrg(np, DMRGPayload(**common, sweeps=2, checkpoint_path=checkpoint_path))
+            self.assertEqual(partial["checkpoint"]["schema"], "quantum-circuit/checkpoint-v1")
+            self.assertEqual(partial["checkpoint"]["step"], partial["sweeps_completed"])
+
+            resumed = run_dmrg(np, DMRGPayload(
+                **common,
+                sweeps=4,
+                resume_from=checkpoint_path,
+                checkpoint_path=checkpoint_path,
+            ))
+            fresh = run_dmrg(np, DMRGPayload(**common, sweeps=4))
+            self.assertEqual(resumed["sweeps_completed"], 4)
+            self.assertAlmostEqual(resumed["ground_energy"], fresh["ground_energy"], places=6)
+            self.assertEqual(
+                resumed["research_result"]["checkpoint"]["request_sha256"],
+                partial["research_result"]["checkpoint"]["request_sha256"],
+            )
+
+    def test_dmrg_cancellation_stops_before_returning_a_partial_success(self):
+        calls = 0
+
+        def cancel():
+            nonlocal calls
+            calls += 1
+            return calls >= 2
+
+        with self.assertRaisesRegex(RuntimeError, "job canceled"):
+            run_dmrg(np, DMRGPayload(
+                n_qubits=4,
+                terms=[PauliTerm(paulis={index: "Z"}, coefficient=0.5) for index in range(4)],
+                bond_dim=2,
+                sweeps=4,
+            ), cancel_cb=cancel)
+        self.assertGreaterEqual(calls, 2)
 
     def test_native_peps_evolves_a_two_dimensional_edge(self):
         payload = PEPSPayload(

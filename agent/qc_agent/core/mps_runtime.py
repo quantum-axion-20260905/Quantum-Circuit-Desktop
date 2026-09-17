@@ -159,10 +159,27 @@ class MPSRuntime:
         )
         return save_mps_checkpoint(path, self.tensors, runtime_manifest)
 
-    def restore_checkpoint(self, path: str) -> dict[str, Any]:
+    def restore_checkpoint(
+        self,
+        path: str,
+        *,
+        expected_method: str | None = None,
+        expected_dtype: str | None = None,
+        expected_request_sha256: str | None = None,
+    ) -> dict[str, Any]:
         manifest, tensors = load_mps_checkpoint(path, self.cp)
         if manifest.get("representation") != "mps":
             raise ValueError("checkpoint representation is not MPS")
+        if expected_method is not None and manifest.get("method") != expected_method:
+            raise ValueError(
+                f"checkpoint method {manifest.get('method')!r} does not match {expected_method!r}"
+            )
+        if expected_dtype is not None and manifest.get("dtype") != expected_dtype:
+            raise ValueError(
+                f"checkpoint dtype {manifest.get('dtype')!r} does not match {expected_dtype!r}"
+            )
+        if expected_request_sha256 is not None and manifest.get("request_sha256") != expected_request_sha256:
+            raise ValueError("checkpoint problem fingerprint does not match the requested payload")
         if len(tensors) != int(self.payload.n_qubits):
             raise ValueError("checkpoint qubit count does not match the requested payload")
         self.tensors = tensors

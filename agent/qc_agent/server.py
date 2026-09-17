@@ -45,7 +45,7 @@ from .core.dmrg import run_dmrg
 from .core.peps import run_peps
 from .plugins.tebd import run_tebd
 from .provenance import with_provenance
-from .backends.registry import catalog, resolve_run_backend
+from .backends.registry import catalog, method_catalog, resolve_run_backend
 
 add_cuda_dll_dirs()
 
@@ -331,11 +331,16 @@ def hardware() -> dict[str, Any]:
 def capabilities() -> dict[str, Any]:
     snapshot = _hardware_snapshot()
     gpu = snapshot.get("gpu", {})
+    methods = method_catalog(
+        gpu_available=bool(gpu.get("available")),
+        tensor_network_available=bool(gpu.get("available")),
+    )
     return {
         "backends": [item.__dict__ for item in catalog(
             gpu_available=bool(gpu.get("available")),
             tensor_network_available=bool(gpu.get("available")),
         )],
+        "methods": [item.__dict__ for item in methods],
         "gpu": gpu,
         "features": {
             "cross_backend_validation": bool(gpu.get("available") and oe is not None),
@@ -346,6 +351,8 @@ def capabilities() -> dict[str, Any]:
             "tebd": bool(gpu.get("available")),
             "dmrg": bool(gpu.get("available")),
             "peps": bool(gpu.get("available")),
+            "tdvp": any(item.method == "tdvp" and item.available for item in methods),
+            "vumps": any(item.method == "vumps" and item.available for item in methods),
             "lattice_dimensions": 3,
             "distributed_multi_gpu": int(gpu.get("count", 0) or 0) > 1,
             "unified_async_jobs": True,

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 from ..backends import mps as mps_backend
 from ..models import TNGate, TNPayload
 from ..plugins.models import DMRGPayload
-from .contracts import ConvergencePoint, ConvergenceReport, ResearchResult
+from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, ResearchResult
 from .mps_runtime import MPSRuntime, pauli_operator
 from .observables import mps_expectation_from_tensors
 
@@ -175,6 +178,26 @@ def _energy(xp: Any, tensors: list[Any], terms: list[Any]) -> float:
     return float(sum(term.coefficient * value for term, value in zip(terms, values)))
 
 
+def _dmrg_problem_sha256(payload: DMRGPayload) -> str:
+    """Fingerprint the resumable problem, excluding run-control settings."""
+
+    data = payload.model_dump(
+        mode="json",
+        exclude={
+            "sweeps",
+            "tolerance",
+            "residual_tolerance",
+            "variance_tolerance",
+            "max_time_ms",
+            "max_mem_mb",
+            "checkpoint_path",
+            "resume_from",
+        },
+    )
+    encoded = json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def run_dmrg(
     xp: Any,
     payload: DMRGPayload,
@@ -193,12 +216,14 @@ def run_dmrg(
         truncation_cutoff=payload.truncation_cutoff,
     )
     runtime = MPSRuntime(xp, base)
+    problem_sha256 = _dmrg_problem_sha256(payload)
     history: list[dict[str, Any]] = []
     previous_energy: float | None = None
     converged = False
     solver_iterations_total = 0
     solver_residual_max = 0.0
     current_sweep_solver_residual_max = 0.0
+    checkpoint_info: dict[str, Any] = {}
 
     def optimize(site: int, left_to_right: bool) -> None:
         nonlocal solver_iterations_total, solver_residual_max, current_sweep_solver_residual_max
@@ -265,6 +290,53 @@ def run_dmrg(
             default=1,
         )
 
+    start_sweep = 0
+    if payload.resume_from:
+        checkpoint_info = runtime.restore_checkpoint(
+            payload.resume_from,
+            expected_method="finite-two-site-dmrg",
+            expected_dtype=payload.dtype,
+            expected_request_sha256=problem_sha256,
+        )
+        metadata = checkpoint_info.get("metadata", {})
+        start_sweep = int(metadata.get("completed_sweeps", checkpoint_info.get("step", 0)))
+        if start_sweep > payload.sweeps:
+            raise ValueError(
+                f"checkpoint already contains {start_sweep} sweeps, but the requested run only allows {payload.sweeps}"
+            )
+        raw_history = metadata.get("history", [])
+        if not isinstance(raw_history, list):
+            raise ValueError("checkpoint history is invalid")
+        history = [dict(point) for point in raw_history]
+        previous_energy = metadata.get("previous_energy")
+        if previous_energy is not None:
+            previous_energy = float(previous_energy)
+        solver_iterations_total = int(metadata.get("solver_iterations_total", 0))
+
+    def save_sweep_checkpoint(sweep_number: int, energy: float) -> None:
+        nonlocal checkpoint_info
+        if not payload.checkpoint_path:
+            return
+        checkpoint_info = runtime.save_checkpoint(
+            payload.checkpoint_path,
+            CheckpointManifest(
+                checkpoint_id=f"dmrg-{problem_sha256[:12]}-sweep-{sweep_number}",
+                request_sha256=problem_sha256,
+                method="finite-two-site-dmrg",
+                representation="mps",
+                dtype=payload.dtype,
+                device="cuda" if hasattr(xp, "cuda") else "cpu",
+                step=sweep_number,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                metadata={
+                    "completed_sweeps": sweep_number,
+                    "previous_energy": float(energy),
+                    "solver_iterations_total": solver_iterations_total,
+                    "history": history,
+                },
+            ),
+        )
+
     coefficient_scale = max(1.0, sum(abs(float(term.coefficient)) for term in payload.terms))
     precision_epsilon = 1.1920928955078125e-7 if payload.dtype == "complex64" else 2.220446049250313e-16
     default_variance_tolerance = max(
@@ -278,7 +350,7 @@ def run_dmrg(
     last_residual_ok = False
     last_variance_ok: bool | None = None
 
-    for sweep in range(payload.sweeps):
+    for sweep in range(start_sweep, payload.sweeps):
         current_sweep_solver_residual_max = 0.0
         for site in range(payload.n_qubits - 1):
             optimize(site, True)
@@ -316,6 +388,7 @@ def run_dmrg(
         last_energy_ok = energy_ok
         last_residual_ok = residual_ok
         last_variance_ok = variance_ok
+        save_sweep_checkpoint(sweep + 1, energy)
         if energy_ok and residual_ok and (variance_ok is not False):
             converged = True
             break
@@ -383,6 +456,7 @@ def run_dmrg(
         truncation=runtime.truncation_report(),
         convergence=convergence,
         resources=runtime.estimate_resources(),
+        checkpoint=checkpoint_info,
         warnings=list(warnings),
         limitations=[
             "finite two-site DMRG is bounded by the selected MPS bond dimension",
@@ -422,6 +496,7 @@ def run_dmrg(
         "norm2": runtime.norm2(),
         "truncation_report": runtime.truncation_report().__dict__,
         "resource_estimate": runtime.estimate_resources(),
+        "checkpoint": checkpoint_info,
         "research_result": research_result,
         "approximate": True,
         "warnings": warnings,

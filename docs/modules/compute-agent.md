@@ -6,6 +6,7 @@ FastAPI service running locally. GPU/TN compute lives here.
 - Hardware detection + GPU smoke tests
 - Job API contract
 - Backend registry (MPS, exact tensor contraction, statevector, sampling, etc.)
+- Algorithm-level capability catalog for DMRG/TEBD and planned TDVP/VUMPS
 - Reproducibility metadata (seed, versions, device, SHA-256 fingerprints)
 - Resource budgets, current free-GPU-memory guard, and cancellation
 - Unified async execution envelope, cooperative cancellation, and GPU reservation
@@ -69,6 +70,11 @@ energy validation; it is intentionally capped at 12 qubits. `POST /jobs/dmrg`
 is a finite two-site variational MPS solver with an iterative Lanczos local
 eigensolver by default, optional dense validation mode, sweep history,
 tolerance, residual/variance-aware stopping, bond and truncation diagnostics.
+The `/capabilities` response also exposes algorithm-level method descriptors:
+DMRG and TEBD are executable when the tensor-network GPU backend is admitted;
+TDVP and VUMPS are registered as separate `planned` capabilities. Requests for
+those methods are rejected explicitly and are never silently redirected to
+TEBD or DMRG.
 `POST /jobs/peps` is a native rectangular 2D/3D finite PEPS simple-update path;
 it uses an opt_einsum boundary contraction when available and a bounded
 virtual-bond enumeration fallback, rejecting requests that exceed the

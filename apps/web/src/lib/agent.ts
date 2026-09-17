@@ -3,8 +3,21 @@ import { desktopAgentGet, desktopAgentPost, isDesktop } from "./desktop";
 
 export type JsonObject = Record<string, unknown>;
 
+export type AgentMethodCapability = {
+  id: string;
+  method: "dmrg" | "tebd" | "tdvp" | "vumps";
+  backend: string;
+  representation: string;
+  operation: "ground_state" | "evolve";
+  available: boolean;
+  status: "available" | "unavailable" | "planned";
+  description: string;
+  limitations?: string[];
+};
+
 export type AgentCapabilities = {
   backends?: Array<{ name: string; available: boolean; device?: string }>;
+  methods?: AgentMethodCapability[];
   gpu?: { available?: boolean; [key: string]: unknown };
   agent_version?: string;
   queue?: { max_workers?: number; jobs?: Record<string, number>; resources?: JsonObject };

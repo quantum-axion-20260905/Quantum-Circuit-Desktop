@@ -333,7 +333,9 @@ tensor arithmetic, admission, execution, provenance, and persistence.
 | Dense/reference | usable for small validation | independent cross-check suite |
 | MPS expectation/sampling | usable | larger MPO and symmetry coverage |
 | DMRG | usable for bounded 1D and prototypes | variance, checkpoint, finite-temperature |
-| TEBD | usable for controlled short dynamics | TDVP/VUMPS and long-time stability |
+| TEBD | usable for controlled short dynamics | timestep, norm, and long-time stability |
+| TDVP | interface registered, solver planned | projector-splitting dynamics and timestep convergence |
+| VUMPS | interface registered, solver planned | uniform-MPS ground states and transfer-matrix benchmarks |
 | Finite PEPS simple update | usable for bounded 2D/3D exploration | compare with boundary-MPS/full update |
 | PEPS double-layer contraction | implemented for bounded width | environment-aware contraction path |
 | Finite boundary-MPS | experimental for open 2D | 2D convergence and exact small references |

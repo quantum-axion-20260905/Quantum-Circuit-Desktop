@@ -161,6 +161,8 @@ class DMRGPayload(BaseModel):
     local_solver: Literal["lanczos", "dense"] = "lanczos"
     lanczos_maxiter: int = Field(default=32, ge=4, le=128)
     lanczos_tolerance: float = Field(default=1e-8, gt=0, le=1e-2)
+    checkpoint_path: str | None = Field(default=None, min_length=1, max_length=4096)
+    resume_from: str | None = Field(default=None, min_length=1, max_length=4096)
     max_term_locality: int = Field(default=64, ge=1, le=4096)
     max_local_dim: int = Field(default=4096, ge=16, le=16384)
     max_time_ms: int = Field(default=120000, ge=100, le=3600000)

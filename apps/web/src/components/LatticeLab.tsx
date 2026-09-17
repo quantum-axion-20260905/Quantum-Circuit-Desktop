@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { buildHamiltonian, buildHubbard, cancelAsyncJob, previewLattice, runDMRG, runExpectation, runGroundState, runPEPS, runTEBD, type AgentResult, type AsyncJob, type JsonObject, type LatticeGraph, type SparseHamiltonianResponse } from "../lib/agent";
+import { buildHamiltonian, buildHubbard, cancelAsyncJob, previewLattice, runDMRG, runExpectation, runGroundState, runPEPS, runTEBD, type AgentResult, type AsyncJob, type LatticeGraph, type SparseHamiltonianResponse } from "../lib/agent";
 import type { ReplayRequest } from "../lib/runHistory";
 import { editorToIr } from "../ir/converters";
 import { irToAgentTNPayload } from "../ir/agentMapping";
@@ -11,7 +11,8 @@ import { syncPhysicsStudy } from "../lib/projectStore";
 import { Button } from "../ui";
 import { ComputeProgress } from "./ComputeProgress";
 import { EnergyChart, LatticeCanvas } from "./LatticeVisuals";
-import { PhysicsConvergenceStudy, type PhysicsStudyMode, type PhysicsStudyRow } from "./PhysicsConvergenceStudy";
+import { buildPhysicsStudyVariants, type PhysicsStudyMode } from "../lib/physicsStudy";
+import { PhysicsConvergenceStudy, type PhysicsStudyRow } from "./PhysicsConvergenceStudy";
 
 type ModelName = "ising" | "heisenberg" | "xxz";
 type Boundary = "open" | "periodic";
@@ -230,30 +231,17 @@ export function LatticeLab() {
     if (mode === "peps" && (!pepsEligible || hamiltonian.n_qubits !== nQubits)) { setError("PEPS convergence is available only for an admitted 2D/3D spin lattice."); return; }
     if (mode === "tebd" && (!tebdReady || hamiltonian.n_qubits !== nQubits)) { setError("TEBD convergence is not available for this Hamiltonian."); return; }
 
-    const safeBond = Math.min(32, Math.max(1, bondDim));
-    const safeSteps = Math.min(64, Math.max(1, steps));
-    const safeSweeps = Math.min(64, Math.max(1, sweeps));
-    const safeDt = Math.abs(dt) >= 1e-8 ? dt : 0.01;
-    const pepsLowBond = Math.max(1, Math.min(2, Math.floor(Math.min(4, Math.max(1, bondDim)) / 2) || 1));
-    const pepsHighBond = Math.min(4, Math.max(pepsLowBond + 1, Math.min(4, Math.max(1, bondDim))));
-    const common = { n_qubits: hamiltonian.n_qubits, terms: hamiltonian.terms, dtype: "complex64", max_time_ms: 120000, max_mem_mb: 1024 } satisfies JsonObject;
-    const variants: Array<{ label: string; parameters: string; payload: JsonObject }> = mode === "dmrg"
-      ? [
-        { label: "Lower bond", parameters: `χ=${Math.max(1, Math.floor(safeBond / 2))}, sweeps=${safeSweeps}`, payload: { ...common, backend: "tensor-network", bond_dim: Math.max(1, Math.floor(safeBond / 2)), sweeps: safeSweeps, tolerance: 1e-7 } },
-        { label: "Baseline bond", parameters: `χ=${safeBond}, sweeps=${safeSweeps}`, payload: { ...common, backend: "tensor-network", bond_dim: safeBond, sweeps: safeSweeps, tolerance: 1e-7 } },
-        { label: "More sweeps", parameters: `χ=${safeBond}, sweeps=${Math.min(64, Math.max(safeSweeps + 1, safeSweeps * 2))}`, payload: { ...common, backend: "tensor-network", bond_dim: safeBond, sweeps: Math.min(64, Math.max(safeSweeps + 1, safeSweeps * 2)), tolerance: 1e-7 } },
-      ]
-      : mode === "tebd"
-        ? [
-          { label: "Baseline time step", parameters: `dt=${safeDt}, steps=${safeSteps}, χ=${safeBond}`, payload: { ...common, backend: "tensor-network", terms: hamiltonian.terms, ...(material === "spin" ? { lattice: payload } : {}), dt: safeDt, steps: safeSteps, order: 2, bond_dim: safeBond, truncation_cutoff: 0 } },
-          { label: "Half time step", parameters: `dt=${safeDt / 2}, steps=${Math.min(64, safeSteps * 2)}, χ=${safeBond}`, payload: { ...common, backend: "tensor-network", ...(material === "spin" ? { lattice: payload } : {}), dt: safeDt / 2, steps: Math.min(64, safeSteps * 2), order: 2, bond_dim: safeBond, truncation_cutoff: 0 } },
-          { label: "Half dt + higher bond", parameters: `dt=${safeDt / 2}, steps=${Math.min(64, safeSteps * 2)}, χ=${Math.min(64, safeBond * 2)}`, payload: { ...common, backend: "tensor-network", ...(material === "spin" ? { lattice: payload } : {}), dt: safeDt / 2, steps: Math.min(64, safeSteps * 2), order: 2, bond_dim: Math.min(64, safeBond * 2), truncation_cutoff: 0 } },
-        ]
-        : [
-          { label: "Lower PEPS bond", parameters: `dt=${safeDt}, steps=${safeSteps}, χ=${pepsLowBond}`, payload: { ...common, n_qubits: nQubits, lattice: payload, backend: "tensor-network", bond_dim: pepsLowBond, truncation_cutoff: 0, dt: safeDt, steps: safeSteps, order: 2, max_contraction_states: 1_000_000 } },
-          { label: "Higher PEPS bond", parameters: `dt=${safeDt}, steps=${safeSteps}, χ=${pepsHighBond}`, payload: { ...common, n_qubits: nQubits, lattice: payload, backend: "tensor-network", bond_dim: pepsHighBond, truncation_cutoff: 0, dt: safeDt, steps: safeSteps, order: 2, max_contraction_states: 1_000_000 } },
-          { label: "Half dt", parameters: `dt=${safeDt / 2}, steps=${Math.min(64, safeSteps * 2)}, χ=${pepsHighBond}`, payload: { ...common, n_qubits: nQubits, lattice: payload, backend: "tensor-network", bond_dim: pepsHighBond, truncation_cutoff: 0, dt: safeDt / 2, steps: Math.min(64, safeSteps * 2), order: 2, max_contraction_states: 1_000_000 } },
-        ];
+    const variants = buildPhysicsStudyVariants({
+      mode,
+      nQubits: mode === "peps" ? nQubits : hamiltonian.n_qubits,
+      terms: hamiltonian.terms,
+      lattice: material === "spin" ? payload : undefined,
+      bondDim,
+      sweeps,
+      steps,
+      dt,
+      truncationCutoff: 0,
+    });
 
     setStudyMode(mode); setStudyRows(variants.map((variant, index) => ({ id: `${mode}-${Date.now()}-${index}`, label: variant.label, parameters: variant.parameters, status: "queued" })));
     studySyncPendingRef.current = true;

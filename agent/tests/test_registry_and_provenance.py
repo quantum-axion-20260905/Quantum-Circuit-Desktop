@@ -1,7 +1,8 @@
 import unittest
 from tempfile import TemporaryDirectory
 
-from qc_agent.backends.registry import resolve_run_backend
+from qc_agent.backends.registry import method_catalog, resolve_method_capability, resolve_run_backend
+from qc_agent.core.contracts import CapabilityError
 from qc_agent.jobs import JobManager
 from qc_agent.models import RunPayload
 from qc_agent.provenance import circuit_digest, sha256_json, with_provenance
@@ -27,6 +28,24 @@ class RegistryTests(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             resolve_run_backend("statevector", "samples", gpu_available=False, tensor_network_available=False)
+
+    def test_tdvp_and_vumps_are_separate_planned_capabilities(self):
+        methods = {item.method: item for item in method_catalog(gpu_available=True, tensor_network_available=True)}
+        self.assertEqual(methods["tdvp"].id, "mps-tdvp")
+        self.assertEqual(methods["vumps"].id, "mps-vumps")
+        self.assertFalse(methods["tdvp"].available)
+        self.assertFalse(methods["vumps"].available)
+        self.assertEqual(methods["tdvp"].status, "planned")
+        self.assertEqual(methods["vumps"].status, "planned")
+        with self.assertRaisesRegex(CapabilityError, "fall back"):
+            resolve_method_capability("tdvp", gpu_available=True, tensor_network_available=True)
+        with self.assertRaisesRegex(CapabilityError, "fall back"):
+            resolve_method_capability("vumps", gpu_available=True, tensor_network_available=True)
+
+    def test_available_mps_method_resolves_without_backend_substitution(self):
+        resolved = resolve_method_capability("dmrg", gpu_available=True, tensor_network_available=True)
+        self.assertEqual(resolved.id, "mps-dmrg")
+        self.assertEqual(resolved.backend, "tensor-network")
 
 
 class ProvenanceTests(unittest.TestCase):

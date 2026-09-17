@@ -3,8 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from ..core.contracts import CapabilityError
+
 
 Operation = Literal["samples", "selected_amplitudes", "estimate", "simulate", "expectation", "evolve", "ground_state", "dmrg", "peps"]
+MPSMethod = Literal["dmrg", "tebd", "tdvp", "vumps"]
+MethodOperation = Literal["ground_state", "evolve"]
+MethodStatus = Literal["available", "unavailable", "planned"]
 
 
 @dataclass(frozen=True)
@@ -15,6 +20,21 @@ class BackendDescriptor:
     operations: tuple[Operation, ...]
     performance_comparable: bool
     description: str
+
+
+@dataclass(frozen=True)
+class MethodCapability:
+    """Algorithm-level capability, distinct from its execution backend."""
+
+    id: str
+    method: MPSMethod
+    backend: str
+    representation: str
+    operation: MethodOperation
+    available: bool
+    status: MethodStatus
+    description: str
+    limitations: tuple[str, ...] = ()
 
 
 def catalog(*, gpu_available: bool, tensor_network_available: bool) -> list[BackendDescriptor]:
@@ -52,6 +72,81 @@ def catalog(*, gpu_available: bool, tensor_network_available: bool) -> list[Back
             description="Small dense GPU eigensolver for Hamiltonian validation and ground-state reference energies.",
         ),
     ]
+
+
+def method_catalog(*, gpu_available: bool, tensor_network_available: bool) -> list[MethodCapability]:
+    """Return algorithm capabilities without conflating planned and usable methods."""
+
+    tensor_network_ready = bool(gpu_available and tensor_network_available)
+    runtime_status: MethodStatus = "available" if tensor_network_ready else "unavailable"
+    return [
+        MethodCapability(
+            id="mps-dmrg",
+            method="dmrg",
+            backend="tensor-network",
+            representation="mps",
+            operation="ground_state",
+            available=tensor_network_ready,
+            status=runtime_status,
+            description="Finite two-site DMRG with bounded sweeps, residual and variance diagnostics.",
+            limitations=("finite open 1D systems", "bounded bond dimension"),
+        ),
+        MethodCapability(
+            id="mps-tebd",
+            method="tebd",
+            backend="tensor-network",
+            representation="mps",
+            operation="evolve",
+            available=tensor_network_ready,
+            status=runtime_status,
+            description="Finite-MPS real/imaginary-time evolution with explicit timestep and truncation diagnostics.",
+            limitations=("short controlled evolutions", "bounded bond dimension"),
+        ),
+        MethodCapability(
+            id="mps-tdvp",
+            method="tdvp",
+            backend="tensor-network",
+            representation="mps",
+            operation="evolve",
+            available=False,
+            status="planned",
+            description="Separate TDVP interface reserved for projector-splitting MPS evolution.",
+            limitations=("solver implementation is not available", "no fallback to TEBD or DMRG"),
+        ),
+        MethodCapability(
+            id="mps-vumps",
+            method="vumps",
+            backend="tensor-network",
+            representation="uniform-mps",
+            operation="ground_state",
+            available=False,
+            status="planned",
+            description="Separate VUMPS interface reserved for uniform/infinite-MPS ground states.",
+            limitations=("solver implementation is not available", "no fallback to DMRG"),
+        ),
+    ]
+
+
+def resolve_method_capability(
+    requested: str,
+    *,
+    gpu_available: bool,
+    tensor_network_available: bool,
+) -> MethodCapability:
+    """Resolve an algorithm explicitly, rejecting unavailable methods safely."""
+
+    selected = next((item for item in method_catalog(
+        gpu_available=gpu_available,
+        tensor_network_available=tensor_network_available,
+    ) if item.method == requested), None)
+    if selected is None:
+        raise CapabilityError(f"unknown MPS method capability: {requested}")
+    if not selected.available:
+        raise CapabilityError(
+            f"{requested.upper()} capability is {selected.status}; "
+            "the request is rejected and will not fall back to another solver"
+        )
+    return selected
 
 
 def resolve_run_backend(
