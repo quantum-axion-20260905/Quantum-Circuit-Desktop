@@ -458,8 +458,8 @@ Status at the architecture-freeze checkpoint:
 - [x] backend families and dependency order documented;
 - [x] shared request/result/representation/plugin contracts drafted;
 - [x] benchmark, safety, and module acceptance criteria documented;
-- [ ] implement versioned representation/result/checkpoint contracts;
-- [ ] add M0 contract tests and capability errors;
+- [x] implement versioned representation/result/checkpoint contracts;
+- [x] add M0 contract tests and capability errors;
 - [ ] complete M1 1D core hardening;
 - [ ] implement M2 finite boundary-MPS.
 
