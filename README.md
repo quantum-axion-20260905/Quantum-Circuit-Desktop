@@ -1,4 +1,4 @@
-# Quantum Circuit Desktop 0.3.0
+# Quantum Circuit Desktop 0.4.0
 
 This repo is a monorepo for a local-first quantum circuit and tensor-network
 research workbench. The deliverable is a Tauri desktop application; the React
