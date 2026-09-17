@@ -1,0 +1,287 @@
+import unittest
+import math
+
+import numpy as np
+
+from qc_agent.core.mps_runtime import MPSRuntime
+from qc_agent.core.ground_state import exact_ground_state
+from qc_agent.core.dmrg import run_dmrg
+from qc_agent.core.peps import run_peps
+from qc_agent.backends.preflight import estimate_dmrg, estimate_peps, estimate_tebd
+from qc_agent.models import TNGate, TNPayload
+from qc_agent.plugins.lattice import build_spin_hamiltonian, lattice_graph
+from qc_agent.plugins.fermion import map_fermion_terms
+from qc_agent.plugins.materials import build_hubbard_hamiltonian
+from qc_agent.plugins.models import (
+    ExpectationPayload,
+    FermionMappingPayload,
+    FermionOperator,
+    FermionTerm,
+    GroundStatePayload,
+    DMRGPayload,
+    HubbardPayload,
+    LatticeHamiltonianPayload,
+    PauliTerm,
+    PEPSPayload,
+    TEBDPayload,
+)
+from qc_agent.plugins.tebd import run_tebd
+
+
+class PhysicsPluginTests(unittest.TestCase):
+    def test_two_dimensional_snake_lattice_and_ising_terms(self):
+        spec = LatticeHamiltonianPayload(dimensions=[3, 2], model="ising", coupling=1.0, field=0.5)
+        graph = lattice_graph(spec)
+        hamiltonian = build_spin_hamiltonian(spec)
+        self.assertEqual(len(graph["sites"]), 6)
+        self.assertEqual(len(graph["edges"]), 7)
+        self.assertEqual(len(hamiltonian["terms"]), 13)
+
+    def test_periodic_single_site_axis_does_not_create_self_edge(self):
+        graph = lattice_graph(LatticeHamiltonianPayload(dimensions=[1, 2], boundary="periodic"))
+        self.assertTrue(all(edge["source"] != edge["target"] for edge in graph["edges"]))
+
+    def test_jordan_wigner_maps_number_operator_to_real_paulis(self):
+        payload = FermionMappingPayload(
+            n_modes=1,
+            terms=[FermionTerm(
+                operators=[
+                    FermionOperator(mode=0, action="create"),
+                    FermionOperator(mode=0, action="annihilate"),
+                ],
+                coefficient=1.0,
+                label="n0",
+            )],
+        )
+        result = map_fermion_terms(payload)
+        self.assertTrue(result["expectation_ready"])
+        self.assertEqual(result["terms"], [
+            {"paulis": {}, "coefficient": 0.5, "label": "I"},
+            {"paulis": {"0": "Z"}, "coefficient": -0.5, "label": "Z0"},
+        ])
+
+    def test_hubbard_plugin_returns_expectation_ready_2d_contract(self):
+        result = build_hubbard_hamiltonian(HubbardPayload(
+            dimensions=[2, 2],
+            hopping=0.7,
+            onsite_u=1.2,
+            chemical_potential=0.1,
+        ))
+        self.assertEqual(result["n_qubits"], 8)
+        self.assertTrue(result["expectation_ready"])
+        self.assertTrue(result["tebd_ready"])
+        self.assertGreater(result["max_pauli_locality"], 2)
+        self.assertGreater(len(result["fermion_terms"]), 0)
+        self.assertGreater(len(result["terms"]), 0)
+
+    def test_exact_ground_state_reference_solves_single_qubit_pauli(self):
+        payload = GroundStatePayload(
+            n_qubits=1,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            bitstrings=["0", "1"],
+        )
+        result = exact_ground_state(np, payload)
+        self.assertEqual(result["backend"], "exact-diagonalization-reference")
+        self.assertAlmostEqual(result["ground_energy"], -1.0, places=6)
+        self.assertAlmostEqual(result["norm2"], 1.0, places=6)
+
+    def test_two_site_dmrg_finds_product_ground_state(self):
+        payload = DMRGPayload(
+            n_qubits=2,
+            terms=[
+                PauliTerm(paulis={0: "Z"}, coefficient=1.0),
+                PauliTerm(paulis={1: "Z"}, coefficient=1.0),
+            ],
+            bond_dim=2,
+            sweeps=3,
+        )
+        result = run_dmrg(np, payload)
+        self.assertAlmostEqual(result["ground_energy"], -2.0, places=5)
+        self.assertAlmostEqual(result["norm2"], 1.0, places=5)
+        self.assertEqual(result["backend"], "tensor-network-mps-dmrg")
+
+    def test_two_site_dmrg_matches_entangled_heisenberg_reference(self):
+        terms = [
+            PauliTerm(paulis={0: pauli, 1: pauli}, coefficient=1.0)
+            for pauli in ("X", "Y", "Z")
+        ]
+        result = run_dmrg(np, DMRGPayload(
+            n_qubits=2,
+            terms=terms,
+            bond_dim=2,
+            sweeps=4,
+        ))
+        exact = exact_ground_state(np, GroundStatePayload(n_qubits=2, terms=terms))
+        self.assertAlmostEqual(result["ground_energy"], exact["ground_energy"], places=5)
+        self.assertTrue(result["converged"])
+        self.assertLess(result["local_solver_residual"], 1e-5)
+
+    def test_native_peps_evolves_a_two_dimensional_edge(self):
+        payload = PEPSPayload(
+            n_qubits=4,
+            lattice={"dimensions": [2, 2], "boundary": "open"},
+            terms=[PauliTerm(paulis={0: "X", 1: "X"}, coefficient=1.0)],
+            observables=[PauliTerm(paulis={0: "Z"}, coefficient=1.0, label="Z0")],
+            bond_dim=2,
+            dt=0.2,
+            steps=1,
+            order=1,
+        )
+        result = run_peps(np, payload)
+        self.assertEqual(result["backend"], "tensor-network-peps-simple-update")
+        self.assertTrue(result["native_geometry"])
+        self.assertAlmostEqual(result["expectations"][1]["values"][0], math.cos(0.4), places=5)
+        self.assertAlmostEqual(result["norm2"], 1.0, places=5)
+
+    def test_native_peps_opt_einsum_matches_bounded_fallback_and_supports_3d(self):
+        base = PEPSPayload(
+            n_qubits=4,
+            lattice={"dimensions": [2, 2], "boundary": "open"},
+            terms=[PauliTerm(paulis={0: "X", 1: "X"}, coefficient=0.3)],
+            bond_dim=2,
+            dt=0.2,
+            steps=1,
+            order=1,
+        )
+        optimized = run_peps(np, base)
+        enumerated = run_peps(np, base.model_copy(update={"contraction_method": "enumeration"}))
+        self.assertAlmostEqual(optimized["norm2"], enumerated["norm2"], places=5)
+        self.assertAlmostEqual(optimized["energies"][-1], enumerated["energies"][-1], places=5)
+        three_dimensional = run_peps(np, PEPSPayload(
+            n_qubits=8,
+            lattice={"dimensions": [2, 2, 2], "boundary": "open"},
+            terms=[PauliTerm(paulis={0: "X", 1: "X"}, coefficient=0.2)],
+            bond_dim=2,
+            steps=1,
+        ))
+        self.assertEqual(three_dimensional["dimensions"], [2, 2, 2])
+        self.assertAlmostEqual(three_dimensional["norm2"], 1.0, places=5)
+
+    def test_native_peps_double_layer_runs_past_statevector_bound(self):
+        """A 5x5 PEPS must not regress to an exponential statevector path."""
+        result = run_peps(np, PEPSPayload(
+            n_qubits=25,
+            lattice={"dimensions": [5, 5], "boundary": "open"},
+            terms=[PauliTerm(paulis={0: "X", 1: "X"}, coefficient=0.2)],
+            observables=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            bond_dim=2,
+            dt=0.05,
+            steps=1,
+        ))
+        self.assertEqual(result["n_qubits"], 25)
+        self.assertFalse(result["contraction_method"] == "enumeration")
+        self.assertAlmostEqual(result["norm2"], 1.0, places=5)
+        self.assertEqual(len(result["expectations"]), 2)
+
+    def test_dmrg_and_peps_preflight_report_bounded_local_work(self):
+        dmrg_payload = DMRGPayload(
+            n_qubits=4,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            bond_dim=4,
+            max_local_dim=64,
+        )
+        dmrg_report = estimate_dmrg(dmrg_payload, gpu_free_mb=1024)
+        self.assertTrue(dmrg_report["feasible"])
+        peps_payload = PEPSPayload(
+            n_qubits=4,
+            lattice={"dimensions": [2, 2]},
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            bond_dim=2,
+        )
+        peps_report = estimate_peps(peps_payload, gpu_free_mb=1024)
+        self.assertTrue(peps_report["feasible"])
+        self.assertEqual(peps_report["virtual_bond_states"], 16)
+        self.assertEqual(peps_report["double_layer_bond_dim"], 4)
+        self.assertFalse(peps_report["materializes_statevector"])
+        enumeration_report = estimate_peps(PEPSPayload(
+            n_qubits=25,
+            lattice={"dimensions": [5, 5]},
+            terms=peps_payload.terms,
+            bond_dim=2,
+            contraction_method="enumeration",
+        ))
+        self.assertFalse(enumeration_report["feasible"])
+        self.assertTrue(any("16-site" in warning for warning in enumeration_report["blocking_warnings"]))
+
+    def test_mps_expectation_returns_bell_correlations(self):
+        runtime = MPSRuntime(np, TNPayload(
+            n_qubits=2,
+            gates=[TNGate(name="h", target=0), TNGate(name="cx", control=0, target=1)],
+            bond_dim=4,
+        ))
+        terms = [
+            PauliTerm(paulis={0: "X", 1: "X"}, coefficient=1.0),
+            PauliTerm(paulis={0: "Z", 1: "Z"}, coefficient=1.0),
+        ]
+        for value in runtime.expectation(terms):
+            self.assertAlmostEqual(value, 1.0, places=5)
+        self.assertAlmostEqual(runtime.norm2(), 1.0, places=6)
+
+    def test_tebd_keeps_product_state_norm(self):
+        payload = TEBDPayload(
+            n_qubits=4,
+            terms=[PauliTerm(paulis={0: "Z", 1: "Z"}, coefficient=1.0)],
+            observables=[PauliTerm(paulis={0: "Z"}, coefficient=1.0, label="Z0")],
+            dt=0.05,
+            steps=2,
+            bond_dim=4,
+        )
+        result = run_tebd(np, payload)
+        self.assertEqual(result["backend"], "tensor-network-mps-tebd")
+        self.assertEqual(len(result["expectations"]), 3)
+        self.assertEqual(len(result["energies"]), 3)
+        self.assertAlmostEqual(result["expectations"][0]["energy"], result["energies"][0], places=6)
+        self.assertAlmostEqual(result["norm2"], 1.0, places=5)
+
+    def test_tebd_preflight_prices_nonlocal_swap_work(self):
+        local = TEBDPayload(
+            n_qubits=8,
+            terms=[PauliTerm(paulis={0: "Z", 1: "Z"}, coefficient=1.0)],
+            steps=2,
+            bond_dim=4,
+        )
+        long_range = local.model_copy(update={"terms": [PauliTerm(paulis={0: "Z", 7: "Z"}, coefficient=1.0)]})
+        local_report = estimate_tebd(local, gpu_free_mb=1024)
+        long_range_report = estimate_tebd(long_range, gpu_free_mb=1024)
+        self.assertTrue(local_report["feasible"])
+        self.assertGreater(long_range_report["interaction_cost"], local_report["interaction_cost"])
+
+    def test_tebd_two_site_pauli_evolution_matches_known_state(self):
+        payload = TEBDPayload(
+            n_qubits=2,
+            terms=[PauliTerm(paulis={0: "X", 1: "Y"}, coefficient=1.0)],
+            observables=[PauliTerm(paulis={0: "Z"}, coefficient=1.0, label="Z0")],
+            dt=0.2,
+            steps=1,
+            order=1,
+            bond_dim=4,
+        )
+        result = run_tebd(np, payload)
+        self.assertAlmostEqual(result["expectations"][1]["values"][0], math.cos(0.4), places=4)
+
+    def test_tebd_three_site_pauli_string_evolution_matches_known_state(self):
+        payload = TEBDPayload(
+            n_qubits=3,
+            terms=[PauliTerm(paulis={0: "X", 1: "Y", 2: "Z"}, coefficient=1.0)],
+            observables=[PauliTerm(paulis={0: "Z"}, coefficient=1.0, label="Z0")],
+            dt=0.2,
+            steps=1,
+            order=1,
+            bond_dim=4,
+        )
+        result = run_tebd(np, payload)
+        self.assertAlmostEqual(result["expectations"][1]["values"][0], math.cos(0.4), places=4)
+        self.assertAlmostEqual(result["norm2"], 1.0, places=5)
+        self.assertEqual(result["max_term_locality"], 3)
+        self.assertEqual(result["parity_string_terms"], 1)
+
+    def test_expectation_payload_checks_sparse_term_indices(self):
+        with self.assertRaises(ValueError):
+            ExpectationPayload(
+                n_qubits=2,
+                terms=[PauliTerm(paulis={2: "Z"}, coefficient=1.0)],
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()

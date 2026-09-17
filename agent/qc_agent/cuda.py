@@ -44,18 +44,34 @@ def hardware_info(cp: Any) -> dict[str, Any]:
         return {"gpu": {"available": False, "reason": "cupy import failed"}}
     try:
         count = int(cp.cuda.runtime.getDeviceCount())
-        props = cp.cuda.runtime.getDeviceProperties(0) if count > 0 else None
+        devices: dict[str, Any] = {}
+        for device_id in range(count):
+            props = cp.cuda.runtime.getDeviceProperties(device_id)
+            free_mem = total_mem = None
+            try:
+                with cp.cuda.Device(device_id):
+                    free_mem, total_mem = (int(value) for value in cp.cuda.Device(device_id).mem_info)
+            except Exception:
+                pass
+            name = props.get("name") if isinstance(props, dict) else None
+            devices[f"device{device_id}"] = {
+                "name": name.decode() if isinstance(name, bytes) else name,
+                "total_global_mem": int(props.get("totalGlobalMem")) if isinstance(props, dict) and props.get("totalGlobalMem") is not None else None,
+                "multi_processor_count": int(props.get("multiProcessorCount")) if isinstance(props, dict) and props.get("multiProcessorCount") is not None else None,
+                "compute_capability": (
+                    f'{props.get("major")}.{props.get("minor")}'
+                    if isinstance(props, dict) and props.get("major") is not None and props.get("minor") is not None
+                    else None
+                ),
+                "free_global_mem": free_mem,
+                "total_global_mem_runtime": total_mem,
+            }
         return {
             "gpu": {
                 "available": count > 0,
                 "count": count,
                 "cupy_version": cp.__version__,
-                "device0": {
-                    "name": props["name"].decode() if props else None,
-                    "total_global_mem": int(props["totalGlobalMem"]) if props else None,
-                    "multi_processor_count": int(props["multiProcessorCount"]) if props else None,
-                    "compute_capability": f'{props["major"]}.{props["minor"]}' if props else None,
-                },
+                **devices,
             }
         }
     except Exception as exc:

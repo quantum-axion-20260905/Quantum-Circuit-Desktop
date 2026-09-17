@@ -17,7 +17,41 @@
     "metrics": { "type": "object" },
     "artifacts": { "type": "object" },
     "logs": { "type": "array", "items": { "type": "object" } },
-    "n_qubits": { "type": "integer", "minimum": 1, "maximum": 64 },
+    "resource": {
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string", "enum": ["cpu", "cuda"] },
+        "memory_mb": { "type": "number", "minimum": 0 },
+        "device_id": { "type": ["integer", "null"], "minimum": 0 },
+        "assigned_device": { "type": ["integer", "null"], "minimum": 0 },
+        "exclusive": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["schema", "request_sha256", "circuit_sha256", "problem_sha256", "result_sha256", "resolved_backend", "agent_version"],
+      "properties": {
+        "schema": { "type": "string" },
+        "request_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "circuit_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "problem_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "result_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "requested_backend": { "type": "string" },
+        "resolved_backend": { "type": "string" },
+        "backend": { "type": "string" },
+        "agent_version": { "type": "string" },
+        "python_version": { "type": "string" },
+        "platform": { "type": "string" },
+        "seed": { "type": ["integer", "null"] },
+        "started_at": { "type": "string" },
+        "finished_at": { "type": "string" },
+        "elapsed_ms": { "type": "number", "minimum": 0 },
+        "device": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "n_qubits": { "type": "integer", "minimum": 1, "maximum": 4096 },
     "gates": {
       "type": "array",
       "items": {
@@ -26,18 +60,131 @@
           "name": { "type": "string" },
           "target": { "type": "integer", "minimum": 0 },
           "control": { "type": ["integer", "null"], "minimum": 0 },
-          "theta": { "type": ["number", "null"] }
+          "theta": { "type": ["number", "null"] },
+          "parameter": { "type": ["string", "null"], "pattern": "^[A-Za-z][A-Za-z0-9_]*$" }
         },
         "required": ["name", "target"],
         "additionalProperties": true
       }
     },
+    "terms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "anyOf": [
+          { "$ref": "#/$defs/pauliTerm" },
+          { "$ref": "#/$defs/fermionTerm" }
+        ]
+      }
+    },
+    "fermion_terms": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/fermionTerm" }
+    },
+    "observables": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/pauliTerm" }
+    },
+    "lattice": { "$ref": "#/$defs/latticeSpec" },
+    "model": { "type": "string", "enum": ["ising", "heisenberg", "xxz"] },
+    "coupling": { "type": "number" },
+    "field": { "type": "number" },
+    "anisotropy": { "type": "number" },
+    "dt": { "type": "number", "exclusiveMinimum": 0 },
+    "steps": { "type": "integer", "minimum": 1, "maximum": 10000 },
+    "order": { "type": "integer", "enum": [1, 2] },
+    "max_term_locality": { "type": "integer", "minimum": 1, "maximum": 4096 },
+    "n_modes": { "type": "integer", "minimum": 1, "maximum": 4096 },
+    "mapping": { "type": "string", "enum": ["jordan_wigner"] },
+    "hermitian_tolerance": { "type": "number", "exclusiveMinimum": 0, "maximum": 0.001 },
+    "hopping": { "type": "number" },
+    "onsite_u": { "type": "number" },
+    "chemical_potential": { "type": "number" },
     "bitstrings": {
       "type": "array",
       "items": { "type": "string" }
     },
-    "dtype": { "type": "string" },
-    "optimize": { "type": "string" }
+    "dtype": { "type": "string", "enum": ["complex64", "complex128"] },
+    "optimize": { "type": "string", "enum": ["auto", "cotengra"] },
+    "tn_method": { "type": "string", "enum": ["mps", "contraction"] },
+    "bond_dim": { "type": "integer", "minimum": 1, "maximum": 4096 },
+    "truncation_cutoff": { "type": "number", "minimum": 0, "maximum": 1 },
+    "backend": { "type": "string", "enum": ["auto", "reference", "statevector", "tensor-network", "exact-diagonalization"] },
+    "result_type": { "type": "string", "enum": ["selected_amplitudes", "samples"] },
+    "shots": { "type": "integer", "minimum": 1, "maximum": 200000 },
+    "parallel_devices": { "type": "integer", "minimum": 1, "maximum": 16 },
+    "local_solver": { "type": "string", "enum": ["lanczos", "dense"] },
+    "lanczos_maxiter": { "type": "integer", "minimum": 4, "maximum": 128 },
+    "lanczos_tolerance": { "type": "number", "exclusiveMinimum": 0 },
+    "max_time_ms": { "type": "integer", "minimum": 100 },
+    "max_mem_mb": { "type": "number", "exclusiveMinimum": 0 },
+    "parameter_values": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "items": { "type": "number" }
+      }
+    },
+    "noise": {
+      "type": ["object", "null"],
+      "properties": {
+        "one_qubit_depolarizing": { "type": "number", "minimum": 0, "maximum": 1 },
+        "two_qubit_depolarizing": { "type": "number", "minimum": 0, "maximum": 1 },
+        "readout_flip": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "pauliTerm": {
+      "type": "object",
+      "properties": {
+        "paulis": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[0-9]+$" },
+          "additionalProperties": { "type": "string", "enum": ["I", "X", "Y", "Z"] }
+        },
+        "coefficient": { "type": "number" },
+        "label": { "type": ["string", "null"] }
+      },
+      "required": ["coefficient"],
+      "additionalProperties": false
+    },
+    "latticeSpec": {
+      "type": "object",
+      "properties": {
+        "dimensions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": { "type": "integer", "minimum": 1, "maximum": 64 }
+        },
+        "boundary": { "type": "string", "enum": ["open", "periodic"] }
+      },
+      "required": ["dimensions"],
+      "additionalProperties": false
+    },
+    "fermionOperator": {
+      "type": "object",
+      "properties": {
+        "mode": { "type": "integer", "minimum": 0, "maximum": 4095 },
+        "action": { "type": "string", "enum": ["create", "annihilate"] }
+      },
+      "required": ["mode", "action"],
+      "additionalProperties": false
+    },
+    "fermionTerm": {
+      "type": "object",
+      "properties": {
+        "operators": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "$ref": "#/$defs/fermionOperator" } },
+        "coefficient": { "type": "number" },
+        "label": { "type": ["string", "null"] }
+      },
+      "required": ["operators", "coefficient"],
+      "additionalProperties": false
+    }
   },
   "required": ["n_qubits", "gates"]
 }

@@ -1,6 +1,12 @@
-# Desktop (Tauri) — planned
+# Desktop (Tauri)
 
-This folder will host the Tauri shell that embeds `apps/web` and talks to the local `agent`.
+This folder contains the Tauri shell that embeds `apps/web`, starts the local
+compute agent on an available loopback port, and stores circuit versions/runs
+and convergence-study manifests in an app-local SQLite database. Compute jobs
+remain in the Python agent; the Tauri layer owns local transport and durable
+desktop history.
 
-Prereq: install Rust toolchain (rustup) before we can `tauri init` and build.
+Prerequisites: Rust toolchain (`rustup`) and WebView2. The shell is source-
+complete, but packaging still requires a machine with Rust installed and either
+the development Python environment or a configured `QC_AGENT_COMMAND` binary.
 

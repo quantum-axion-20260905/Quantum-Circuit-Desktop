@@ -103,6 +103,7 @@ def amplitudes(cp: Any, oe: Any, ctg: Any, payload: TNPayload) -> dict[str, Any]
     return {
         "status": "done",
         "backend": "tensor-network",
+        "method": "contraction",
         "n_qubits": payload.n_qubits,
         "dtype": payload.dtype,
         "optimize": payload.optimize,
@@ -130,6 +131,7 @@ def estimate(cp: Any, oe: Any, ctg: Any, payload: TNPayload) -> dict[str, Any]:
     result: dict[str, Any] = {
         "status": "done",
         "backend": "tensor-network",
+        "method": "contraction",
         "n_qubits": payload.n_qubits,
         "dtype": payload.dtype,
         "optimize": payload.optimize,

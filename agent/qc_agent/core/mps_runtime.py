@@ -1,0 +1,126 @@
+from __future__ import annotations
+
+import math
+from typing import Any, Iterable
+
+from ..backends import mps as mps_backend
+from ..noise import pauli_matrix
+
+
+class MPSRuntime:
+    """Small public adapter around the reusable GPU MPS tensor operations."""
+
+    def __init__(self, cp: Any, payload: Any, *, progress_cb: Any = None, cancel_cb: Any = None):
+        self.cp = cp
+        self.payload = payload
+        self.tensors, self.discarded_weight, self.bond_dim_used = mps_backend.build(
+            cp, payload, progress_cb=progress_cb, cancel_cb=cancel_cb
+        )
+        self.labels = list(range(payload.n_qubits))
+
+    def apply_one_site(self, qubit: int, unitary: Any) -> None:
+        position = self.labels.index(qubit)
+        self.tensors[position] = mps_backend.apply_one_site(self.tensors[position], unitary, self.cp)
+
+    def apply_two_site(self, first: int, second: int, unitary: Any) -> None:
+        discarded = mps_backend.apply_two_qubit(
+            self.tensors,
+            self.labels,
+            self.cp,
+            self.tensors[0].dtype,
+            None,
+            first,
+            second,
+            int(self.payload.bond_dim),
+            float(self.payload.truncation_cutoff),
+            unitary_override=unitary,
+        )
+        self.discarded_weight += discarded
+        self.bond_dim_used = max((max(tensor.shape[0], tensor.shape[2]) for tensor in self.tensors), default=1)
+
+    def apply_controlled_x(self, control: int, target: int) -> None:
+        """Apply a logical CX, using the backend swap network when needed."""
+        discarded = mps_backend.apply_two_qubit(
+            self.tensors,
+            self.labels,
+            self.cp,
+            self.tensors[0].dtype,
+            "cx",
+            control,
+            target,
+            int(self.payload.bond_dim),
+            float(self.payload.truncation_cutoff),
+        )
+        self.discarded_weight += discarded
+        self.bond_dim_used = max((max(tensor.shape[0], tensor.shape[2]) for tensor in self.tensors), default=1)
+
+    def apply_pauli_string_exponential(self, paulis: dict[int, str], angle: float) -> None:
+        """Apply ``exp(-i * angle * P)`` for an arbitrary Pauli string.
+
+        A parity-CX network reduces the string to one Z rotation. This keeps
+        the domain layer independent of tensor shapes while supporting the
+        longer Jordan–Wigner strings produced by fermion mappings.
+        """
+        active = sorted((int(qubit), str(pauli).upper()) for qubit, pauli in paulis.items() if str(pauli).upper() != "I")
+        if not active:
+            return
+        dtype = self.tensors[0].dtype
+        identity = self.cp.eye(2, dtype=dtype)
+        hadamard = self.cp.asarray([[1, 1], [1, -1]], dtype=dtype) / math.sqrt(2)
+        s_dagger = self.cp.asarray([[1, 0], [0, -1j]], dtype=dtype)
+        # Keep the actual basis matrices rather than looking the operators up
+        # again during the inverse pass.  Besides being clearer, this also
+        # keeps the runtime correct if a caller supplies stringified JSON keys.
+        basis_changes: list[tuple[int, Any]] = []
+        for qubit, pauli in active:
+            if pauli == "X":
+                basis = hadamard
+            elif pauli == "Y":
+                basis = hadamard @ s_dagger
+            elif pauli == "Z":
+                basis = identity
+            else:
+                raise ValueError(f"unknown Pauli operator: {pauli}")
+            basis_changes.append((qubit, basis))
+            if pauli != "Z":
+                self.apply_one_site(qubit, basis)
+
+        pivot = active[0][0]
+        controls = [qubit for qubit, _ in active[1:]]
+        for control in controls:
+            self.apply_controlled_x(control, pivot)
+        # Assign CuPy scalars into a device array instead of passing them
+        # through a nested Python list (CuPy intentionally rejects implicit
+        # device-to-host conversion in that case).
+        phase_rotation = self.cp.zeros((2, 2), dtype=dtype)
+        phase_rotation[0, 0] = self.cp.exp(-1j * angle)
+        phase_rotation[1, 1] = self.cp.exp(1j * angle)
+        self.apply_one_site(pivot, phase_rotation)
+        for control in reversed(controls):
+            self.apply_controlled_x(control, pivot)
+
+        for qubit, basis in reversed(basis_changes):
+            if not bool(self.cp.allclose(basis, identity)):
+                self.apply_one_site(qubit, basis.conj().T)
+
+    def norm2(self) -> float:
+        right = mps_backend.right_environments(self.cp, self.tensors)
+        return mps_backend.norm2(self.cp, right)
+
+    def expectation(self, terms: Iterable[Any]) -> list[float]:
+        from .observables import mps_expectation_from_tensors
+
+        return mps_expectation_from_tensors(self.cp, self.tensors, terms)
+
+    def sync(self) -> None:
+        mps_backend.sync(self.cp)
+
+
+def pauli_operator(cp: Any, dtype: Any, name: str) -> Any:
+    normalized = name.lower()
+    if normalized == "i":
+        return cp.eye(2, dtype=dtype)
+    result = pauli_matrix(cp, dtype, normalized)
+    if result is None:
+        return cp.eye(2, dtype=dtype)
+    return result

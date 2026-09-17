@@ -5,6 +5,9 @@ import random
 from typing import Any
 
 from ..models import RunPayload, TNGate
+from ..noise import draw_paulis, noise_summary, readout_bits
+from .limits import MAX_REFERENCE_QUBITS
+
 
 
 def _matrix(name: str, theta: float | None = None) -> list[list[complex]]:
@@ -13,6 +16,8 @@ def _matrix(name: str, theta: float | None = None) -> list[list[complex]]:
         return [[s, s], [s, -s]]
     if name == "x":
         return [[0, 1], [1, 0]]
+    if name == "y":
+        return [[0, -1j], [1j, 0]]
     if theta is None:
         raise ValueError(f"Gate {name} requires theta")
     c, s = math.cos(theta / 2), math.sin(theta / 2)
@@ -43,28 +48,67 @@ def _apply_2q(state: list[complex], n: int, control: int, target: int, name: str
             state[i] *= -1
 
 
+def _apply_pauli(state: list[complex], n: int, q: int, name: str) -> None:
+    if name == "i":
+        return
+    _apply_1q(state, n, q, _matrix(name))
+
+
 def run(payload: RunPayload) -> dict[str, Any]:
     n = payload.n_qubits
+    if n > MAX_REFERENCE_QUBITS:
+        raise ValueError(f"reference-cpu supports at most {MAX_REFERENCE_QUBITS} qubits")
+    if payload.noise is not None and payload.noise.active and payload.result_type == "selected_amplitudes":
+        raise ValueError("noise channels require result_type=samples; amplitudes are noiseless-only")
     state = [0j] * (1 << n)
     state[0] = 1 + 0j
+    rng = random.Random(payload.seed)
     for g in payload.gates:
         if g.target >= n or (g.control is not None and g.control >= n):
             raise ValueError("gate index exceeds qubit count")
         if g.name in ("h", "x", "rx", "ry", "rz"):
+            if g.name in ("rx", "ry", "rz") and g.theta is None:
+                raise ValueError(f"unresolved parameter for {g.name}: {g.parameter}")
             _apply_1q(state, n, g.target, _matrix(g.name, g.theta))
+            if payload.noise is not None:
+                error = draw_paulis(None, rng, payload.noise.one_qubit_depolarizing, 1)
+                if error:
+                    _apply_pauli(state, n, g.target, error[0])
         else:
             if g.control is None or g.control == g.target: raise ValueError("invalid two-qubit gate")
             _apply_2q(state, n, g.control, g.target, g.name)
+            if payload.noise is not None:
+                error = draw_paulis(None, rng, payload.noise.two_qubit_depolarizing, 2)
+                if error:
+                    _apply_pauli(state, n, g.control, error[0])
+                    _apply_pauli(state, n, g.target, error[1])
 
     probs = [abs(x)**2 for x in state]
-    bits = payload.bitstrings or [format(i, f"0{n}b") for i, p in enumerate(probs) if p > 1e-14]
+    if payload.bitstrings:
+        bits = []
+        for raw in payload.bitstrings:
+            bitstring = raw.strip().replace("_", "")
+            if len(bitstring) != n or any(ch not in "01" for ch in bitstring):
+                raise ValueError(f"invalid bitstring for {n} qubits: {raw!r}")
+            bits.append(bitstring)
+    else:
+        bits = [format(i, f"0{n}b") for i, p in enumerate(probs) if p > 1e-14]
     amps = [{"bitstring": b, "re": state[int(b, 2)].real, "im": state[int(b, 2)].imag} for b in bits]
-    rng = random.Random(payload.seed)
+    common = {"status": "done", "backend": "reference-cpu", "device": "CPU", "n_qubits": n, "amplitudes": amps, "norm2": sum(probs), "performance_comparable": False, "noise": noise_summary(payload.noise)}
+    if payload.result_type == "selected_amplitudes":
+        return {**common, "result_type": "selected_amplitudes"}
+
     counts: dict[str, int] = {}
+    total = sum(probs)
     for _ in range(payload.shots):
-        r, acc = rng.random(), 0.0
+        r, acc = rng.random() * total, 0.0
+        selected = False
         for i, p in enumerate(probs):
             acc += p
             if r <= acc:
-                b = format(i, f"0{n}b"); counts[b] = counts.get(b, 0) + 1; break
-    return {"status": "done", "backend": "reference-cpu", "device": "CPU", "result_type": "samples", "n_qubits": n, "shots": payload.shots, "counts": counts, "amplitudes": amps, "norm2": sum(probs), "performance_comparable": False}
+                b = readout_bits(rng, format(i, f"0{n}b"), payload.noise.readout_flip if payload.noise is not None else 0.0)
+                counts[b] = counts.get(b, 0) + 1; selected = True; break
+        if not selected:
+            b = readout_bits(rng, format(len(probs) - 1, f"0{n}b"), payload.noise.readout_flip if payload.noise is not None else 0.0)
+            counts[b] = counts.get(b, 0) + 1
+    return {**common, "result_type": "samples", "shots": payload.shots, "counts": counts}

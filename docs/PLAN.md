@@ -2,6 +2,8 @@
 
 Bu hujjat: loyiha yo‘l xaritasi (roadmap), arxitektura qarorlari, modul chegaralari va ketma-ket ish rejasi uchun “single source of truth”.
 
+Frontendning aniq backlogi, UI ownership va design system kontrakti uchun [FRONTEND_ROADMAP.md](FRONTEND_ROADMAP.md) asosiy hujjat hisoblanadi.
+
 ## 0) Maqsad (Product definition)
 
 Research-grade quantum circuit tool:

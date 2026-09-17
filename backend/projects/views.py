@@ -1,8 +1,8 @@
 from rest_framework import viewsets
 from django.utils import timezone
 
-from .models import CircuitVersion, Project, Run, RunArtifact
-from .serializers import CircuitVersionSerializer, ProjectSerializer, RunArtifactSerializer, RunSerializer
+from .models import CircuitVersion, Project, Run, RunArtifact, Study
+from .serializers import CircuitVersionSerializer, ProjectSerializer, RunArtifactSerializer, RunSerializer, StudySerializer
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -13,6 +13,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
 class CircuitVersionViewSet(viewsets.ModelViewSet):
     queryset = CircuitVersion.objects.order_by("-created_at")
     serializer_class = CircuitVersionSerializer
+    http_method_names = ["get", "post", "head", "options"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        project = self.request.query_params.get("project")
+        if project:
+            qs = qs.filter(project_id=project)
+        return qs
 
 
 class RunViewSet(viewsets.ModelViewSet):
@@ -37,8 +45,10 @@ class RunViewSet(viewsets.ModelViewSet):
             run.save(update_fields=["status", "finished_at"])
 
     def get_queryset(self):
-        self._reconcile_stale_runs()
-        qs = Run.objects.order_by("-created_at")
+        # Reads stay read-only and use the relationship/indexes introduced for
+        # long run histories. Legacy reconciliation is opt-in below so a list
+        # request cannot unexpectedly write every stale row.
+        qs = Run.objects.select_related("version", "version__project").order_by("-created_at")
         qp = self.request.query_params
 
         version = qp.get("version")
@@ -59,13 +69,18 @@ class RunViewSet(viewsets.ModelViewSet):
 
         return qs
 
+    def list(self, request, *args, **kwargs):
+        if request.query_params.get("reconcile") == "1":
+            self._reconcile_stale_runs()
+        return super().list(request, *args, **kwargs)
+
 
 class RunArtifactViewSet(viewsets.ModelViewSet):
     queryset = RunArtifact.objects.all().order_by("-created_at")
     serializer_class = RunArtifactSerializer
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().select_related("run")
         qp = self.request.query_params
         run = qp.get("run")
         if run:
@@ -73,4 +88,23 @@ class RunArtifactViewSet(viewsets.ModelViewSet):
         kind = qp.get("kind")
         if kind:
             qs = qs.filter(kind=kind)
+        return qs
+
+
+class StudyViewSet(viewsets.ModelViewSet):
+    queryset = Study.objects.select_related("project").order_by("-created_at")
+    serializer_class = StudySerializer
+    http_method_names = ["get", "post", "head", "options"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        project = self.request.query_params.get("project")
+        if project:
+            qs = qs.filter(project_id=project)
+        kind = self.request.query_params.get("kind")
+        if kind:
+            qs = qs.filter(kind=kind)
+        status = self.request.query_params.get("status")
+        if status:
+            qs = qs.filter(status=status)
         return qs

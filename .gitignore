@@ -5,7 +5,12 @@ __pycache__/
 .next/
 dist/
 build/
+apps/web/out/
+agent/.runtime/
+apps/web/AGENTS.md
+apps/web/CLAUDE.md
 *.log
 *_out.txt
 *_err.txt
+*.tsbuildinfo
 backend/db.sqlite3

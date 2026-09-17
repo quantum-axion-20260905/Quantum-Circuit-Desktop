@@ -9,6 +9,7 @@ export function editorToIr(nQubits: number, ops: GateOp[]): CircuitIrV1 {
     target: g.target,
     control: g.control,
     theta: g.theta,
+    parameter: g.parameter,
     col: g.col,
     moment: g.col,
     sequence: 0,
@@ -39,7 +40,8 @@ export function irToEditor(ir: CircuitIrV1): { nQubits: number; ops: GateOp[] } 
         target: n.target,
         control: n.control,
         theta: n.theta,
-        col: (n as any).col ?? 0,
+        parameter: n.parameter,
+        col: n.col,
         x: n.x,
         y: n.y
       }))
@@ -59,4 +61,31 @@ export function irToEditor(ir: CircuitIrV1): { nQubits: number; ops: GateOp[] } 
     y: 60 + o.target * 60
   }));
   return { nQubits: parsed.nQubits, ops };
+}
+
+/** Convert a minimal OpenQASM 3 document into a valid IR document. */
+export function qasmToIr(qasm: string): CircuitIrV1 {
+  const parsed = parseMinimalQasm3(qasm);
+  const nodes: IrNode[] = parsed.ops.map((op, idx) => ({
+    id: `qasm-${idx}`,
+    name: op.name,
+    target: op.target,
+    control: op.control,
+    theta: op.theta,
+    parameter: op.parameter,
+    col: idx,
+    moment: idx,
+    sequence: 0,
+    x: 120 + idx * 140,
+    y: 60 + op.target * 60
+  }));
+  return {
+    qasm,
+    ui: {
+      version: 1,
+      source_format: "qasm3",
+      n_qubits: parsed.nQubits,
+      nodes
+    }
+  };
 }

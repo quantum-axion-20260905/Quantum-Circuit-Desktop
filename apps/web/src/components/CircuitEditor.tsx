@@ -16,11 +16,18 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 
 import { useCircuit, type GateName, type GateOp } from "../state/circuitStore";
+import { editorToIr, irToEditor, qasmToIr } from "../ir/converters";
+import { validateCircuitIrV1 } from "../ir/ir";
+import { invokeDesktop, isDesktop } from "../lib/desktop";
+import { loadLatestCircuitVersion, saveCircuitVersion } from "../lib/projectStore";
+import { Button } from "../ui";
 
 const LANE_START_X = 80;
 const LANE_END_PADDING = 180;
 const COL_W = 140;
 const X0 = 120;
+const nodeTypes = { gateNode: GateNode, laneNode: LaneNode };
+const edgeTypes = {};
 
 type RenderRole = "single" | "control" | "target" | "lane";
 type GateNodeData = {
@@ -154,12 +161,12 @@ function LaneNode({ data }: { data: GateNodeData }) {
   );
 }
 
-const nodeTypes = { gateNode: GateNode, laneNode: LaneNode };
-
 export function CircuitEditor() {
-  const { ops, setOps, nQubits, setNQubits, clear, undo, redo, canUndo, canRedo, analysis } = useCircuit();
+  const { ops, setOps, nQubits, setNQubits, replaceCircuit, clear, undo, redo, canUndo, canRedo, analysis } = useCircuit();
   const rfRef = React.useRef<ReactFlowInstance | null>(null);
+  const importInputRef = React.useRef<HTMLInputElement | null>(null);
   const [rfReady, setRfReady] = React.useState(false);
+  const [editorNotice, setEditorNotice] = React.useState<string | null>(null);
   const edges = useMemo<Edge[]>(() => {
     const out: Edge[] = [];
     for (const op of ops) {
@@ -262,7 +269,6 @@ export function CircuitEditor() {
 
         // Collect per-op updates from moved render nodes.
         const byOp = new Map(prev.map((o) => [o.id, { ...o }]));
-        const occ = buildOccupancy(prev);
         for (const n of nextNodes) {
           const opId = n.data?.opId;
           if (!opId) continue;
@@ -273,6 +279,8 @@ export function CircuitEditor() {
           const occWithout = buildOccupancy(Array.from(byOp.values()), opId);
           const desiredCol = xToCol(n.position.x);
           const newQ = laneToQubit(n.position.y, nQubits);
+          const previousTarget = op.target;
+          const previousControl = op.control;
 
           // Update qubit(s) first so collision resolver uses intended qubits.
           if (n.data.role === "single") {
@@ -283,6 +291,16 @@ export function CircuitEditor() {
           } else if (n.data.role === "target") {
             op.target = newQ;
             op.y = qubitToLaneY(newQ);
+          }
+
+          // A two-qubit operation cannot collapse onto one lane while dragging.
+          // Keep the moved node's previous lane instead of emitting an invalid IR.
+          if ((op.name === "cx" || op.name === "cz") && op.control === op.target) {
+            if (n.data.role === "control") op.control = previousControl;
+            if (n.data.role === "target") {
+              op.target = previousTarget;
+              op.y = qubitToLaneY(previousTarget);
+            }
           }
 
           const qubits = opQubits(op);
@@ -332,7 +350,7 @@ export function CircuitEditor() {
   }>({ name: "h", target: 0, control: 0, theta: 1.234 });
 
   const addGate = useCallback(() => {
-    const id = `g${Date.now().toString(36)}`;
+    const id = `g${typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now().toString(36)}`;
     const maxCol = ops.reduce((m, o) => Math.max(m, o.col), -1);
     const base: GateOp = {
       id,
@@ -346,6 +364,10 @@ export function CircuitEditor() {
     if (newGate.name === "cx" || newGate.name === "cz") {
       base.control = clampInt(newGate.control, 0, nQubits - 1);
       base.target = clampInt(newGate.target, 0, nQubits - 1);
+      if (base.control === base.target) {
+        setEditorNotice("Control va target bir xil bo‘lishi mumkin emas.");
+        return;
+      }
       base.y = 60 + base.target * 60;
     }
     // Place into first non-colliding column (same column reserves both qubits for 2q gates)
@@ -354,6 +376,7 @@ export function CircuitEditor() {
     base.col = placedCol;
     base.x = colToX(placedCol);
 
+    setEditorNotice(null);
     setOps((p) => [...p, base]);
     // Bring the new gate into view so it doesn't look like "nothing happened".
     setTimeout(() => {
@@ -364,6 +387,87 @@ export function CircuitEditor() {
       }
     }, 0);
   }, [nQubits, newGate, ops, setOps]);
+
+  const download = useCallback((name: string, content: string, type: string) => {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = name;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const exportIr = useCallback(() => {
+    try {
+      const ir = editorToIr(nQubits, ops);
+      download("quantum-circuit.qcir.json", JSON.stringify(ir, null, 2), "application/json");
+      setEditorNotice("IR v1 export qilindi.");
+    } catch (error) {
+      setEditorNotice(error instanceof Error ? error.message : "IR export qilishda xato yuz berdi.");
+    }
+  }, [download, nQubits, ops]);
+
+  const exportQasm = useCallback(() => {
+    try {
+      download("quantum-circuit.qasm", editorToIr(nQubits, ops).qasm, "text/plain");
+      setEditorNotice("OpenQASM 3 export qilindi.");
+    } catch (error) {
+      setEditorNotice(error instanceof Error ? error.message : "QASM export qilishda xato yuz berdi.");
+    }
+  }, [download, nQubits, ops]);
+
+  const saveLocal = useCallback(async () => {
+    try {
+      const ir = editorToIr(nQubits, ops);
+      if (isDesktop()) {
+        await invokeDesktop("save_circuit", { circuit: ir });
+        setEditorNotice("Circuit desktop SQLite storage’ga saqlandi.");
+      } else {
+        try {
+          const saved = await saveCircuitVersion(ir);
+          setEditorNotice(`Circuit backend storage’ga saqlandi (version #${saved.id}).`);
+        } catch {
+          download("quantum-circuit.qcir.json", JSON.stringify(ir, null, 2), "application/json");
+          setEditorNotice("Backend ishlamadi; IR fayl sifatida saqlandi.");
+        }
+      }
+    } catch (error) {
+      setEditorNotice(error instanceof Error ? `Save xatosi: ${error.message}` : "Save qilishda xato yuz berdi.");
+    }
+  }, [download, nQubits, ops]);
+
+  const loadLatest = useCallback(async () => {
+    try {
+      const ir = isDesktop()
+        ? validateCircuitIrV1((await invokeDesktop<{ metadata?: unknown }>("load_circuit", { versionId: null })).metadata)
+        : await loadLatestCircuitVersion();
+      const next = irToEditor(ir);
+      replaceCircuit(next.nQubits, next.ops);
+      setEditorNotice(isDesktop() ? "Oxirgi desktop circuit yuklandi." : "Oxirgi backend circuit yuklandi.");
+    } catch (error) {
+      setEditorNotice(error instanceof Error ? `Load xatosi: ${error.message}` : "Load qilishda xato yuz berdi.");
+    }
+  }, [replaceCircuit]);
+
+  const importCircuit = useCallback(async (file: File) => {
+    try {
+      const text = await file.text();
+      let ir;
+      try {
+        ir = validateCircuitIrV1(JSON.parse(text));
+      } catch {
+        ir = qasmToIr(text);
+      }
+      const next = irToEditor(ir);
+      replaceCircuit(next.nQubits, next.ops);
+      setEditorNotice(`${file.name} yuklandi.`);
+    } catch (error) {
+      setEditorNotice(error instanceof Error ? `Import xatosi: ${error.message}` : "Import qilishda xato yuz berdi.");
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  }, [replaceCircuit]);
 
   const showMiniMap = nodes.length <= 200;
 
@@ -428,8 +532,8 @@ export function CircuitEditor() {
             />
           </label>
         )}
-        <button onClick={addGate}>Add</button>
-        <button
+        <Button variant="primary" onClick={addGate}>Add</Button>
+        <Button variant="ghost"
           onClick={() => {
             try {
               rfRef.current?.fitView({ padding: 0.25, duration: 250 });
@@ -437,8 +541,8 @@ export function CircuitEditor() {
           }}
         >
           Fit
-        </button>
-        <button
+        </Button>
+        <Button variant="ghost"
           onClick={() => {
             try {
               rfRef.current?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 0 });
@@ -446,23 +550,45 @@ export function CircuitEditor() {
           }}
         >
           Reset View
-        </button>
-        <button onClick={undo} disabled={!canUndo}>
+        </Button>
+        <Button variant="secondary" onClick={undo} disabled={!canUndo}>
           Undo
-        </button>
-        <button onClick={redo} disabled={!canRedo}>
+        </Button>
+        <Button variant="secondary" onClick={redo} disabled={!canRedo}>
           Redo
-        </button>
-        <button onClick={clear}>Clear</button>
+        </Button>
+        <Button variant="danger" onClick={clear}>Clear</Button>
+        <Button variant="secondary" onClick={() => void saveLocal()}>Save local</Button>
+        <Button variant="secondary" onClick={() => void loadLatest()}>Load latest</Button>
+        <Button variant="secondary" onClick={exportIr}>Export IR</Button>
+        <Button variant="secondary" onClick={exportQasm}>Export QASM</Button>
+        <Button variant="secondary" onClick={() => importInputRef.current?.click()}>Import</Button>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".json,.qcir.json,.qasm,.txt,application/json,text/plain"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void importCircuit(file);
+          }}
+          style={{ display: "none" }}
+        />
         <span style={{ marginLeft: "auto", fontSize: 12, color: "#6b7280" }}>
           {nQubits} qubits | {ops.length} gates | {rfReady ? "ready" : "loading"} | analysis: {analysis?.source ?? "none"}
         </span>
       </div>
+      {editorNotice ? <div role="status" style={{ padding: "6px 10px", color: "#92400e", background: "#fffbeb", borderBottom: "1px solid #fde68a", fontSize: 12 }}>{editorNotice}</div> : null}
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        onError={(code, message) => {
+          // React Strict Mode invokes React Flow's type-key memo twice in dev;
+          // error 002 is a known false positive when these maps are stable.
+          if (code !== "002") console.warn(`[React Flow ${code}] ${message}`);
+        }}
         onInit={(inst) => {
           rfRef.current = inst;
           setRfReady(true);

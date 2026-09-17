@@ -1,0 +1,160 @@
+import threading
+import time
+import unittest
+from tempfile import TemporaryDirectory
+
+from qc_agent.jobs import JobManager, ResourceRequest
+from qc_agent.plugins.base import PluginInfo, plugin_actions, validate_plugin
+
+
+class JobResourceTests(unittest.TestCase):
+    def test_gpu_reservation_serializes_exclusive_jobs(self):
+        with TemporaryDirectory() as directory:
+            manager = JobManager(
+                directory,
+                max_workers=2,
+                resource_provider=lambda: {
+                    "gpu": {
+                        "available": True,
+                        "count": 1,
+                        "device0": {"free_global_mem": 1024 * 1024 * 1024},
+                    }
+                },
+            )
+            request = ResourceRequest(kind="cuda", memory_mb=128, exclusive=True)
+            first = manager.create("first", {}, None, resource=request)
+            second = manager.create("second", {}, None, resource=request)
+            active = 0
+            maximum = 0
+            lock = threading.Lock()
+
+            def work(job):
+                nonlocal active, maximum
+                with lock:
+                    active += 1
+                    maximum = max(maximum, active)
+                time.sleep(0.05)
+                with lock:
+                    active -= 1
+                return {"metrics": {"ok": True}}
+
+            manager.run_async(first, work, resource=request)
+            manager.run_async(second, work, resource=request)
+            deadline = time.time() + 3
+            while time.time() < deadline and (first.status not in ("done", "failed") or second.status not in ("done", "failed")):
+                time.sleep(0.01)
+            self.assertEqual(first.status, "done")
+            self.assertEqual(second.status, "done")
+            self.assertEqual(maximum, 1)
+            self.assertEqual(first.resource["assigned_device"], 0)
+            self.assertEqual(second.resource["assigned_device"], 0)
+            deadline = time.time() + 1
+            while time.time() < deadline and manager.broker.snapshot()["reserved_gpu_memory_mb"]:
+                time.sleep(0.01)
+            self.assertEqual(manager.broker.snapshot()["reserved_gpu_memory_mb"], {})
+            manager.shutdown(wait=True)
+
+    def test_queued_gpu_job_can_be_canceled_without_running(self):
+        with TemporaryDirectory() as directory:
+            manager = JobManager(
+                directory,
+                max_workers=1,
+                resource_provider=lambda: {"gpu": {"available": False}},
+            )
+            request = ResourceRequest(kind="cuda", memory_mb=1, exclusive=True)
+            job = manager.create("blocked", {}, None, resource=request)
+            manager.run_async(job, lambda active: {"metrics": {"ran": True}}, resource=request, acquire_timeout_s=2)
+            time.sleep(0.05)
+            self.assertTrue(manager.cancel(job.job_id))
+            time.sleep(0.1)
+            self.assertEqual(job.status, "canceled")
+            manager.shutdown(wait=True)
+
+
+class PluginContractTests(unittest.TestCase):
+    def test_plugin_contract_exposes_actions_and_api_version(self):
+        class Example:
+            info = PluginInfo("example", "Example", "1.0.0", "test", ("lattice-preview",))
+
+            def preview_lattice(self, payload):
+                return payload
+
+        plugin = Example()
+        validate_plugin(plugin)
+        self.assertEqual(plugin_actions(plugin), ("preview_lattice",))
+
+    def test_invalid_plugin_is_rejected(self):
+        class Invalid:
+            info = PluginInfo("bad", "Bad", "1.0.0", "test", ())
+
+        with self.assertRaises(ValueError):
+            validate_plugin(Invalid())
+
+
+class UnifiedApiTests(unittest.TestCase):
+    def test_async_physics_defaults_resolve_tensor_network_backend(self):
+        from qc_agent.server import _async_backend, _async_parse
+
+        terms = [{"paulis": {"0": "Z"}, "coefficient": 1.0}]
+        tebd = _async_parse("tebd", {
+            "n_qubits": 2,
+            "terms": terms,
+            "dt": 0.01,
+            "steps": 1,
+            "bond_dim": 2,
+        })
+        peps = _async_parse("peps", {
+            "n_qubits": 4,
+            "terms": terms,
+            "lattice": {"dimensions": [2, 2], "boundary": "open"},
+            "dt": 0.01,
+            "steps": 1,
+            "bond_dim": 2,
+        })
+        self.assertEqual(_async_backend("tebd", tebd), ("tensor-network", "evolve"))
+        self.assertEqual(_async_backend("peps", peps), ("tensor-network", "peps"))
+
+    def test_gpu_benchmark_preflight_accepts_generic_budget(self):
+        from qc_agent.server import _async_backend, _async_parse, _async_preflight
+
+        payload = _async_parse("bench_matmul", {
+            "size": 256,
+            "iters": 1,
+            "dtype": "fp16",
+        })
+        resolved, operation = _async_backend("bench_matmul", payload)
+        report = _async_preflight(
+            "bench_matmul",
+            payload,
+            resolved,
+            {"max_qubits": 1, "max_mem_mb": 128, "max_time_ms": 30000},
+        )
+        self.assertEqual((resolved, operation), ("statevector", "simulate"))
+        self.assertTrue(report["feasible"])
+        self.assertEqual(report["method"], "gpu-matmul-bound")
+
+    def test_reference_run_uses_unified_job_lifecycle(self):
+        from qc_agent.server import AsyncSubmission, get_job, submit_unified_async_route
+
+        submitted = submit_unified_async_route(AsyncSubmission(
+            kind="run",
+            payload={
+                "n_qubits": 1,
+                "gates": [],
+                "backend": "reference",
+                "result_type": "samples",
+                "shots": 4,
+            },
+        ))
+        deadline = time.time() + 3
+        current = get_job(submitted["job_id"])
+        while current["status"] in ("queued", "running") and time.time() < deadline:
+            time.sleep(0.01)
+            current = get_job(submitted["job_id"])
+        self.assertEqual(current["status"], "done")
+        self.assertEqual(sum(current["artifacts"]["result"]["counts"].values()), 4)
+        self.assertIn("problem_sha256", current["artifacts"]["result"]["provenance"])
+
+
+if __name__ == "__main__":
+    unittest.main()

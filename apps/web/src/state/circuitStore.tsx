@@ -10,6 +10,7 @@ export type GateOp = {
   target: number;
   control?: number;
   theta?: number;
+  parameter?: string;
   col: number;
   x: number;
   y: number;
@@ -34,6 +35,7 @@ type CircuitState = {
   setNQubits: (n: number) => void;
   ops: GateOp[];
   setOps: React.Dispatch<React.SetStateAction<GateOp[]>>;
+  replaceCircuit: (nQubits: number, ops: GateOp[]) => void;
   clear: () => void;
   undo: () => void;
   redo: () => void;
@@ -65,19 +67,32 @@ export function CircuitProvider({ children }: { children: ReactNode }) {
   }, [present]);
 
   const setOps: React.Dispatch<React.SetStateAction<GateOp[]>> = useCallback((updater) => {
-    const nextOps = typeof updater === "function" ? (updater as any)(present.ops) : updater;
+    const nextOps = typeof updater === "function" ? updater(present.ops) : updater;
     push({ nQubits: present.nQubits, ops: nextOps });
   }, [present, push]);
 
   const setNQubits = useCallback((n: number) => {
     const next = Math.max(1, Math.min(64, Math.floor(n)));
-    const nextOps = present.ops.map((g) => {
-      const clampedTarget = Math.max(0, Math.min(next - 1, g.target));
-      const clampedControl = g.control === undefined ? undefined : Math.max(0, Math.min(next - 1, g.control));
-      return { ...g, target: clampedTarget, control: clampedControl, y: 60 + clampedTarget * 60 };
-    });
+    if (next === present.nQubits) return;
+    // Removing qubits must not silently turn a two-qubit gate into an invalid
+    // same-control/same-target operation. Gates that reference removed lanes
+    // are dropped; surviving gates keep their exact qubit indices.
+    const nextOps = present.ops
+      .filter((g) => {
+        if (g.target >= next || (g.control !== undefined && g.control >= next)) return false;
+        return g.control === undefined || g.control !== g.target;
+      })
+      .map((g) => ({ ...g, y: 60 + g.target * 60 }));
     push({ nQubits: next, ops: nextOps });
   }, [present, push]);
+
+  const replaceCircuit = useCallback((nextNQubits: number, nextOps: GateOp[]) => {
+    const bounded = Math.max(1, Math.min(64, Math.floor(nextNQubits)));
+    setPresent({ nQubits: bounded, ops: nextOps });
+    setPast([]);
+    setFuture([]);
+    setAnalysis(null);
+  }, []);
 
   const clear = useCallback(() => {
     push({ nQubits: present.nQubits, ops: [] });
@@ -107,6 +122,7 @@ export function CircuitProvider({ children }: { children: ReactNode }) {
       setNQubits,
       ops,
       setOps,
+      replaceCircuit,
       clear,
       undo,
       redo,
@@ -115,7 +131,7 @@ export function CircuitProvider({ children }: { children: ReactNode }) {
       analysis,
       setAnalysis
     }),
-    [nQubits, ops, setNQubits, setOps, clear, undo, redo, past.length, future.length, analysis]
+    [nQubits, ops, setNQubits, setOps, replaceCircuit, clear, undo, redo, past.length, future.length, analysis]
   );
 
   return <CircuitCtx.Provider value={value}>{children}</CircuitCtx.Provider>;
