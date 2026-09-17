@@ -464,6 +464,7 @@ Status at the architecture-freeze checkpoint:
 - [x] integrate MPS resource/truncation/variance diagnostics and explicit checkpoint round-trips;
 - [x] add prefix-shared Pauli MPO construction and MPS/MPO expectation tests;
 - [x] implement bounded open-2D boundary-MPS contraction with exact small-reference tests;
+- [x] expose DMRG/PEPS diagnostics through the shared research-result envelope;
 - [ ] complete M1 1D core hardening;
 - [ ] implement M2 finite boundary-MPS.
 

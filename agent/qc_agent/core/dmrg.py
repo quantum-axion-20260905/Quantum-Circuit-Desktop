@@ -7,6 +7,7 @@ from typing import Any
 from ..backends import mps as mps_backend
 from ..models import TNGate, TNPayload
 from ..plugins.models import DMRGPayload
+from .contracts import ConvergencePoint, ConvergenceReport, ResearchResult
 from .mps_runtime import MPSRuntime, pauli_operator
 from .observables import mps_expectation_from_tensors
 
@@ -307,6 +308,38 @@ def run_dmrg(
         warnings.append("DMRG did not reach the requested energy tolerance")
     if runtime.discarded_weight > 1e-12:
         warnings.append("bond dimension truncated entanglement; inspect discarded_weight")
+    convergence = ConvergenceReport(
+        converged=converged,
+        criterion=f"abs(delta_energy) <= {payload.tolerance}",
+        points=[
+            ConvergencePoint(
+                iteration=int(point["sweep"]),
+                energy=float(point["energy"]),
+                residual=float(point["local_solver_residual_max"]),
+                norm_drift=float(abs(point["norm2"] - 1.0)),
+                discarded_weight=float(point["discarded_weight"]),
+                bond_dim=int(point["bond_dim_used"]),
+            )
+            for point in history
+        ],
+        warnings=list(warnings) if not converged else [],
+    )
+    research_result = ResearchResult(
+        status="done" if converged else "needs_review",
+        method="finite-two-site-dmrg",
+        representation="mps",
+        metrics={"energy": energy, "energy_variance": energy_variance, "energy_std": energy_std, "norm2": runtime.norm2()},
+        truncation=runtime.truncation_report(),
+        convergence=convergence,
+        resources=runtime.estimate_resources(),
+        warnings=list(warnings),
+        limitations=[
+            "finite two-site DMRG is bounded by the selected MPS bond dimension",
+            "results require bond-dimension and sweep convergence studies for publication-quality evidence",
+        ],
+        provenance={"local_solver": payload.local_solver, "lanczos_maxiter": payload.lanczos_maxiter},
+        details={"history": history, "observables": len(observables)},
+    ).to_dict()
     return {
         "status": "done",
         "backend": "tensor-network-mps-dmrg",
@@ -336,6 +369,7 @@ def run_dmrg(
         "norm2": runtime.norm2(),
         "truncation_report": runtime.truncation_report().__dict__,
         "resource_estimate": runtime.estimate_resources(),
+        "research_result": research_result,
         "approximate": True,
         "warnings": warnings,
         "time_ms": round((time.perf_counter() - started) * 1000, 3),

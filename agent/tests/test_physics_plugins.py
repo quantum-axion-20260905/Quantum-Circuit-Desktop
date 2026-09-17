@@ -103,6 +103,8 @@ class PhysicsPluginTests(unittest.TestCase):
         self.assertIn("energy_variance", result)
         self.assertIn("truncation_report", result)
         self.assertIn("resource_estimate", result)
+        self.assertEqual(result["research_result"]["schema"], "quantum-circuit/research-result-v1")
+        self.assertEqual(result["research_result"]["representation"], "mps")
 
     def test_two_site_dmrg_matches_entangled_heisenberg_reference(self):
         terms = [
@@ -136,6 +138,8 @@ class PhysicsPluginTests(unittest.TestCase):
         self.assertTrue(result["native_geometry"])
         self.assertAlmostEqual(result["expectations"][1]["values"][0], math.cos(0.4), places=5)
         self.assertAlmostEqual(result["norm2"], 1.0, places=5)
+        self.assertEqual(result["research_result"]["representation"], "peps")
+        self.assertEqual(result["research_result"]["status"], "needs_review")
 
     def test_native_peps_opt_einsum_matches_bounded_fallback_and_supports_3d(self):
         base = PEPSPayload(

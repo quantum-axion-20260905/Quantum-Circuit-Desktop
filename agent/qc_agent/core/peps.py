@@ -9,6 +9,7 @@ from ..backends import mps as mps_backend
 from ..plugins.lattice import lattice_graph
 from ..plugins.models import PEPSPayload
 from .boundary_mps import contract_boundary_mps
+from .contracts import ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
 from .observables import statevector_expectation
 from .mps_runtime import pauli_operator
 
@@ -253,6 +254,21 @@ def _energy(runtime: PEPSRuntime, payload: PEPSPayload) -> float:
     return float(sum(term.coefficient * value for term, value in zip(payload.terms, values)))
 
 
+def _resource_estimate(runtime: PEPSRuntime) -> dict[str, Any]:
+    dtype = runtime.tensors[0].dtype
+    itemsize = int(getattr(dtype, "itemsize", 16))
+    tensor_values = sum(int(tensor.size) for tensor in runtime.tensors)
+    tensor_bytes = tensor_values * itemsize
+    return {
+        "representation": "peps",
+        "n_qubits": len(runtime.tensors),
+        "tensor_values": tensor_values,
+        "tensor_bytes": tensor_bytes,
+        "peak_bytes_estimate": int(math.ceil(tensor_bytes * 2.5)),
+        "dtype": str(dtype),
+    }
+
+
 def run_peps(
     xp: Any,
     payload: PEPSPayload,
@@ -282,6 +298,44 @@ def run_peps(
         if progress_cb:
             progress_cb((step + 1) / max(1, payload.steps), "peps-step")
     runtime.xp.cuda.Stream.null.synchronize() if hasattr(runtime.xp, "cuda") else None
+    warnings = [
+        "native finite PEPS uses simple-update truncation and a bounded double-layer contraction",
+        "increase bond_dim or compare against MPS/DMRG for convergence",
+    ] + (["boundary-MPS contraction truncates the environment; increase boundary_bond_dim and compare convergence"] if payload.contraction_method == "boundary-mps" else [])
+    boundary_diagnostics = runtime.boundary_summary if payload.contraction_method == "boundary-mps" else {}
+    convergence_points = [
+        ConvergencePoint(
+            iteration=int(point["row"]),
+            discarded_weight=float(point["discarded_weight"]),
+            environment_dim=int(point["bond_dim_used"]),
+        )
+        for point in boundary_diagnostics.get("rows", [])
+    ]
+    research_result = ResearchResult(
+        status="needs_review",
+        method="finite-peps-simple-update",
+        representation="peps",
+        metrics={"norm2": runtime.norm2(), "final_energy": energies[-1]},
+        truncation=TruncationReport(
+            discarded_weight=float(runtime.discarded_weight + boundary_diagnostics.get("discarded_weight", 0.0)),
+            cutoff=float(payload.truncation_cutoff),
+            max_bond_dim=int(payload.bond_dim),
+            max_environment_dim=(int(payload.boundary_bond_dim) if payload.contraction_method == "boundary-mps" else None),
+        ),
+        convergence=ConvergenceReport(
+            converged=bool(boundary_diagnostics.get("converged", False)) if payload.contraction_method == "boundary-mps" else False,
+            criterion="boundary discarded weight and environment bond dimension" if payload.contraction_method == "boundary-mps" else "simple-update PEPS requires an independent convergence study",
+            points=convergence_points,
+            warnings=list(warnings),
+        ),
+        resources=_resource_estimate(runtime),
+        warnings=list(warnings),
+        limitations=[
+            "finite PEPS uses simple-update evolution and is not a full variational update",
+            "results should be compared across physical bond dimension and, for boundary-MPS, environment bond dimension",
+        ],
+        details={"dimensions": list(payload.lattice.dimensions), "contraction_method": payload.contraction_method},
+    ).to_dict()
     return {
         "status": "done",
         "backend": "tensor-network-peps-boundary-mps" if payload.contraction_method == "boundary-mps" else "tensor-network-peps-simple-update",
@@ -297,6 +351,8 @@ def run_peps(
         "virtual_bond_count": len(runtime.edges),
         "contraction_method": payload.contraction_method if payload.contraction_method != "auto" or oe is not None else "enumeration",
         "boundary_diagnostics": runtime.boundary_summary if payload.contraction_method == "boundary-mps" else None,
+        "resource_estimate": _resource_estimate(runtime),
+        "research_result": research_result,
         "discarded_weight": runtime.discarded_weight,
         "approximate": True,
         "norm2": runtime.norm2(),
@@ -306,9 +362,6 @@ def run_peps(
             {"time": moment, "values": point, "energy": energy}
             for moment, point, energy in zip(times, values, energies)
         ],
-        "warnings": [
-            "native finite PEPS uses simple-update truncation and a bounded double-layer contraction",
-            "increase bond_dim or compare against MPS/DMRG for convergence",
-        ] + (["boundary-MPS contraction truncates the environment; increase boundary_bond_dim and compare convergence"] if payload.contraction_method == "boundary-mps" else []),
+        "warnings": warnings,
         "time_ms": round((time.perf_counter() - started) * 1000, 3),
     }
