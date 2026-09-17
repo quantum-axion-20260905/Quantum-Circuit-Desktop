@@ -33,11 +33,12 @@ from .plugins.models import (
     DMRGPayload,
     ExpectationPayload,
     GroundStatePayload,
+    ObservableCrossValidatePayload,
     PEPSPayload,
     TEBDPayload,
 )
 from .plugins.registry import catalog as plugin_catalog
-from .core.observables import evolve_statevector, mps_expectation_from_tensors, reference_expectation, statevector_expectation
+from .core.observables import cross_validate_mps_observables, evolve_statevector, mps_expectation_from_tensors, reference_expectation, statevector_expectation
 from .core.mps_runtime import MPSRuntime
 from .core.ground_state import exact_ground_state
 from .core.dmrg import run_dmrg
@@ -431,6 +432,29 @@ def jobs_expectation(payload: ExpectationPayload) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return _with_run_provenance(result, payload, requested_backend=payload.backend, resolved_backend=resolved, started_at=started_at)
+
+
+@app.post("/jobs/cross_validate_observables")
+@_sync_gpu_guard
+def jobs_cross_validate_observables(payload: ObservableCrossValidatePayload) -> dict[str, Any]:
+    """Compare bounded MPS observables with the independent CPU reference."""
+
+    if any(gate.parameter is not None for gate in payload.gates):
+        raise HTTPException(status_code=422, detail="observable validation requires materialized rotation parameters")
+    require_gpu(cp)
+    _require_feasible_gpu_run(payload, "tensor-network")
+    started_at = time.perf_counter()
+    try:
+        result = cross_validate_mps_observables(cp, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _with_run_provenance(
+        result,
+        payload,
+        requested_backend="tensor-network",
+        resolved_backend="observable-cross-validation",
+        started_at=started_at,
+    )
 
 
 @app.post("/jobs/tebd")

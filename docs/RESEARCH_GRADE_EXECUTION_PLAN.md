@@ -2,12 +2,9 @@
 
 Status: active execution plan for the `v0.5.x` line
 
-Current active slice: **Phase 1, finite-MPS convention hardening**. The first
-item is complete: tensor axis order, open-boundary bond compatibility, and
-left/right canonical QR invariants are now explicit in
-`agent/qc_agent/core/mps_conventions.py` and covered by CPU and bounded GPU
-smoke tests. The next item is observable coverage and exact-reference
-cross-checks.
+Current active slice: **Phase 1, 1D MPS/DMRG/TEBD 1.0**. The convention,
+observable-reference, and DMRG stopping-classification items are complete. The
+next item is a bounded convergence-study helper.
 
 This is the operational plan for turning Quantum Circuit Desktop into a
 reliable tensor-network research workbench. It is intentionally narrower than
@@ -104,10 +101,15 @@ Implementation order:
    forms explicit in `mps_conventions.py` and tests. The validator now locks
    `(left_bond, physical, right_bond)`, open boundary dimensions, adjacent
    bond compatibility, and QR isometry residuals.
-2. **Next:** finish observable coverage and compare MPS/MPO results with dense exact
-   references on small systems.
-3. Add sweep-level DMRG stopping rules based on energy and residual/variance,
-   not only a fixed sweep count.
+2. **Done:** finish observable coverage and compare MPS/MPO results with dense
+   exact references on small systems. The reusable
+   `cross_validate_mps_observables` helper and
+   `/jobs/cross_validate_observables` validation route report per-observable
+   error, energy error, norm, bond dimension, and truncation evidence.
+3. **Done:** add sweep-level DMRG stopping rules based on energy and
+   residual/variance. `converged` now requires energy delta, local solver
+   residual, and variance when the variance is affordable; dtype-aware
+   numerical floors prevent false rejection from `complex64` round-off.
 4. Add a bounded convergence-study helper for bond dimension, sweeps, cutoff,
    and timestep. Persist every point as a replayable run.
 5. Add checkpoint/resume and cancellation tests. A resumed run must report the
@@ -115,12 +117,17 @@ Implementation order:
 6. Add TDVP/VUMPS interfaces only after the finite MPS contracts are stable;
    they should register as separate capabilities, not be mixed into DMRG.
 
-Latest evidence for item 1:
+Latest evidence for completed convention and observable-reference items:
 
-- focused MPS suite: 13 tests passed;
-- full agent suite: 60 tests passed;
+- focused MPS suite: 15 tests passed;
+- full agent suite: 63 tests passed;
 - bounded CUDA smoke: 8 qubits on device 0, norm drift below `2e-6`, left and
   right isometry residuals below `1e-6`.
+- bounded CUDA observable cross-validation: 4 qubits, passed, maximum
+  observable error `1.11e-16`, energy error `2.78e-17`, norm² `1.0`.
+- bounded CUDA DMRG stopping smoke: 2-qubit Heisenberg passed with energy
+  `-2.9999995`, variance `1.91e-6`, residual `4.14e-7`, and an effective
+  `complex64` variance tolerance of `8.58e-6`.
 
 Acceptance gate for Phase 1:
 
@@ -323,8 +330,9 @@ When this document is used as the goal-mode brief, the agent should:
 9. If blocked, record the exact failing contract, test, or environment
    dependency here instead of opening an unrelated backend.
 
-The next goal-mode task is therefore: **complete Phase 1, item 2 — expand
-MPS/MPO observable coverage and add dense exact-reference cross-checks.**
+The next goal-mode task is therefore: **complete Phase 1, item 4 — add a
+bounded convergence-study helper for bond dimension, sweeps, cutoff, and
+timestep.**
 
 ## 7. Progress accounting
 

@@ -143,6 +143,8 @@ Physics Lab endpoints:
 - `POST /plugins/hubbard-materials/fermion_mapping` maps ordered fermion
   creation/annihilation products while preserving complex coefficients.
 - `POST /jobs/expectation` evaluates sparse observables and total energy.
+- `POST /jobs/cross_validate_observables` compares bounded MPS observables and
+  energy against the independent CPU reference on small systems.
 - `POST /jobs/tebd` runs bounded-bond MPS time evolution for bounded-locality
   Pauli strings and returns energy/observable trajectories with
   truncation/provenance diagnostics.

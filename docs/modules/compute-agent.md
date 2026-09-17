@@ -27,6 +27,7 @@ FastAPI service running locally. GPU/TN compute lives here.
 - `POST /plugins/{plugin_id}/fermion_mapping`
 - `POST /plugins/{plugin_id}/hubbard`
 - `POST /jobs/expectation`
+- `POST /jobs/cross_validate_observables`
 - `POST /jobs/tebd`
 - `POST /jobs/ground_state`
 - `POST /jobs/dmrg`
@@ -54,6 +55,11 @@ below the declared Hermiticity tolerance.
 
 `POST /jobs/expectation` evaluates sparse Pauli observables and returns each
 term expectation, total energy, norm, truncation diagnostics, and provenance.
+`POST /jobs/cross_validate_observables` is a bounded validation instrument: it
+compares MPS observable values and total energy with the independent CPU
+reference, returning per-term errors, tolerance status, norm, bond dimension,
+and truncation evidence. It is limited to the reference-circuit size and is
+not a production-size dense solver.
 `POST /jobs/tebd` evolves bounded-locality Pauli Hamiltonians with first- or
 second-order Suzuki-Trotter steps and returns energy/observable trajectories.
 For strings longer than two sites it uses a parity-CX network, so its runtime
@@ -62,7 +68,7 @@ and truncation diagnostics should be checked more carefully.
 energy validation; it is intentionally capped at 12 qubits. `POST /jobs/dmrg`
 is a finite two-site variational MPS solver with an iterative Lanczos local
 eigensolver by default, optional dense validation mode, sweep history,
-tolerance, bond and truncation diagnostics.
+tolerance, residual/variance-aware stopping, bond and truncation diagnostics.
 `POST /jobs/peps` is a native rectangular 2D/3D finite PEPS simple-update path;
 it uses an opt_einsum boundary contraction when available and a bounded
 virtual-bond enumeration fallback, rejecting requests that exceed the

@@ -198,9 +198,10 @@ def run_dmrg(
     converged = False
     solver_iterations_total = 0
     solver_residual_max = 0.0
+    current_sweep_solver_residual_max = 0.0
 
     def optimize(site: int, left_to_right: bool) -> None:
-        nonlocal solver_iterations_total, solver_residual_max
+        nonlocal solver_iterations_total, solver_residual_max, current_sweep_solver_residual_max
         if cancel_cb and cancel_cb():
             raise RuntimeError("job canceled")
         compiled = _effective_terms(xp, runtime.tensors, site, payload.terms)
@@ -240,6 +241,7 @@ def run_dmrg(
             )
         solver_iterations_total += solver_iterations
         solver_residual_max = max(solver_residual_max, solver_residual)
+        current_sweep_solver_residual_max = max(current_sweep_solver_residual_max, solver_residual)
         theta = local_vector.reshape(
             runtime.tensors[site].shape[0], 2, 2, runtime.tensors[site + 1].shape[2]
         )
@@ -263,7 +265,21 @@ def run_dmrg(
             default=1,
         )
 
+    coefficient_scale = max(1.0, sum(abs(float(term.coefficient)) for term in payload.terms))
+    precision_epsilon = 1.1920928955078125e-7 if payload.dtype == "complex64" else 2.220446049250313e-16
+    default_variance_tolerance = max(
+        float(payload.tolerance),
+        8.0 * precision_epsilon * coefficient_scale * coefficient_scale,
+    )
+    variance_tolerance = float(payload.variance_tolerance or default_variance_tolerance)
+    energy_variance: float | None = None
+    energy_std: float | None = None
+    last_energy_ok = False
+    last_residual_ok = False
+    last_variance_ok: bool | None = None
+
     for sweep in range(payload.sweeps):
+        current_sweep_solver_residual_max = 0.0
         for site in range(payload.n_qubits - 1):
             optimize(site, True)
         for site in range(payload.n_qubits - 2, -1, -1):
@@ -272,6 +288,13 @@ def run_dmrg(
         energy = _energy(xp, runtime.tensors, payload.terms)
         delta = None if previous_energy is None else abs(energy - previous_energy)
         norm2 = runtime.norm2()
+        energy_ok = delta is not None and delta <= payload.tolerance
+        residual_ok = current_sweep_solver_residual_max <= payload.residual_tolerance
+        sweep_variance: float | None = None
+        variance_ok: bool | None = None
+        if energy_ok and len(payload.terms) <= 256:
+            _, _, sweep_variance = runtime.energy_moments(payload.terms)
+            variance_ok = sweep_variance <= variance_tolerance
         history.append({
             "sweep": sweep + 1,
             "energy": energy,
@@ -281,11 +304,19 @@ def run_dmrg(
             "norm2": norm2,
             "local_solver": payload.local_solver,
             "local_solver_iterations_total": solver_iterations_total,
-            "local_solver_residual_max": solver_residual_max,
+            "local_solver_residual_max": current_sweep_solver_residual_max,
+            "energy_variance": sweep_variance,
+            "energy_std": math.sqrt(sweep_variance) if sweep_variance is not None else None,
+            "energy_delta_ok": energy_ok,
+            "residual_ok": residual_ok,
+            "variance_ok": variance_ok,
         })
         if progress_cb:
             progress_cb((sweep + 1) / max(1, payload.sweeps), "dmrg-sweep")
-        if delta is not None and delta <= payload.tolerance:
+        last_energy_ok = energy_ok
+        last_residual_ok = residual_ok
+        last_variance_ok = variance_ok
+        if energy_ok and residual_ok and (variance_ok is not False):
             converged = True
             break
         previous_energy = energy
@@ -300,17 +331,37 @@ def run_dmrg(
     else:
         energy_variance = None
         energy_std = None
+    if history:
+        history[-1]["energy_variance"] = energy_variance
+        history[-1]["energy_std"] = energy_std
+        if history[-1]["delta_energy"] is not None:
+            last_energy_ok = bool(history[-1]["delta_energy"] <= payload.tolerance)
+        last_residual_ok = bool(history[-1]["local_solver_residual_max"] <= payload.residual_tolerance)
+        last_variance_ok = None if energy_variance is None else bool(energy_variance <= variance_tolerance)
+        if not converged and last_energy_ok and last_residual_ok and (last_variance_ok is not False):
+            converged = True
     warnings = [
         "two-site finite DMRG is variational within the selected MPS bond dimension",
-        "increase sweeps and bond_dim until energy and discarded_weight stabilize",
+        "increase sweeps and bond_dim until energy, residual, variance, and discarded_weight stabilize",
     ]
     if not converged:
-        warnings.append("DMRG did not reach the requested energy tolerance")
+        if not last_energy_ok:
+            warnings.append("DMRG did not reach the requested energy-delta tolerance")
+        if not last_residual_ok:
+            warnings.append("local solver residual did not reach the requested tolerance")
+        if last_variance_ok is False:
+            warnings.append("energy variance did not reach the requested tolerance")
+        if last_variance_ok is None:
+            warnings.append("energy variance was not evaluated because the Hamiltonian has more than 256 terms")
     if runtime.discarded_weight > 1e-12:
         warnings.append("bond dimension truncated entanglement; inspect discarded_weight")
     convergence = ConvergenceReport(
         converged=converged,
-        criterion=f"abs(delta_energy) <= {payload.tolerance}",
+        criterion=(
+            f"abs(delta_energy) <= {payload.tolerance} and "
+            f"local_solver_residual <= {payload.residual_tolerance} and "
+            f"energy_variance <= {variance_tolerance} when evaluated"
+        ),
         points=[
             ConvergencePoint(
                 iteration=int(point["sweep"]),
@@ -353,8 +404,10 @@ def run_dmrg(
         "tolerance": payload.tolerance,
         "local_solver": payload.local_solver,
         "lanczos_maxiter": payload.lanczos_maxiter,
+        "residual_tolerance": payload.residual_tolerance,
+        "variance_tolerance": variance_tolerance,
         "local_solver_iterations": solver_iterations_total,
-        "local_solver_residual": solver_residual_max,
+        "local_solver_residual": history[-1]["local_solver_residual_max"] if history else solver_residual_max,
         "converged": converged,
         "ground_energy": energy,
         "energy": energy,

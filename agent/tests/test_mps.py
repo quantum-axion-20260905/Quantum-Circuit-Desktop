@@ -7,14 +7,16 @@ import numpy as np
 
 from qc_agent.backends.mps import amplitudes, sample
 from qc_agent.core.contracts import CheckpointManifest
+from qc_agent.core.ground_state import dense_hamiltonian
 from qc_agent.core.mpo import build_pauli_mpo
 from qc_agent.core.mps_conventions import (
     canonical_form_report,
     validate_mps_tensors,
 )
+from qc_agent.core.observables import cross_validate_mps_observables, evolve_statevector, statevector_expectation
 from qc_agent.core.mps_runtime import MPSRuntime
 from qc_agent.models import RunPayload, TNGate, TNPayload
-from qc_agent.plugins.models import PauliTerm
+from qc_agent.plugins.models import ObservableCrossValidatePayload, PauliTerm
 
 
 class MPSSimulatorTests(unittest.TestCase):
@@ -243,6 +245,58 @@ class MPSSimulatorTests(unittest.TestCase):
         self.assertAlmostEqual(runtime.expectation_mpo(mpo), direct, places=5)
         self.assertEqual(mpo.bond_dim, 3)
         self.assertGreater(mpo.estimate_resources()["tensor_bytes"], 0)
+
+    def test_mps_and_mpo_observables_match_dense_reference(self):
+        payload = TNPayload(
+            n_qubits=4,
+            gates=[
+                TNGate(name="h", target=0),
+                TNGate(name="ry", target=1, theta=0.31),
+                TNGate(name="cx", control=0, target=3),
+                TNGate(name="rz", target=2, theta=-0.22),
+            ],
+            bond_dim=4,
+        )
+        terms = [
+            PauliTerm(paulis={0: "X", 1: "Y"}, coefficient=0.7),
+            PauliTerm(paulis={0: "Z", 3: "Z"}, coefficient=-0.2),
+            PauliTerm(paulis={2: "X"}, coefficient=0.3),
+        ]
+        runtime = MPSRuntime(np, payload)
+        dense_state = evolve_statevector(np, payload)
+        dense_values = statevector_expectation(dense_state, np, terms, payload.n_qubits)
+        mps_values = runtime.expectation(terms)
+        mpo = build_pauli_mpo(np, payload.n_qubits, terms)
+
+        for actual, expected in zip(mps_values, dense_values):
+            self.assertAlmostEqual(actual, expected, places=5)
+        dense_h = dense_hamiltonian(np, payload.n_qubits, terms, np.complex128)
+        dense_vector = np.asarray(dense_state, dtype=np.complex128)
+        expected_energy = float(np.vdot(dense_vector, dense_h @ dense_vector).real)
+        expected_second = float(np.vdot(dense_vector, dense_h @ dense_h @ dense_vector).real)
+        energy, second_moment, variance = runtime.energy_moments(terms)
+        self.assertAlmostEqual(runtime.expectation_mpo(mpo), expected_energy, places=5)
+        self.assertAlmostEqual(energy, expected_energy, places=5)
+        self.assertAlmostEqual(second_moment, expected_second, places=5)
+        self.assertAlmostEqual(variance, expected_second - expected_energy**2, places=5)
+
+    def test_observable_cross_validation_returns_replayable_error_evidence(self):
+        payload = ObservableCrossValidatePayload(
+            n_qubits=3,
+            gates=[TNGate(name="h", target=0), TNGate(name="cx", control=0, target=2)],
+            terms=[
+                PauliTerm(paulis={0: "X", 2: "X"}, coefficient=0.5, label="XX"),
+                PauliTerm(paulis={1: "Z"}, coefficient=-0.25, label="Z1"),
+            ],
+            bond_dim=4,
+            tolerance=1e-5,
+        )
+        result = cross_validate_mps_observables(np, payload)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["tested_backend"], "tensor-network-mps-observable")
+        self.assertEqual(len(result["comparisons"]), 2)
+        self.assertLessEqual(result["max_absolute_error"], payload.tolerance)
+        self.assertLessEqual(result["energy_absolute_error"], payload.tolerance)
 
 
 if __name__ == "__main__":

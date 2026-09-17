@@ -122,6 +122,26 @@ class PhysicsPluginTests(unittest.TestCase):
         self.assertTrue(result["converged"])
         self.assertLess(result["local_solver_residual"], 1e-5)
 
+    def test_dmrg_does_not_call_energy_stability_convergence_with_large_variance(self):
+        terms = [
+            *[PauliTerm(paulis={index: "Z"}, coefficient=0.2) for index in range(4)],
+            *[PauliTerm(paulis={index: "X", index + 1: "X"}, coefficient=0.7) for index in range(3)],
+        ]
+        result = run_dmrg(np, DMRGPayload(
+            n_qubits=4,
+            terms=terms,
+            bond_dim=2,
+            sweeps=4,
+            lanczos_maxiter=16,
+            tolerance=1e-7,
+            variance_tolerance=1e-7,
+        ))
+        self.assertFalse(result["converged"])
+        self.assertGreater(result["energy_variance"], 1e-7)
+        self.assertIn("energy variance did not reach the requested tolerance", result["warnings"])
+        self.assertEqual(result["research_result"]["status"], "needs_review")
+        self.assertIn("energy_variance", result["history"][-1])
+
     def test_native_peps_evolves_a_two_dimensional_edge(self):
         payload = PEPSPayload(
             n_qubits=4,

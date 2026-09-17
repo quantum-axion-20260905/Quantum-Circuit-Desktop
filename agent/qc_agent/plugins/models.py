@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from ..backends.limits import MAX_EXACT_DIAGONALIZATION_QUBITS
+from ..backends.limits import MAX_EXACT_DIAGONALIZATION_QUBITS, MAX_REFERENCE_QUBITS
 from ..models import TNGate
 
 
@@ -109,6 +109,18 @@ class ExpectationPayload(BaseModel):
         return self
 
 
+class ObservableCrossValidatePayload(ExpectationPayload):
+    """Small-system MPS observable validation against the CPU reference."""
+
+    tolerance: float = Field(default=1e-5, gt=0, le=1.0)
+
+    @model_validator(mode="after")
+    def validate_reference_size(self):
+        if self.n_qubits > MAX_REFERENCE_QUBITS:
+            raise ValueError(f"observable cross-validation supports at most {MAX_REFERENCE_QUBITS} qubits")
+        return self
+
+
 class GroundStatePayload(BaseModel):
     """Small exact diagonalization reference for Hamiltonian validation."""
 
@@ -144,6 +156,8 @@ class DMRGPayload(BaseModel):
     truncation_cutoff: float = Field(default=0.0, ge=0.0, le=1.0)
     sweeps: int = Field(default=4, ge=1, le=64)
     tolerance: float = Field(default=1e-7, gt=0, le=1.0)
+    residual_tolerance: float = Field(default=1e-6, gt=0, le=1.0)
+    variance_tolerance: float | None = Field(default=None, gt=0, le=1.0)
     local_solver: Literal["lanczos", "dense"] = "lanczos"
     lanczos_maxiter: int = Field(default=32, ge=4, le=128)
     lanczos_tolerance: float = Field(default=1e-8, gt=0, le=1e-2)

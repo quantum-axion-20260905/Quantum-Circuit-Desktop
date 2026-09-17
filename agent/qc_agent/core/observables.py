@@ -192,3 +192,67 @@ def reference_expectation(payload: Any) -> dict[str, Any]:
         values.append(float(total.real))
     norm2 = sum(abs(amplitude) ** 2 for amplitude in state)
     return {"backend": "reference-cpu-observable", "method": "reference-observable", "norm2": norm2, "values": values}
+
+
+def cross_validate_mps_observables(cp: Any, payload: Any) -> dict[str, Any]:
+    """Compare MPS observables with the independent small-system reference.
+
+    This is deliberately a bounded validation instrument. It uses the CPU
+    reference for expected values and the reusable MPS runtime for tested
+    values; callers decide admission limits and provenance.
+    """
+
+    from ..models import TNPayload
+    from .mps_runtime import MPSRuntime
+
+    tolerance = float(getattr(payload, "tolerance", 1e-5))
+    reference = reference_expectation(payload)
+    runtime = MPSRuntime(
+        cp,
+        TNPayload(
+            n_qubits=payload.n_qubits,
+            gates=payload.gates,
+            dtype=payload.dtype,
+            bond_dim=payload.bond_dim,
+            truncation_cutoff=payload.truncation_cutoff,
+        ),
+    )
+    actual_values = runtime.expectation(payload.terms)
+    comparisons = []
+    max_absolute_error = 0.0
+    for term, expected, actual in zip(payload.terms, reference["values"], actual_values):
+        error = abs(float(actual) - float(expected))
+        max_absolute_error = max(max_absolute_error, error)
+        comparisons.append({
+            "label": term.label,
+            "reference": float(expected),
+            "tensor_network": float(actual),
+            "absolute_error": error,
+            "passed": error <= tolerance,
+        })
+    reference_energy = sum(float(term.coefficient) * float(value) for term, value in zip(payload.terms, reference["values"]))
+    tensor_network_energy = sum(float(term.coefficient) * float(value) for term, value in zip(payload.terms, actual_values))
+    energy_error = abs(tensor_network_energy - reference_energy)
+    runtime.sync()
+    return {
+        "status": "done",
+        "backend": "observable-cross-validation",
+        "reference_backend": reference["backend"],
+        "tested_backend": "tensor-network-mps-observable",
+        "n_qubits": payload.n_qubits,
+        "tolerance": tolerance,
+        "max_absolute_error": max_absolute_error,
+        "energy": tensor_network_energy,
+        "reference_energy": reference_energy,
+        "energy_absolute_error": energy_error,
+        "passed": max_absolute_error <= tolerance and energy_error <= tolerance,
+        "comparisons": comparisons,
+        "norm2": runtime.norm2(),
+        "bond_dim_requested": payload.bond_dim,
+        "bond_dim_used": runtime.bond_dim_used,
+        "discarded_weight": runtime.discarded_weight,
+        "warnings": (
+            ["bond dimension truncated entanglement; validation error includes approximation"]
+            if runtime.discarded_weight > 1e-12 else []
+        ),
+    }
