@@ -1,6 +1,6 @@
 # Real-world tensor-network evaluation
 
-Date: 2026-09-17
+Date: 2026-09-18
 
 Bu report kichik, nazorat qilinadigan real GPU runlar bilan tool qaysi muammolarga amalda mos kelishini o‘lchaydi. Maqsad marketing benchmark emas: convergence, truncation va reference error ko‘rinishi kerak.
 
@@ -50,6 +50,15 @@ additional convergence studies. On 3×3 random PEPS tensors, `χ=16` matched
 both the opt_einsum double-layer path and the independent virtual-bond
 enumeration reference within `1e-3`; `χ=1` reported nonzero environment
 discarded weight and a larger reference error.
+
+The refreshed frontend 3×3 transverse-Ising study used `D=4` with
+`χ_env=8`, `χ_env=16`, and `χ_env=16, dt/2`. All three points completed through
+the boundary-MPS route. It reported energies `-12.01339825`, `-11.99953264`,
+and `-11.99536543`, energy spread `1.80e-2`, maximum total discarded weight
+`9.76e-3`, and maximum norm error `7.49e-4`; the UI correctly returned
+`Needs review`. The same `χ_env=16` payload was then replayed from local
+history and completed successfully, preserving the boundary method and
+environment dimension.
 
 ## Practical positioning
 

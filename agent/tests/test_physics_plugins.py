@@ -291,6 +291,7 @@ class PhysicsPluginTests(unittest.TestCase):
         self.assertFalse(result["contraction_method"] == "enumeration")
         self.assertAlmostEqual(result["norm2"], 1.0, places=5)
         self.assertEqual(len(result["expectations"]), 2)
+        self.assertFalse(result["resource_estimate"]["materializes_statevector"])
 
     def test_boundary_mps_matches_exact_double_layer_at_sufficient_bond(self):
         boundary_payload = PEPSPayload(
@@ -382,6 +383,35 @@ class PhysicsPluginTests(unittest.TestCase):
         self.assertEqual(high_runtime.boundary_summary["discarded_weight"], 0.0)
         self.assertLess(abs(high - reference), abs(low - reference))
         self.assertEqual([row["row"] for row in high_runtime.boundary_summary["rows"]], [1, 2, 3])
+
+    def test_peps_reports_physical_and_boundary_truncation_separately(self):
+        spec = LatticeHamiltonianPayload(
+            dimensions=[3, 3],
+            model="heisenberg",
+            coupling=1.0,
+            field=0.3,
+        )
+        payload = PEPSPayload(
+            n_qubits=9,
+            lattice={"dimensions": [3, 3], "boundary": "open"},
+            terms=[PauliTerm(**term) for term in build_spin_hamiltonian(spec)["terms"]],
+            observables=[PauliTerm(paulis={0: "Z"}, coefficient=1.0, label="Z0")],
+            bond_dim=2,
+            boundary_bond_dim=1,
+            contraction_method="boundary-mps",
+            dt=0.05,
+            steps=1,
+        )
+        result = run_peps(np, payload)
+        physical = float(result["discarded_weight"])
+        boundary = float(result["boundary_diagnostics"]["discarded_weight"])
+        total = float(result["research_result"]["truncation"]["discarded_weight"])
+        self.assertGreater(physical, 0.0)
+        self.assertGreater(boundary, 0.0)
+        self.assertAlmostEqual(total, physical + boundary, places=10)
+        self.assertEqual(result["research_result"]["truncation"]["max_bond_dim"], 2)
+        self.assertEqual(result["research_result"]["truncation"]["max_environment_dim"], 1)
+        self.assertEqual(len(result["expectations"][-1]["values"]), 1)
 
     def test_boundary_mps_checkpoint_resume_restores_environment(self):
         payload = PEPSPayload(

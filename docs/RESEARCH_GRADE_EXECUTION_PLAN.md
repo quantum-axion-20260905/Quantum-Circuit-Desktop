@@ -1,13 +1,11 @@
 # Research-grade execution plan
 
-Status: Phase 2 is active; its first boundary-MPS contract slice is implemented
-and validated in `v0.7.0-alpha.1`, while the `v0.7.0` acceptance gate remains
-open.
+Status: Phase 2 acceptance gate passed for the declared finite open-2D scope;
+the result is released as `v0.7.0`.
 
-Current active slice: **Phase 2, finite 2D boundary-MPS 1.0**. Phase 1 is
-complete and released as `v0.6.0`. The current boundary-MPS slice covers the
-separate environment checkpoint format, 3×3 exact-reference coverage, `χ`
-convergence evidence, and the frontend environment-dimension study wiring.
+Current completed slice: **Phase 2, finite 2D boundary-MPS 1.0**. Phase 1 is
+complete and released as `v0.6.0`. Phase 2 is released as `v0.7.0` within the
+finite open rectangular 2D limits documented below.
 
 This is the operational plan for turning Quantum Circuit Desktop into a
 reliable tensor-network research workbench. It is intentionally narrower than
@@ -181,10 +179,10 @@ Release target: `v0.6.0` (1D research-ready, not universal).
 
 ### Phase 2 — finite 2D boundary-MPS 1.0
 
-Status: in progress. The implementation remains experimental until the full
-acceptance gate is complete. The first contract slice is now done: boundary
+Status: complete within the declared finite open-2D scope. Boundary
 environment checkpoints are versioned separately from physical MPS
-checkpoints, 3×3 exact comparisons pass, and the UI studies environment `χ`.
+checkpoints, 3×3 exact comparisons pass, local-observable replay and resume
+are verified, and the UI studies environment `χ` with an honest verdict.
 
 Scope:
 
@@ -207,9 +205,9 @@ Implementation order:
    discarded weight, request fingerprints, and resume/cancellation semantics.
 4. **Done:** make the frontend finite-2D study vary environment `χ_env` and
    show boundary truncation in the shared diagnostics surface.
-5. **Done:** added an independent finite-2D enumeration/reference path and
-   reproducible bounded 3×3 Ising/Heisenberg GPU studies. The Phase 2 gate
-   remains open for replayable local-observable evidence and final audit.
+5. **Done:** added an independent finite-2D enumeration/reference path,
+   reproducible bounded 3×3 Ising/Heisenberg GPU studies, and completed the
+   live frontend replay/final audit.
 
 Latest Phase 2 evidence:
 
@@ -222,16 +220,20 @@ Latest Phase 2 evidence:
   boundary truncation;
 - cancellation/resume now restores the boundary environment for a local
   observable checkpoint, with request fingerprint and per-row diagnostics.
+- live desktop verification: a 3×3 `D=4` frontend study completed all three
+  `χ_env`/`dt` points, returned the expected `Needs review` verdict for its
+  finite-bond error, and the stored boundary-MPS payload replayed successfully
+  from local history.
 
 Acceptance gate:
 
-- 2x2 and 3x3 random PEPS agree with an exact reference before truncation;
-- increasing `chi` produces a measurable convergence report;
-- truncation and boundary errors are not confused with physical bond errors;
-- local observable results survive replay and checkpoint restoration;
-- a 2D Ising/Heisenberg smoke study is useful without materializing a dense
+- [x] 2x2 and 3x3 random PEPS agree with an exact reference before truncation;
+- [x] increasing `chi` produces a measurable convergence report;
+- [x] truncation and boundary errors are not confused with physical bond errors;
+- [x] local observable results survive replay and checkpoint restoration;
+- [x] a 2D Ising/Heisenberg smoke study is useful without materializing a dense
   `2**N` statevector;
-- frontend shows method, environment `chi`, limitations, and convergence.
+- [x] frontend shows method, environment `chi`, limitations, and convergence.
 
 Release target: `v0.7.0` (finite 2D research-ready within declared limits).
 
@@ -342,7 +344,7 @@ and export a bounded research calculation.
 
 The only active implementation phase should be:
 
-1. Phase 2: finish finite 2D boundary-MPS.
+1. Phase 2: complete finite 2D boundary-MPS gate — done in `v0.7.0`.
 2. Phase 3: close the spin-lattice vertical slice.
 3. Phase 4: CTMRG/iPEPS.
 4. Phase 5: symmetry/high entanglement.
@@ -394,9 +396,9 @@ When this document is used as the goal-mode brief, the agent should:
 9. If blocked, record the exact failing contract, test, or environment
    dependency here instead of opening an unrelated backend.
 
-The current goal-mode task is therefore: **continue Phase 2 from the next
-incomplete item, add independent finite-2D/reference evidence, and do not
-start Phase 3 or CTMRG until the Phase 2 acceptance gate passes.**
+The Phase 2 goal-mode task is complete. The next goal may start Phase 3, but
+must preserve the same contract-first gates and must not call finite
+boundary-MPS a CTMRG or production large-3D solver.
 
 ## 7. Progress accounting
 

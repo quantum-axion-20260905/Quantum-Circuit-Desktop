@@ -19,7 +19,7 @@ production release.
 
 ## Validation
 
-- 78 agent tests passed, including 5 real-CUDA agreement/smoke tests.
+- 79 agent tests passed, including 5 real-CUDA agreement/smoke tests.
 - Python compile, frontend lint, and frontend production build passed.
 
 ## Declared limits

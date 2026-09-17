@@ -1,6 +1,6 @@
 [package]
 name = "quantum-circuit-desktop"
-version = "0.7.0-alpha.1"
+version = "0.7.0"
 description = "Local-first quantum circuit and tensor-network research workbench"
 authors = ["Quantum Circuit"]
 edition = "2021"

@@ -272,6 +272,10 @@ def _resource_estimate(runtime: PEPSRuntime) -> dict[str, Any]:
     itemsize = int(getattr(dtype, "itemsize", 16))
     tensor_values = sum(int(tensor.size) for tensor in runtime.tensors)
     tensor_bytes = tensor_values * itemsize
+    method = runtime.payload.contraction_method
+    materializes_statevector = method == "enumeration" or (
+        method in ("auto", "opt_einsum") and oe is None
+    )
     return {
         "representation": "peps",
         "n_qubits": len(runtime.tensors),
@@ -279,6 +283,8 @@ def _resource_estimate(runtime: PEPSRuntime) -> dict[str, Any]:
         "tensor_bytes": tensor_bytes,
         "peak_bytes_estimate": int(math.ceil(tensor_bytes * 2.5)),
         "dtype": str(dtype),
+        "contraction_method": method,
+        "materializes_statevector": materializes_statevector,
     }
 
 

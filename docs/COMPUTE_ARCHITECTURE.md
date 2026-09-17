@@ -439,11 +439,12 @@ creating a second tensor runtime.
 - 2D benchmark table is reproducible;
 - frontend shows method and convergence evidence without solver-specific code.
 
-Current progress: the first three implementation bullets and the frontend
-environment-`χ` wiring are implemented and covered by 2×2/3×3 reference tests,
-CPU/GPU smoke tests, and row-boundary checkpoint/resume tests. The independent
-finite-2D reference path and reproducible Ising/Heisenberg study are still
-required before M2 is called complete.
+Current progress: M2 is complete within the declared finite open-2D scope.
+The implementation is covered by 2×2/3×3 exact-reference tests, CPU/GPU
+agreement and bounded Ising/Heisenberg smoke tests, explicit physical-versus-
+boundary truncation diagnostics, row-boundary checkpoint/resume, and live
+frontend convergence/replay verification. CTMRG, periodic PEPS, and
+large/high-entanglement production workloads remain later milestones.
 
 ### M3 — thermodynamic 2D/high entanglement
 
@@ -479,13 +480,13 @@ Status at the architecture-freeze checkpoint:
 - [x] add prefix-shared Pauli MPO construction and MPS/MPO expectation tests;
 - [x] implement bounded open-2D boundary-MPS contraction with exact small-reference tests;
 - [x] expose DMRG/PEPS diagnostics through the shared research-result envelope;
-- [ ] complete M1 1D core hardening;
-- [ ] implement M2 finite boundary-MPS.
+- [x] complete M1 1D core hardening;
+- [x] implement M2 finite boundary-MPS within declared limits.
 
-The next implementation unit is **M0 followed by M1 contract hardening**, then
-**M2 finite boundary-MPS**. No CTMRG, 3D, or chemistry implementation should
-be started by copying PEPS code before the shared representation, result, and
-checkpoint contracts are in place.
+The next implementation unit is **Phase 3 spin-lattice vertical-slice
+hardening**. No CTMRG, 3D, or chemistry implementation should be started by
+copying finite PEPS code; each must define its own representation, result,
+checkpoint, reference, and acceptance contracts first.
 
 Progress is tracked in this document by updating the backend status matrix and
 milestone exit criteria after each tested module. This file is the authoritative
