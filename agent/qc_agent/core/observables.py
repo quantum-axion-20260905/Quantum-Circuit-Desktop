@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import cmath
 import math
+from types import SimpleNamespace
 from typing import Any, Iterable
 
 from ..backends.limits import MAX_REFERENCE_QUBITS, MAX_STATEVECTOR_QUBITS
@@ -11,6 +12,69 @@ from ..backends.reference import _matrix as reference_matrix
 from ..gates import cx_matrix, cz_matrix, gate_matrix
 from ..models import TNGate
 from .mps_runtime import pauli_operator
+
+
+_PAULI_PRODUCT: dict[tuple[str, str], tuple[complex, str]] = {
+    ("I", "I"): (1 + 0j, "I"),
+    ("I", "X"): (1 + 0j, "X"),
+    ("I", "Y"): (1 + 0j, "Y"),
+    ("I", "Z"): (1 + 0j, "Z"),
+    ("X", "I"): (1 + 0j, "X"),
+    ("X", "X"): (1 + 0j, "I"),
+    ("X", "Y"): (1j, "Z"),
+    ("X", "Z"): (-1j, "Y"),
+    ("Y", "I"): (1 + 0j, "Y"),
+    ("Y", "X"): (-1j, "Z"),
+    ("Y", "Y"): (1 + 0j, "I"),
+    ("Y", "Z"): (1j, "X"),
+    ("Z", "I"): (1 + 0j, "Z"),
+    ("Z", "X"): (1j, "Y"),
+    ("Z", "Y"): (-1j, "X"),
+    ("Z", "Z"): (1 + 0j, "I"),
+}
+
+
+def multiply_pauli_strings(left: dict[int, str], right: dict[int, str]) -> tuple[complex, dict[int, str]]:
+    """Multiply two sparse Pauli strings and return ``phase, product``."""
+    phase = 1 + 0j
+    product: dict[int, str] = {}
+    for qubit in sorted(set(left) | set(right)):
+        left_pauli = str(left.get(qubit, "I")).upper()
+        right_pauli = str(right.get(qubit, "I")).upper()
+        try:
+            local_phase, local_pauli = _PAULI_PRODUCT[(left_pauli, right_pauli)]
+        except KeyError as exc:
+            raise ValueError(f"unknown Pauli product {left_pauli}*{right_pauli}") from exc
+        phase *= local_phase
+        if local_pauli != "I":
+            product[int(qubit)] = local_pauli
+    return phase, product
+
+
+def mps_energy_moments(
+    cp: Any,
+    tensors: list[Any],
+    terms: Iterable[Any],
+) -> tuple[float, float, float]:
+    """Return ``<H>``, ``<H²>`` and the non-negative variance for a Pauli H."""
+    materialized = list(terms)
+    expectations = mps_expectation_from_tensors(cp, tensors, materialized)
+    energy = float(sum(float(term.coefficient) * value for term, value in zip(materialized, expectations)))
+    second_moment = 0j
+    for left in materialized:
+        for right in materialized:
+            phase, paulis = multiply_pauli_strings(left.paulis, right.paulis)
+            if paulis:
+                product_term = SimpleNamespace(paulis=paulis)
+                product_value = mps_expectation_from_tensors(cp, tensors, [product_term])[0]
+            else:
+                product_value = 1.0
+            second_moment += (
+                float(left.coefficient) * float(right.coefficient) * phase * product_value
+            )
+    second_value = float(second_moment.real)
+    variance = max(0.0, second_value - energy * energy)
+    return energy, second_value, variance
 
 
 def _host(value: Any) -> Any:

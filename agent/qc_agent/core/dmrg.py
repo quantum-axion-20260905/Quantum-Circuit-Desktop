@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import time
 from typing import Any
 
@@ -292,6 +293,12 @@ def run_dmrg(
     observables = payload.observables or payload.terms
     values = mps_expectation_from_tensors(xp, runtime.tensors, observables)
     energy = _energy(xp, runtime.tensors, payload.terms)
+    if len(payload.terms) <= 256:
+        _, _, energy_variance = runtime.energy_moments(payload.terms)
+        energy_std = math.sqrt(energy_variance)
+    else:
+        energy_variance = None
+        energy_std = None
     warnings = [
         "two-site finite DMRG is variational within the selected MPS bond dimension",
         "increase sweeps and bond_dim until energy and discarded_weight stabilize",
@@ -318,6 +325,8 @@ def run_dmrg(
         "converged": converged,
         "ground_energy": energy,
         "energy": energy,
+        "energy_variance": energy_variance,
+        "energy_std": energy_std,
         "observables": [
             {"label": term.label, "coefficient": term.coefficient, "value": value}
             for term, value in zip(observables, values)
@@ -325,6 +334,8 @@ def run_dmrg(
         "history": history,
         "discarded_weight": runtime.discarded_weight,
         "norm2": runtime.norm2(),
+        "truncation_report": runtime.truncation_report().__dict__,
+        "resource_estimate": runtime.estimate_resources(),
         "approximate": True,
         "warnings": warnings,
         "time_ms": round((time.perf_counter() - started) * 1000, 3),

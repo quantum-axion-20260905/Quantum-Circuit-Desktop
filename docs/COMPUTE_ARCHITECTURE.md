@@ -460,6 +460,7 @@ Status at the architecture-freeze checkpoint:
 - [x] benchmark, safety, and module acceptance criteria documented;
 - [x] implement versioned representation/result/checkpoint contracts;
 - [x] add M0 contract tests and capability errors;
+- [x] integrate MPS resource/truncation/variance diagnostics and explicit checkpoint round-trips;
 - [ ] complete M1 1D core hardening;
 - [ ] implement M2 finite boundary-MPS.
 

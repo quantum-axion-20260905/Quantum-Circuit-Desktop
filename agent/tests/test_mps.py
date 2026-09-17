@@ -1,10 +1,15 @@
 import math
+import hashlib
+import tempfile
 import unittest
 
 import numpy as np
 
 from qc_agent.backends.mps import amplitudes, sample
+from qc_agent.core.contracts import CheckpointManifest
+from qc_agent.core.mps_runtime import MPSRuntime
 from qc_agent.models import RunPayload, TNGate, TNPayload
+from qc_agent.plugins.models import PauliTerm
 
 
 class MPSSimulatorTests(unittest.TestCase):
@@ -95,6 +100,74 @@ class MPSSimulatorTests(unittest.TestCase):
         self.assertEqual(result["counts"], {"0" * 256: 8})
         self.assertEqual(result["bond_dim_used"], 1)
         self.assertAlmostEqual(result["norm2"], 1.0, places=5)
+
+    def test_canonicalization_preserves_norm_and_bell_correlations(self):
+        runtime = MPSRuntime(
+            np,
+            TNPayload(
+                n_qubits=2,
+                gates=[TNGate(name="h", target=0), TNGate(name="cx", control=0, target=1)],
+                bond_dim=2,
+            ),
+        )
+        terms = [PauliTerm(paulis={0: "Z", 1: "Z"}, coefficient=1.0)]
+        before = runtime.norm2()
+        runtime.canonicalize_left()
+        middle = runtime.norm2()
+        runtime.canonicalize_right()
+        after = runtime.norm2()
+        self.assertAlmostEqual(before, middle, places=5)
+        self.assertAlmostEqual(middle, after, places=5)
+        self.assertAlmostEqual(runtime.expectation(terms)[0], 1.0, places=5)
+
+    def test_energy_moments_report_variance(self):
+        runtime = MPSRuntime(np, TNPayload(n_qubits=1, gates=[], bond_dim=2))
+        energy, second_moment, variance = runtime.energy_moments([
+            PauliTerm(paulis={0: "X"}, coefficient=1.0),
+        ])
+        self.assertAlmostEqual(energy, 0.0, places=6)
+        self.assertAlmostEqual(second_moment, 1.0, places=6)
+        self.assertAlmostEqual(variance, 1.0, places=6)
+
+    def test_mps_resource_estimate_is_non_allocating_and_conservative(self):
+        runtime = MPSRuntime(np, TNPayload(n_qubits=8, gates=[], bond_dim=4))
+        estimate = runtime.estimate_resources()
+        self.assertEqual(estimate["representation"], "mps")
+        self.assertGreater(estimate["tensor_bytes"], 0)
+        self.assertGreaterEqual(estimate["peak_bytes_estimate"], estimate["tensor_bytes"])
+
+    def test_checkpoint_round_trip_restores_mps_state_atomically(self):
+        runtime = MPSRuntime(
+            np,
+            TNPayload(
+                n_qubits=2,
+                gates=[TNGate(name="h", target=0), TNGate(name="cx", control=0, target=1)],
+                bond_dim=2,
+            ),
+        )
+        manifest = CheckpointManifest(
+            checkpoint_id="mps-test",
+            request_sha256=hashlib.sha256(b"mps-test").hexdigest(),
+            method="finite-two-site-dmrg",
+            representation="mps",
+            dtype="complex64",
+            device="cpu",
+            step=2,
+            created_at="2026-09-17T00:00:00Z",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = f"{directory}/state.npz"
+            saved = runtime.save_checkpoint(path, manifest)
+            self.assertEqual(saved["schema"], "quantum-circuit/checkpoint-v1")
+            restored = MPSRuntime(np, TNPayload(n_qubits=2, gates=[], bond_dim=2))
+            loaded = restored.restore_checkpoint(path)
+            self.assertEqual(loaded["checkpoint_id"], "mps-test")
+            self.assertAlmostEqual(restored.norm2(), runtime.norm2(), places=5)
+            self.assertAlmostEqual(
+                restored.expectation([PauliTerm(paulis={0: "Z", 1: "Z"}, coefficient=1.0)])[0],
+                1.0,
+                places=5,
+            )
 
 
 if __name__ == "__main__":

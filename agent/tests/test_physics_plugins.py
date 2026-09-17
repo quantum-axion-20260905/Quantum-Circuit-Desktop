@@ -99,6 +99,9 @@ class PhysicsPluginTests(unittest.TestCase):
         self.assertAlmostEqual(result["ground_energy"], -2.0, places=5)
         self.assertAlmostEqual(result["norm2"], 1.0, places=5)
         self.assertEqual(result["backend"], "tensor-network-mps-dmrg")
+        self.assertIn("energy_variance", result)
+        self.assertIn("truncation_report", result)
+        self.assertIn("resource_estimate", result)
 
     def test_two_site_dmrg_matches_entangled_heisenberg_reference(self):
         terms = [
