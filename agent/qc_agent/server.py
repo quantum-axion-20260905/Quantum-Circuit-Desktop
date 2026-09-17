@@ -82,7 +82,7 @@ from .api.contracts import AsyncBudget, AsyncKind, AsyncSubmission
 from .metrics import metrics
 
 
-app = FastAPI(title="Quantum Compute Agent", version="0.4.0")
+app = FastAPI(title="Quantum Compute Agent", version="0.5.0")
 cors_origins = [
     origin.strip()
     for origin in os.environ.get(
