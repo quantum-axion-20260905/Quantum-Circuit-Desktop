@@ -120,6 +120,9 @@ class MPSRuntime:
 
         return mps_energy_moments(self.cp, self.tensors, terms)
 
+    def expectation_mpo(self, mpo: Any) -> float:
+        return float(mpo.expectation(self.tensors, self.cp))
+
     def estimate_resources(self) -> dict[str, Any]:
         """Return a conservative memory estimate without allocating a workspace."""
         dtype = self.tensors[0].dtype

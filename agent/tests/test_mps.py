@@ -7,6 +7,7 @@ import numpy as np
 
 from qc_agent.backends.mps import amplitudes, sample
 from qc_agent.core.contracts import CheckpointManifest
+from qc_agent.core.mpo import build_pauli_mpo
 from qc_agent.core.mps_runtime import MPSRuntime
 from qc_agent.models import RunPayload, TNGate, TNPayload
 from qc_agent.plugins.models import PauliTerm
@@ -168,6 +169,26 @@ class MPSSimulatorTests(unittest.TestCase):
                 1.0,
                 places=5,
             )
+
+    def test_pauli_mpo_matches_term_expectation_without_statevector(self):
+        runtime = MPSRuntime(
+            np,
+            TNPayload(
+                n_qubits=3,
+                gates=[TNGate(name="h", target=0), TNGate(name="cx", control=0, target=2)],
+                bond_dim=2,
+            ),
+        )
+        terms = [
+            PauliTerm(paulis={0: "X", 2: "X"}, coefficient=0.7),
+            PauliTerm(paulis={0: "Z", 2: "Z"}, coefficient=-0.2),
+            PauliTerm(paulis={1: "Z"}, coefficient=0.3),
+        ]
+        mpo = build_pauli_mpo(np, 3, terms)
+        direct = sum(term.coefficient * value for term, value in zip(terms, runtime.expectation(terms)))
+        self.assertAlmostEqual(runtime.expectation_mpo(mpo), direct, places=5)
+        self.assertEqual(mpo.bond_dim, 3)
+        self.assertGreater(mpo.estimate_resources()["tensor_bytes"], 0)
 
 
 if __name__ == "__main__":
