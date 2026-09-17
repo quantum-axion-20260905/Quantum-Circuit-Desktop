@@ -8,6 +8,7 @@ from ..backends import mps as mps_backend
 from ..noise import pauli_matrix
 from .checkpoints import load_mps_checkpoint, save_mps_checkpoint
 from .contracts import CheckpointManifest, TruncationReport
+from .mps_conventions import canonical_form_report, validate_mps_tensors
 
 
 class MPSRuntime:
@@ -19,6 +20,7 @@ class MPSRuntime:
         self.tensors, self.discarded_weight, self.bond_dim_used = mps_backend.build(
             cp, payload, progress_cb=progress_cb, cancel_cb=cancel_cb
         )
+        validate_mps_tensors(self.tensors)
         self.labels = list(range(payload.n_qubits))
 
     def apply_one_site(self, qubit: int, unitary: Any) -> None:
@@ -164,6 +166,7 @@ class MPSRuntime:
         if len(tensors) != int(self.payload.n_qubits):
             raise ValueError("checkpoint qubit count does not match the requested payload")
         self.tensors = tensors
+        validate_mps_tensors(self.tensors)
         metadata = manifest.get("metadata", {})
         self.discarded_weight = float(metadata.get("discarded_weight", 0.0))
         self.bond_dim_used = int(
@@ -177,6 +180,7 @@ class MPSRuntime:
 
     def canonicalize_left(self) -> None:
         """Move the orthogonality center to the right edge using QR sweeps."""
+        validate_mps_tensors(self.tensors)
         for position in range(len(self.tensors) - 1):
             tensor = self.tensors[position]
             left_dim, physical_dim, right_dim = tensor.shape
@@ -191,6 +195,7 @@ class MPSRuntime:
 
     def canonicalize_right(self) -> None:
         """Move the orthogonality center to the left edge using QR sweeps."""
+        validate_mps_tensors(self.tensors)
         for position in range(len(self.tensors) - 1, 0, -1):
             tensor = self.tensors[position]
             left_dim, physical_dim, right_dim = tensor.shape
@@ -202,6 +207,14 @@ class MPSRuntime:
                 self.tensors[position - 1], r.T, axes=(2, 0)
             )
         self.sync()
+
+    def canonical_report(self, *, orthogonality_center: int | None = None) -> dict[str, Any]:
+        """Return the shared MPS layout and canonical-gauge diagnostics."""
+        return canonical_form_report(
+            self.cp,
+            self.tensors,
+            orthogonality_center=orthogonality_center,
+        )
 
     def sync(self) -> None:
         mps_backend.sync(self.cp)

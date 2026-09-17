@@ -13,6 +13,7 @@ surface is embedded in that shell and the Python/CUDA agent owns numerical work:
 
 - Master plan: [`docs/PLAN.md`](docs/PLAN.md)
 - Compute architecture and staged research roadmap: [`docs/COMPUTE_ARCHITECTURE.md`](docs/COMPUTE_ARCHITECTURE.md)
+- Active research-grade execution plan: [`docs/RESEARCH_GRADE_EXECUTION_PLAN.md`](docs/RESEARCH_GRADE_EXECUTION_PLAN.md)
 - Module breakdown: [`docs/modules/README.md`](docs/modules/README.md)
 
 ## Prereqs (Windows)

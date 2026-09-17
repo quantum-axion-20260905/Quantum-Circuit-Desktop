@@ -8,6 +8,10 @@ import numpy as np
 from qc_agent.backends.mps import amplitudes, sample
 from qc_agent.core.contracts import CheckpointManifest
 from qc_agent.core.mpo import build_pauli_mpo
+from qc_agent.core.mps_conventions import (
+    canonical_form_report,
+    validate_mps_tensors,
+)
 from qc_agent.core.mps_runtime import MPSRuntime
 from qc_agent.models import RunPayload, TNGate, TNPayload
 from qc_agent.plugins.models import PauliTerm
@@ -120,6 +124,56 @@ class MPSSimulatorTests(unittest.TestCase):
         self.assertAlmostEqual(before, middle, places=5)
         self.assertAlmostEqual(middle, after, places=5)
         self.assertAlmostEqual(runtime.expectation(terms)[0], 1.0, places=5)
+
+    def test_finite_mps_axis_order_and_bonds_are_explicit(self):
+        runtime = MPSRuntime(
+            np,
+            TNPayload(
+                n_qubits=3,
+                gates=[TNGate(name="h", target=0), TNGate(name="cx", control=0, target=2)],
+                bond_dim=2,
+            ),
+        )
+        shapes = validate_mps_tensors(runtime.tensors)
+        self.assertEqual(shapes[0][0], 1)
+        self.assertEqual(shapes[-1][2], 1)
+        self.assertTrue(all(left[2] == right[0] for left, right in zip(shapes, shapes[1:])))
+        self.assertTrue(all(shape[1] == 2 for shape in shapes))
+        report = runtime.canonical_report()
+        self.assertEqual(report["axis_order"], ["left_bond", "physical", "right_bond"])
+        self.assertEqual(report["tensor_shapes"], [list(shape) for shape in shapes])
+
+    def test_canonical_qr_sweeps_satisfy_left_and_right_isometry_contracts(self):
+        runtime = MPSRuntime(
+            np,
+            TNPayload(
+                n_qubits=4,
+                gates=[
+                    TNGate(name="h", target=0),
+                    TNGate(name="cx", control=0, target=3),
+                    TNGate(name="ry", target=2, theta=0.37),
+                ],
+                bond_dim=2,
+            ),
+        )
+        runtime.canonicalize_left()
+        left_report = canonical_form_report(np, runtime.tensors, orthogonality_center=3)
+        self.assertLess(left_report["left_isometry_max_error"], 1e-6)
+        self.assertEqual(left_report["right_sites"], 0)
+
+        runtime.canonicalize_right()
+        right_report = runtime.canonical_report(orthogonality_center=0)
+        self.assertEqual(right_report["left_sites"], 0)
+        self.assertLess(right_report["right_isometry_max_error"], 1e-6)
+
+    def test_mps_layout_validator_rejects_wrong_axis_or_bond_shapes(self):
+        with self.assertRaisesRegex(ValueError, "physical dimension"):
+            validate_mps_tensors([np.zeros((1, 3, 1), dtype=np.complex128)])
+        with self.assertRaisesRegex(ValueError, "bond mismatch"):
+            validate_mps_tensors([
+                np.zeros((1, 2, 2), dtype=np.complex128),
+                np.zeros((3, 2, 1), dtype=np.complex128),
+            ])
 
     def test_energy_moments_report_variance(self):
         runtime = MPSRuntime(np, TNPayload(n_qubits=1, gates=[], bond_dim=2))
