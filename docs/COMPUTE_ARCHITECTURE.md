@@ -336,7 +336,7 @@ tensor arithmetic, admission, execution, provenance, and persistence.
 | TEBD | usable for controlled short dynamics | TDVP/VUMPS and long-time stability |
 | Finite PEPS simple update | usable for bounded 2D/3D exploration | compare with boundary-MPS/full update |
 | PEPS double-layer contraction | implemented for bounded width | environment-aware contraction path |
-| Finite boundary-MPS | planned next | 2D convergence and exact small references |
+| Finite boundary-MPS | experimental for open 2D | 2D convergence and exact small references |
 | CTMRG/iPEPS | planned | Ising/Heisenberg phase benchmarks |
 | Full-update PEPS | planned | energy/gradient convergence evidence |
 | 3D approximate contraction | planned | HOTRG/boundary-width benchmark suite |
@@ -425,6 +425,7 @@ creating a second tensor runtime.
 
 ### M2 — useful finite 2D
 
+- finite boundary-MPS contracts open 2D PEPS rows with explicit environment χ;
 - boundary-MPS computes PEPS norm and local observables;
 - environment bond dimension and truncation are reported;
 - 2D benchmark table is reproducible;
@@ -462,6 +463,7 @@ Status at the architecture-freeze checkpoint:
 - [x] add M0 contract tests and capability errors;
 - [x] integrate MPS resource/truncation/variance diagnostics and explicit checkpoint round-trips;
 - [x] add prefix-shared Pauli MPO construction and MPS/MPO expectation tests;
+- [x] implement bounded open-2D boundary-MPS contraction with exact small-reference tests;
 - [ ] complete M1 1D core hardening;
 - [ ] implement M2 finite boundary-MPS.
 

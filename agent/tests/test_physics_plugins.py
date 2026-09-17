@@ -4,6 +4,7 @@ import math
 import numpy as np
 
 from qc_agent.core.mps_runtime import MPSRuntime
+from qc_agent.core.peps import PEPSRuntime
 from qc_agent.core.ground_state import exact_ground_state
 from qc_agent.core.dmrg import run_dmrg
 from qc_agent.core.peps import run_peps
@@ -176,6 +177,53 @@ class PhysicsPluginTests(unittest.TestCase):
         self.assertAlmostEqual(result["norm2"], 1.0, places=5)
         self.assertEqual(len(result["expectations"]), 2)
 
+    def test_boundary_mps_matches_exact_double_layer_at_sufficient_bond(self):
+        boundary_payload = PEPSPayload(
+            n_qubits=4,
+            lattice={"dimensions": [2, 2]},
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            bond_dim=2,
+            contraction_method="boundary-mps",
+            boundary_bond_dim=16,
+        )
+        exact_payload = boundary_payload.model_copy(update={"contraction_method": "opt_einsum"})
+        boundary = PEPSRuntime(np, boundary_payload)
+        rng = np.random.default_rng(23)
+        tensors = [
+            rng.normal(size=(2, *([2] * len(edge_ids))))
+            + 1j * rng.normal(size=(2, *([2] * len(edge_ids))))
+            for edge_ids in boundary.site_edges
+        ]
+        boundary.tensors = tensors
+        exact = PEPSRuntime(np, exact_payload)
+        exact.tensors = [tensor.copy() for tensor in tensors]
+        self.assertAlmostEqual(
+            boundary._contract_double_layer({0: "Z", 3: "X"}),
+            exact._contract_double_layer({0: "Z", 3: "X"}),
+            places=5,
+        )
+        self.assertGreater(boundary.boundary_summary["boundary_bond_dim_used"], 1)
+
+    def test_boundary_mps_reports_environment_truncation(self):
+        payload = PEPSPayload(
+            n_qubits=4,
+            lattice={"dimensions": [2, 2]},
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            bond_dim=2,
+            contraction_method="boundary-mps",
+            boundary_bond_dim=1,
+        )
+        runtime = PEPSRuntime(np, payload)
+        rng = np.random.default_rng(31)
+        runtime.tensors = [
+            rng.normal(size=(2, *([2] * len(edge_ids))))
+            + 1j * rng.normal(size=(2, *([2] * len(edge_ids))))
+            for edge_ids in runtime.site_edges
+        ]
+        value = runtime._contract_double_layer({})
+        self.assertTrue(np.isfinite(value))
+        self.assertGreater(runtime.boundary_summary["discarded_weight"], 0.0)
+
     def test_dmrg_and_peps_preflight_report_bounded_local_work(self):
         dmrg_payload = DMRGPayload(
             n_qubits=4,
@@ -205,6 +253,15 @@ class PhysicsPluginTests(unittest.TestCase):
         ))
         self.assertFalse(enumeration_report["feasible"])
         self.assertTrue(any("16-site" in warning for warning in enumeration_report["blocking_warnings"]))
+        boundary_report = estimate_peps(PEPSPayload(
+            n_qubits=8,
+            lattice={"dimensions": [2, 2, 2]},
+            terms=peps_payload.terms,
+            bond_dim=2,
+            contraction_method="boundary-mps",
+        ))
+        self.assertFalse(boundary_report["feasible"])
+        self.assertTrue(any("unsupported" in warning for warning in boundary_report["blocking_warnings"]))
 
     def test_mps_expectation_returns_bell_correlations(self):
         runtime = MPSRuntime(np, TNPayload(

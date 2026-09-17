@@ -189,7 +189,8 @@ class PEPSPayload(BaseModel):
     dt: float = Field(default=0.01)
     steps: int = Field(default=1, ge=1, le=64)
     order: Literal[1, 2] = 2
-    contraction_method: Literal["auto", "opt_einsum", "enumeration"] = "auto"
+    contraction_method: Literal["auto", "opt_einsum", "enumeration", "boundary-mps"] = "auto"
+    boundary_bond_dim: int = Field(default=32, ge=1, le=4096)
     max_contraction_states: int = Field(default=1_000_000, ge=1, le=10_000_000)
     max_time_ms: int = Field(default=120000, ge=100, le=3600000)
     max_mem_mb: float = Field(default=4096, gt=0, le=1048576)

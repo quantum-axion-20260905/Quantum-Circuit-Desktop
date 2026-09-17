@@ -177,19 +177,38 @@ def estimate_peps(payload: Any, *, gpu_free_mb: float | None = None) -> dict[str
     estimated_ms = int(1 + contraction_work / 20_000)
     warnings: list[str] = []
     method = getattr(payload, "contraction_method", "auto")
+    if method == "boundary-mps" and len(dimensions) != 2:
+        warnings.append("boundary-MPS unsupported for non-2D lattices; open rectangular 2D only")
+    if method == "boundary-mps" and getattr(payload.lattice, "boundary", "open") != "open":
+        warnings.append("boundary-MPS requires open lattice boundaries")
+    if method == "boundary-mps":
+        boundary_bond_dim = int(getattr(payload, "boundary_bond_dim", 32))
+        boundary_width = int(dimensions[0]) if dimensions else 1
+        boundary_peak_mb = (
+            boundary_width * max(1, boundary_bond_dim) ** 2 * max(1, double_layer_bond_dim)
+            * bytes_per_value * 2.5 / (1024 * 1024)
+        )
+        peak_mb = max(peak_mb, boundary_peak_mb)
+        contraction_work = max(1, n) * max(1, boundary_bond_dim) ** 3 * max(1, double_layer_bond_dim)
+        estimated_ms = int(1 + contraction_work / 20_000)
     if method == "enumeration" and n > 16:
         warnings.append("PEPS enumeration exceeds the 16-site statevector compatibility limit")
     if method == "enumeration" and virtual_states > int(payload.max_contraction_states):
         warnings.append("virtual-bond enumeration exceeds max_contraction_states")
-    if method != "enumeration" and boundary_states > int(payload.max_contraction_states):
+    if method not in ("enumeration", "boundary-mps") and boundary_states > int(payload.max_contraction_states):
         warnings.append("double-layer boundary contraction exceeds max_contraction_states")
+    if method == "boundary-mps" and int(getattr(payload, "boundary_bond_dim", 32)) > int(payload.max_contraction_states):
+        warnings.append("boundary-MPS bond dimension exceeds max_contraction_states")
     if peak_mb > float(payload.max_mem_mb):
         warnings.append(f"estimated PEPS contraction memory {peak_mb:.1f} MB exceeds memory budget")
     if gpu_free_mb is not None and peak_mb > gpu_free_mb * 0.70:
         warnings.append(f"estimated PEPS contraction memory {peak_mb:.1f} MB exceeds 70% of currently free GPU memory")
     if estimated_ms > int(payload.max_time_ms):
         warnings.append(f"estimated PEPS contraction time {estimated_ms} ms exceeds time budget")
-    blocking_warnings = [warning for warning in warnings if "exceeds" in warning]
+    blocking_warnings = [
+        warning for warning in warnings
+        if "exceeds" in warning or "unsupported" in warning or "requires open" in warning
+    ]
     return {
         "status": "ready" if not blocking_warnings else "rejected",
         "feasible": not blocking_warnings,
@@ -203,6 +222,7 @@ def estimate_peps(payload: Any, *, gpu_free_mb: float | None = None) -> dict[str
         "boundary_bond_exponent": boundary_exponent,
         "boundary_bond_states": boundary_states,
         "double_layer_bond_dim": double_layer_bond_dim,
+        "boundary_bond_dim": int(getattr(payload, "boundary_bond_dim", 32)),
         "local_double_tensor_states": local_tensor_states,
         "materializes_statevector": False,
         "estimated_contraction_work": contraction_work,

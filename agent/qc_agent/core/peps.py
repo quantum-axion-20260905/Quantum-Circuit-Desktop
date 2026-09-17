@@ -8,6 +8,7 @@ from typing import Any
 from ..backends import mps as mps_backend
 from ..plugins.lattice import lattice_graph
 from ..plugins.models import PEPSPayload
+from .boundary_mps import contract_boundary_mps
 from .observables import statevector_expectation
 from .mps_runtime import pauli_operator
 
@@ -61,6 +62,7 @@ class PEPSRuntime:
             for local_axis, edge_id in enumerate(edge_ids, start=1):
                 self.edge_axes[(site, edge_id)] = local_axis
         self.discarded_weight = 0.0
+        self.boundary_summary: dict[str, Any] = {}
 
     def apply_one_site(self, site: int, unitary: Any) -> None:
         self.tensors[site] = self.xp.tensordot(unitary, self.tensors[site], axes=(1, 0))
@@ -190,6 +192,15 @@ class PEPSRuntime:
 
     def _contract_double_layer(self, paulis: dict[int, str] | None = None) -> float:
         """Contract ``<psi|O|psi>`` without opening all physical indices."""
+        if self.payload.contraction_method == "boundary-mps":
+            value, diagnostics = contract_boundary_mps(
+                self,
+                paulis,
+                max_bond_dim=self.payload.boundary_bond_dim,
+                cutoff=self.payload.truncation_cutoff,
+            )
+            self.boundary_summary = diagnostics
+            return value
         if self.payload.contraction_method == "enumeration":
             state = self._enumerated_wavefunction()
             values = statevector_expectation(
@@ -225,7 +236,13 @@ class PEPSRuntime:
         return float(complex(mps_backend.host(value)).real)
 
     def expectation(self, terms: list[Any]) -> list[float]:
-        return [self._contract_double_layer(dict(term.paulis)) for term in terms]
+        values = [self._contract_double_layer(dict(term.paulis)) for term in terms]
+        if self.payload.contraction_method == "boundary-mps" and values:
+            self.boundary_summary = {
+                **self.boundary_summary,
+                "observable_count": len(values),
+            }
+        return values
 
     def norm2(self) -> float:
         return self._contract_double_layer()
@@ -267,7 +284,7 @@ def run_peps(
     runtime.xp.cuda.Stream.null.synchronize() if hasattr(runtime.xp, "cuda") else None
     return {
         "status": "done",
-        "backend": "tensor-network-peps-simple-update",
+        "backend": "tensor-network-peps-boundary-mps" if payload.contraction_method == "boundary-mps" else "tensor-network-peps-simple-update",
         "method": "finite-peps-simple-update",
         "native_geometry": True,
         "n_qubits": payload.n_qubits,
@@ -279,6 +296,7 @@ def run_peps(
         "bond_dim_used": max((max(tensor.shape[1:], default=1) for tensor in runtime.tensors), default=1),
         "virtual_bond_count": len(runtime.edges),
         "contraction_method": payload.contraction_method if payload.contraction_method != "auto" or oe is not None else "enumeration",
+        "boundary_diagnostics": runtime.boundary_summary if payload.contraction_method == "boundary-mps" else None,
         "discarded_weight": runtime.discarded_weight,
         "approximate": True,
         "norm2": runtime.norm2(),
@@ -291,6 +309,6 @@ def run_peps(
         "warnings": [
             "native finite PEPS uses simple-update truncation and a bounded double-layer contraction",
             "increase bond_dim or compare against MPS/DMRG for convergence",
-        ],
+        ] + (["boundary-MPS contraction truncates the environment; increase boundary_bond_dim and compare convergence"] if payload.contraction_method == "boundary-mps" else []),
         "time_ms": round((time.perf_counter() - started) * 1000, 3),
     }
