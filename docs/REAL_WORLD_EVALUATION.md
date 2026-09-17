@@ -58,4 +58,9 @@ For a 2×2 PEPS smoke study, the UI compared `χ=2`, `χ=4` and `χ=4, dt/2`; it
 5. Small systems are cross-checked with exact diagonalization when feasible.
 6. Request, backend, hardware snapshot, provenance and result artifact remain replayable.
 
+TEBD artifacts now preserve `dt`, per-point `norm2`/`norm_drift`, bond-dimension
+growth, cumulative discarded-weight history, and a structured truncation
+diagnostic. This keeps timestep and bond-dimension convergence inspectable in
+the exported/replayed result rather than leaving it as a UI-only heuristic.
+
 The current product therefore has real utility in narrow but meaningful research workflows. The current build now persists replayable local history, point-level backend `Run/RunArtifact` records and aggregate `Study` manifests, while the frontend exposes diagnostics, bounded physics convergence studies and A/B comparison. The PEPS production path now scales past the old 16-site statevector limit, subject to double-layer boundary width and GPU preflight; CTMRG/boundary-MPS environments, resumable server-side campaigns, and production-grade large-3D methods remain separate next-stage work.

@@ -37,6 +37,7 @@ export function ExperimentHistory() {
   const jobRef = React.useRef<AsyncJob | null>(null);
   const [canceling, setCanceling] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [exportNotice, setExportNotice] = React.useState<string | null>(null);
   const [compareA, setCompareA] = React.useState<string | null>(null);
   const [compareB, setCompareB] = React.useState<string | null>(null);
 
@@ -92,14 +93,18 @@ export function ExperimentHistory() {
     const link = document.createElement("a");
     link.href = url;
     link.download = "quantum-circuit-experiment-history.json";
+    link.style.display = "none";
+    document.body.appendChild(link);
     link.click();
+    link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    setExportNotice(`JSON export ready · ${experimentHistory.length} record(s)`);
   }
 
   return <Card className="qc-history-card">
     <div className="qc-history-header">
       <div><strong>Experiment history</strong><p>Local reproducibility log for completed and failed compute jobs.</p></div>
-      <div className="qc-history-actions"><select aria-label="History filter" value={filter} onChange={(event) => setFilter(event.target.value as HistoryFilter)}><option value="all">All runs</option><option value="done">Completed</option><option value="failed">Failed</option><option value="canceled">Canceled</option></select><Button variant="secondary" size="sm" onClick={exportHistory} disabled={experimentHistory.length === 0}>Export JSON</Button><Button variant="danger" size="sm" onClick={clearExperimentHistory} disabled={experimentHistory.length === 0}>Clear</Button></div>
+      <div className="qc-history-actions"><select aria-label="History filter" value={filter} onChange={(event) => setFilter(event.target.value as HistoryFilter)}><option value="all">All runs</option><option value="done">Completed</option><option value="failed">Failed</option><option value="canceled">Canceled</option></select>{exportNotice ? <span role="status">{exportNotice}</span> : null}<Button variant="secondary" size="sm" onClick={exportHistory} disabled={experimentHistory.length === 0}>Export JSON</Button><Button variant="danger" size="sm" onClick={clearExperimentHistory} disabled={experimentHistory.length === 0}>Clear</Button></div>
     </div>
     {job ? <ComputeProgress job={job} onCancel={() => void cancelReplay()} canceling={canceling} /> : null}
     {error ? <div className="qc-history-error" role="alert">{error}</div> : null}

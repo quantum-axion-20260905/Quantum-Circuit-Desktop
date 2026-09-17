@@ -8,9 +8,11 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..backends import mps as mps_backend
+from ..backends.limits import MAX_EXACT_DIAGONALIZATION_QUBITS
 from ..models import TNGate, TNPayload
-from ..plugins.models import DMRGPayload
+from ..plugins.models import DMRGPayload, GroundStatePayload
 from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, ResearchResult
+from .ground_state import exact_ground_state
 from .mps_runtime import MPSRuntime, pauli_operator
 from .observables import mps_expectation_from_tensors
 
@@ -196,6 +198,52 @@ def _dmrg_problem_sha256(payload: DMRGPayload) -> str:
     )
     encoded = json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _automatic_exact_cross_check(xp: Any, payload: DMRGPayload, energy: float) -> dict[str, Any]:
+    """Run a bounded exact-energy check when the dense reference is genuinely small."""
+
+    # Keep this stricter than the standalone 12-qubit exact endpoint.  DMRG is
+    # a production path, so its automatic validation must remain cheap and
+    # must not unexpectedly consume the user's entire memory budget.
+    max_automatic_qubits = min(8, MAX_EXACT_DIAGONALIZATION_QUBITS)
+    if payload.n_qubits > max_automatic_qubits:
+        return {
+            "performed": False,
+            "reason": f"automatic exact cross-check is limited to {max_automatic_qubits} qubits",
+        }
+    dimension = 1 << payload.n_qubits
+    dtype_bytes = 8 if payload.dtype == "complex64" else 16
+    matrix_bytes = dimension * dimension * dtype_bytes
+    conservative_workspace_mb = (8 * matrix_bytes) / (1024 * 1024)
+    if conservative_workspace_mb > float(payload.max_mem_mb) * 0.5:
+        return {
+            "performed": False,
+            "reason": "automatic exact cross-check was skipped by the declared memory budget",
+            "estimated_workspace_mb": conservative_workspace_mb,
+        }
+    reference = exact_ground_state(
+        xp,
+        GroundStatePayload(
+            n_qubits=payload.n_qubits,
+            terms=payload.terms,
+            dtype=payload.dtype,
+            max_mem_mb=payload.max_mem_mb,
+            max_time_ms=payload.max_time_ms,
+        ),
+    )
+    absolute_error = abs(float(energy) - float(reference["ground_energy"]))
+    tolerance = 1e-4 if payload.dtype == "complex64" else 1e-8
+    return {
+        "performed": True,
+        "backend": reference["backend"],
+        "ground_energy": float(reference["ground_energy"]),
+        "dmrg_energy": float(energy),
+        "absolute_error": absolute_error,
+        "tolerance": tolerance,
+        "passed": absolute_error <= tolerance,
+        "hamiltonian_dimension": reference["hamiltonian_dimension"],
+    }
 
 
 def run_dmrg(
@@ -428,6 +476,9 @@ def run_dmrg(
             warnings.append("energy variance was not evaluated because the Hamiltonian has more than 256 terms")
     if runtime.discarded_weight > 1e-12:
         warnings.append("bond dimension truncated entanglement; inspect discarded_weight")
+    exact_cross_check = _automatic_exact_cross_check(xp, payload, energy)
+    if exact_cross_check["performed"] and not exact_cross_check["passed"]:
+        warnings.append("automatic exact diagonalization cross-check exceeded the configured dtype tolerance")
     convergence = ConvergenceReport(
         converged=converged,
         criterion=(
@@ -463,7 +514,11 @@ def run_dmrg(
             "results require bond-dimension and sweep convergence studies for publication-quality evidence",
         ],
         provenance={"local_solver": payload.local_solver, "lanczos_maxiter": payload.lanczos_maxiter},
-        details={"history": history, "observables": len(observables)},
+        details={
+            "history": history,
+            "observables": len(observables),
+            "exact_cross_check": exact_cross_check,
+        },
     ).to_dict()
     return {
         "status": "done",
@@ -487,6 +542,7 @@ def run_dmrg(
         "energy": energy,
         "energy_variance": energy_variance,
         "energy_std": energy_std,
+        "exact_cross_check": exact_cross_check,
         "observables": [
             {"label": term.label, "coefficient": term.coefficient, "value": value}
             for term, value in zip(observables, values)

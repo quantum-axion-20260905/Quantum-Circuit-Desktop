@@ -104,6 +104,8 @@ class PhysicsPluginTests(unittest.TestCase):
         self.assertIn("energy_variance", result)
         self.assertIn("truncation_report", result)
         self.assertIn("resource_estimate", result)
+        self.assertTrue(result["exact_cross_check"]["performed"])
+        self.assertTrue(result["exact_cross_check"]["passed"])
         self.assertEqual(result["research_result"]["schema"], "quantum-circuit/research-result-v1")
         self.assertEqual(result["research_result"]["representation"], "mps")
 
@@ -122,6 +124,42 @@ class PhysicsPluginTests(unittest.TestCase):
         self.assertAlmostEqual(result["ground_energy"], exact["ground_energy"], places=5)
         self.assertTrue(result["converged"])
         self.assertLess(result["local_solver_residual"], 1e-5)
+
+    def test_spin_chain_dmrg_models_match_small_exact_references(self):
+        for model, anisotropy in (("ising", 1.0), ("heisenberg", 1.0), ("xxz", 0.7)):
+            with self.subTest(model=model):
+                spec = LatticeHamiltonianPayload(
+                    dimensions=[4],
+                    model=model,
+                    coupling=1.0,
+                    field=0.3,
+                    anisotropy=anisotropy,
+                )
+                terms = [PauliTerm(**term) for term in build_spin_hamiltonian(spec)["terms"]]
+                result = run_dmrg(np, DMRGPayload(
+                    n_qubits=4,
+                    terms=terms,
+                    bond_dim=4,
+                    sweeps=5,
+                    tolerance=1e-5,
+                    residual_tolerance=1e-4,
+                    lanczos_maxiter=16,
+                ))
+                exact = exact_ground_state(np, GroundStatePayload(n_qubits=4, terms=terms))
+                self.assertLess(abs(result["ground_energy"] - exact["ground_energy"]), 5e-5)
+                self.assertAlmostEqual(result["norm2"], 1.0, places=5)
+                self.assertTrue(result["converged"])
+
+    def test_dmrg_skips_automatic_exact_check_above_bounded_size(self):
+        result = run_dmrg(np, DMRGPayload(
+            n_qubits=9,
+            terms=[PauliTerm(paulis={index: "Z"}, coefficient=0.2) for index in range(9)],
+            bond_dim=2,
+            sweeps=2,
+            lanczos_maxiter=8,
+        ))
+        self.assertFalse(result["exact_cross_check"]["performed"])
+        self.assertIn("limited to 8 qubits", result["exact_cross_check"]["reason"])
 
     def test_dmrg_does_not_call_energy_stability_convergence_with_large_variance(self):
         terms = [
@@ -368,6 +406,30 @@ class PhysicsPluginTests(unittest.TestCase):
         self.assertEqual(len(result["energies"]), 3)
         self.assertAlmostEqual(result["expectations"][0]["energy"], result["energies"][0], places=6)
         self.assertAlmostEqual(result["norm2"], 1.0, places=5)
+        self.assertIn("norm_drift", result)
+        self.assertIn("bond_growth", result)
+        self.assertIn("truncation_diagnostics", result)
+        self.assertEqual(len(result["norm_history"]), 3)
+        self.assertEqual(len(result["bond_dim_history"]), 3)
+        self.assertAlmostEqual(result["norm_drift"], max(abs(value - 1.0) for value in result["norm_history"]), places=8)
+        self.assertEqual(result["expectations"][-1]["bond_growth"], result["bond_growth"])
+
+    def test_tebd_cancellation_stops_before_returning_a_partial_success(self):
+        calls = 0
+
+        def cancel():
+            nonlocal calls
+            calls += 1
+            return calls >= 2
+
+        with self.assertRaisesRegex(RuntimeError, "job canceled"):
+            run_tebd(np, TEBDPayload(
+                n_qubits=4,
+                terms=[PauliTerm(paulis={0: "Z", 1: "Z"}, coefficient=0.5)],
+                steps=4,
+                bond_dim=2,
+            ), cancel_cb=cancel)
+        self.assertGreaterEqual(calls, 2)
 
     def test_tebd_preflight_prices_nonlocal_swap_work(self):
         local = TEBDPayload(

@@ -63,6 +63,15 @@ and truncation evidence. It is limited to the reference-circuit size and is
 not a production-size dense solver.
 `POST /jobs/tebd` evolves bounded-locality Pauli Hamiltonians with first- or
 second-order Suzuki-Trotter steps and returns energy/observable trajectories.
+Each trajectory point carries norm², norm drift, bond dimension/growth, and
+cumulative discarded weight; the top-level result also includes the histories
+and a structured truncation diagnostic so timestep and bond convergence can be
+assessed without reconstructing them in the UI.
+For bounded CPU/GPU agreement smoke tests, the declared envelope is absolute
+error ≤ `1e-4` for `complex64` and ≤ `1e-8` for `complex128` on energies and
+observables, with norm² drift checked against `1e-4`. These are engineering
+acceptance limits for the same payload and backend path, not publication
+tolerances; truncation and timestep studies remain mandatory.
 For strings longer than two sites it uses a parity-CX network, so its runtime
 and truncation diagnostics should be checked more carefully.
 `POST /jobs/ground_state` is a small dense GPU eigensolver for exact ground
@@ -70,6 +79,11 @@ energy validation; it is intentionally capped at 12 qubits. `POST /jobs/dmrg`
 is a finite two-site variational MPS solver with an iterative Lanczos local
 eigensolver by default, optional dense validation mode, sweep history,
 tolerance, residual/variance-aware stopping, bond and truncation diagnostics.
+For problems up to 8 qubits, DMRG automatically runs a bounded exact
+diagonalization energy cross-check when the declared memory budget admits it.
+The result records the reference backend, absolute error, dtype tolerance, and
+whether the check passed; larger or budget-constrained problems report an
+explicit skip reason instead of materializing a dense reference.
 The `/capabilities` response also exposes algorithm-level method descriptors:
 DMRG and TEBD are executable when the tensor-network GPU backend is admitted;
 TDVP and VUMPS are registered as separate `planned` capabilities. Requests for

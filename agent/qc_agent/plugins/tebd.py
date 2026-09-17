@@ -64,6 +64,9 @@ def run_tebd(
     times = [0.0]
     values = [runtime.expectation(observables)]
     energies = [_energy(runtime, payload.terms)]
+    norm_history = [runtime.norm2()]
+    bond_dim_history = [runtime.bond_dim_used]
+    discarded_weight_history = [runtime.discarded_weight]
     for step in range(payload.steps):
         if cancel_cb and cancel_cb():
             raise RuntimeError("job canceled")
@@ -81,13 +84,21 @@ def run_tebd(
         current_values = runtime.expectation(observables)
         values.append(current_values)
         energies.append(_energy(runtime, payload.terms))
+        norm_history.append(runtime.norm2())
+        bond_dim_history.append(runtime.bond_dim_used)
+        discarded_weight_history.append(runtime.discarded_weight)
         if progress_cb:
             progress_cb((step + 1) / max(1, payload.steps), "tebd-step")
-    norm2 = runtime.norm2()
+    norm2 = norm_history[-1]
     runtime.sync()
     elapsed = round((time.perf_counter() - started) * 1000, 3)
     max_term_locality = max((len(term.paulis) for term in payload.terms), default=0)
     parity_string_terms = sum(1 for term in payload.terms if len(term.paulis) > 2)
+    initial_bond_dim = bond_dim_history[0]
+    norm_drift_history = [abs(value - 1.0) for value in norm_history]
+    norm_drift = max(norm_drift_history, default=0.0)
+    bond_growth_history = [value - initial_bond_dim for value in bond_dim_history]
+    bond_growth = max(bond_growth_history, default=0)
     warnings = ["TEBD uses Suzuki-Trotter decomposition; reduce |dt| to check convergence"]
     if parity_string_terms:
         warnings.append(
@@ -97,6 +108,8 @@ def run_tebd(
         warnings.append("2D/3D lattice is embedded into a snake-ordered MPS; inspect bond/truncation convergence")
     if runtime.discarded_weight > 1e-12:
         warnings.append("bond dimension truncated entanglement; inspect discarded_weight and norm2")
+    if norm_drift > 1e-4:
+        warnings.append("TEBD norm drift exceeded 1e-4; inspect timestep and truncation convergence")
     return {
         "status": "done",
         "backend": "tensor-network-mps-tebd",
@@ -114,11 +127,42 @@ def run_tebd(
         "discarded_weight": runtime.discarded_weight,
         "approximate": runtime.discarded_weight > 1e-12 or payload.order == 2,
         "norm2": norm2,
+        "norm_drift": norm_drift,
+        "norm_history": norm_history,
+        "bond_growth": bond_growth,
+        "bond_dim_history": bond_dim_history,
+        "discarded_weight_history": discarded_weight_history,
+        "truncation_diagnostics": {
+            "bond_dim_requested": payload.bond_dim,
+            "bond_dim_initial": initial_bond_dim,
+            "bond_dim_final": bond_dim_history[-1],
+            "bond_growth": bond_growth,
+            "discarded_weight": runtime.discarded_weight,
+            "cutoff": payload.truncation_cutoff,
+        },
         "times": times,
         "energies": energies,
         "expectations": [
-            {"time": t, "values": point, "energy": energy}
-            for t, point, energy in zip(times, values, energies)
+            {
+                "time": t,
+                "values": point,
+                "energy": energy,
+                "norm2": norm,
+                "norm_drift": drift,
+                "bond_dim_used": bond,
+                "bond_growth": growth,
+                "discarded_weight": discarded,
+            }
+            for t, point, energy, norm, drift, bond, growth, discarded in zip(
+                times,
+                values,
+                energies,
+                norm_history,
+                norm_drift_history,
+                bond_dim_history,
+                bond_growth_history,
+                discarded_weight_history,
+            )
         ],
         "warnings": warnings,
         "time_ms": elapsed,

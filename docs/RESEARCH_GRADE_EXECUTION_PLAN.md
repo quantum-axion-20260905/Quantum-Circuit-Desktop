@@ -1,11 +1,12 @@
 # Research-grade execution plan
 
-Status: active execution plan for the `v0.5.x` line
+Status: Phase 1 acceptance gate passed locally; validated `v0.6.0` release
+candidate is ready for final tag and push.
 
 Current active slice: **Phase 1, 1D MPS/DMRG/TEBD 1.0**. The convention,
 observable-reference, DMRG stopping-classification, convergence-study helper,
-and checkpoint/resume-cancellation items are complete. The next item is the
-Phase 1 acceptance-gate audit.
+checkpoint/resume-cancellation, and acceptance-gate items are complete. The
+current action is final diff review before tagging and pushing the release.
 
 This is the operational plan for turning Quantum Circuit Desktop into a
 reliable tensor-network research workbench. It is intentionally narrower than
@@ -124,14 +125,19 @@ Implementation order:
    registry exposes `mps-tdvp` and `mps-vumps` as distinct planned capabilities.
    The capability API makes their unavailable status explicit and rejects them
    without silently falling back to TEBD or DMRG.
-7. **Next:** audit every Phase 1 acceptance-gate item, fill any remaining
-   reference/GPU/TEBD/export coverage, then run the full gate before tagging
-   `v0.6.0`.
+7. **Done:** audited every Phase 1 acceptance-gate item, added the remaining
+   reference/GPU/TEBD/export evidence, and ran the full bounded gate. The
+   release is now ready for final diff review and tagging as `v0.6.0`.
 
-Latest evidence for completed convention and observable-reference items:
+Latest Phase 1 acceptance evidence:
 
 - focused MPS suite: 15 tests passed;
-- full agent suite: 67 tests passed;
+- full agent suite: 73 tests passed;
+- CPU reference coverage: 4-site transverse Ising, Heisenberg, and XXZ DMRG
+  energies agree with exact diagonalization within `5e-5`, with normalized
+  states and converged stopping classification;
+- bounded real-CUDA agreement: 3 tests passed for MPS observables, Heisenberg
+  DMRG, and TEBD using the documented complex64 agreement envelope;
 - bounded CUDA smoke: 8 qubits on device 0, norm drift below `2e-6`, left and
   right isometry residuals below `1e-6`.
 - bounded CUDA observable cross-validation: 4 qubits, passed, maximum
@@ -145,20 +151,29 @@ Latest evidence for completed convention and observable-reference items:
 - checkpoint/resume and cancellation: CPU equivalence/cancellation tests
   passed; bounded CUDA 2→3 sweep resume passed with matching problem
   fingerprint and norm² `1.00000024`.
+- TEBD diagnostics: timestep, point-level norm²/norm drift, bond growth, and
+  cumulative discarded-weight histories are returned; CPU and CUDA tests plus
+  cooperative-cancellation tests passed.
+- automatic exact cross-check: a 4-qubit DMRG run performed and passed the
+  CUDA exact-energy comparison with absolute error below `1e-4`; a 9-qubit
+  run reported the explicit bounded-size skip reason without dense allocation.
 - algorithm capability catalog: `/capabilities` reports executable DMRG/TEBD
   plus separate planned TDVP/VUMPS entries; unsupported-method rejection tests
   confirm there is no silent solver substitution.
+- desktop-facing UI workflow: Physics Lab generated a 1D Hamiltonian, ran GPU
+  DMRG and TEBD, rendered convergence diagnostics, replayed a stored run, and
+  executed JSON export with visible export feedback.
 
 Acceptance gate for Phase 1:
 
-- 1D transverse Ising, Heisenberg, and XXZ examples pass CPU reference tests;
-- GPU and CPU results agree within documented dtype tolerance;
-- energy, norm, variance, and discarded weight are visible in the result;
-- bond/sweep convergence classifies stable and unstable runs correctly;
-- TEBD reports timestep, norm drift, bond growth, and truncation diagnostics;
-- checkpoint/resume, cancellation, replay, and JSON artifact export pass;
-- a small exact diagonalization cross-check is automatic when feasible;
-- frontend can run and inspect the complete workflow without backend-specific
+- [x] 1D transverse Ising, Heisenberg, and XXZ examples pass CPU reference tests;
+- [x] GPU and CPU results agree within documented dtype tolerance;
+- [x] energy, norm, variance, and discarded weight are visible in the result;
+- [x] bond/sweep convergence classifies stable and unstable runs correctly;
+- [x] TEBD reports timestep, norm drift, bond growth, and truncation diagnostics;
+- [x] checkpoint/resume, cancellation, replay, and JSON artifact export pass;
+- [x] a small exact diagonalization cross-check is automatic when feasible;
+- [x] frontend can run and inspect the complete workflow without backend-specific
   conditionals.
 
 Release target: `v0.6.0` (1D research-ready, not universal).
@@ -350,9 +365,9 @@ When this document is used as the goal-mode brief, the agent should:
 9. If blocked, record the exact failing contract, test, or environment
    dependency here instead of opening an unrelated backend.
 
-The next goal-mode task is therefore: **complete the Phase 1 acceptance-gate
-audit and close any remaining 1D reference, convergence, export, or replay
-evidence before the `v0.6.0` release decision.**
+The Phase 1 goal is complete once this validated diff is tagged and pushed as
+`v0.6.0`. A later goal-mode task may then start Phase 2; do not mix the two
+phases in one release.
 
 ## 7. Progress accounting
 

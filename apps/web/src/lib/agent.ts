@@ -63,8 +63,13 @@ export type AgentResult = {
   shots?: number;
   bond_dim_requested?: number;
   bond_dim_used?: number;
+  bond_dim_history?: number[];
+  bond_growth?: number;
   truncation_cutoff?: number;
   discarded_weight?: number;
+  discarded_weight_history?: number[];
+  norm_drift?: number;
+  norm_history?: number[];
   approximate?: boolean;
   warnings?: string[];
   provenance?: AgentProvenance;

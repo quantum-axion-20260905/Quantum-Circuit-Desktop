@@ -80,6 +80,12 @@ Every engine returns the same result envelope: energies, observables, norm,
 variance when available, truncation/error estimates, convergence history,
 resource usage, checkpoint id, and provenance.
 
+For the bounded Phase 1 CPU/GPU acceptance envelope, identical `complex64`
+payloads must agree within `1e-4` absolute error for energies/observables and
+`1e-4` norm² drift; `complex128` uses `1e-8` for numerical agreement. These
+limits validate implementation agreement, not scientific publication error;
+bond, timestep, sweep, and independent-reference studies are still required.
+
 ### 5. Symmetry and high-entanglement layer
 
 This is a cross-cutting layer rather than a separate solver. It adds U(1), Z2,
