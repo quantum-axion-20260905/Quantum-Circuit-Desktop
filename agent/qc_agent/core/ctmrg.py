@@ -23,6 +23,7 @@ from ..plugins.models import CTMRGPayload, PauliTerm
 from ..provenance import sha256_json
 from .checkpoints import load_ctm_checkpoint, save_ctm_checkpoint
 from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
+from .ipeps_optimizer import optimize_product_states, run_simple_update
 from .observables import structured_observables
 
 
@@ -60,11 +61,18 @@ def _real(value: Any) -> float:
     return float(complex(_host(value)).real)
 
 
+def _state_pairs(xp: Any, states: list[Any]) -> list[list[list[float]]]:
+    return [
+        [[float(complex(value).real), float(complex(value).imag)] for value in _host(state).reshape(-1)]
+        for state in states
+    ]
+
+
 def _max_abs(xp: Any, value: Any) -> float:
     return float(_host(xp.max(xp.abs(value))))
 
 
-def _build_tensors(xp: Any, payload: CTMRGPayload) -> list[Any]:
+def _build_tensors(xp: Any, payload: CTMRGPayload, state_vectors: list[Any] | None = None) -> list[Any]:
     """Create or import all tensors in the explicit unit cell.
 
     If ``tensor_data`` is supplied it is interpreted as row-major complex
@@ -81,7 +89,7 @@ def _build_tensors(xp: Any, payload: CTMRGPayload) -> list[Any]:
     cell_sites = math.prod(payload.unit_cell)
     nx = int(payload.unit_cell[0])
     tensor_size = physical * virtual ** 4
-    if payload.tensor_data is not None:
+    if state_vectors is None and payload.tensor_data is not None:
         values = [complex(float(real), float(imaginary)) for real, imaginary in payload.tensor_data]
         raw = xp.asarray(values, dtype=dtype)
         return [raw[index * tensor_size : (index + 1) * tensor_size].reshape(
@@ -90,15 +98,18 @@ def _build_tensors(xp: Any, payload: CTMRGPayload) -> list[Any]:
     tensors: list[Any] = []
     for site in range(cell_sites):
         tensor = xp.zeros((physical, virtual, virtual, virtual, virtual), dtype=dtype)
-        if payload.initial_state == "plus":
-            amplitudes = [1.0 / math.sqrt(2.0), 1.0 / math.sqrt(2.0)]
+        if state_vectors is not None:
+            tensor[:, 0, 0, 0, 0] = state_vectors[site]
         else:
-            amplitudes = [1.0, 0.0]
-            if payload.initial_state == "down":
-                amplitudes = [0.0, 1.0]
-            elif payload.initial_state == "neel" and ((site % nx) + (site // nx)) % 2:
-                amplitudes = [0.0, 1.0]
-        tensor[:, 0, 0, 0, 0] = xp.asarray(amplitudes, dtype=dtype)
+            if payload.initial_state == "plus":
+                amplitudes = [1.0 / math.sqrt(2.0), 1.0 / math.sqrt(2.0)]
+            else:
+                amplitudes = [1.0, 0.0]
+                if payload.initial_state == "down":
+                    amplitudes = [0.0, 1.0]
+                elif payload.initial_state == "neel" and ((site % nx) + (site // nx)) % 2:
+                    amplitudes = [0.0, 1.0]
+            tensor[:, 0, 0, 0, 0] = xp.asarray(amplitudes, dtype=dtype)
         tensors.append(tensor)
     return tensors
 
@@ -598,6 +609,17 @@ def run_ctmrg(
 
     started = time.perf_counter()
     tensors = _build_tensors(xp, payload)
+    optimization_info: dict[str, Any] | None = None
+    if payload.optimization != "none":
+        if payload.optimization == "product-coordinate-descent" and int(payload.virtual_bond_dim) != 1:
+            raise ValueError("product-coordinate-descent optimization requires virtual_bond_dim=1")
+        if payload.optimization == "product-coordinate-descent":
+            initial_states = [tensor[:, 0, 0, 0, 0] for tensor in tensors]
+            optimization_info = optimize_product_states(xp, payload, initial_states)
+            tensors = _build_tensors(xp, payload, state_vectors=optimization_info["states"])
+        elif payload.optimization == "simple-update":
+            optimization_info = run_simple_update(xp, payload, tensors)
+            tensors = optimization_info["tensors"]
     layers = [_double_layer(xp, tensor) for tensor in tensors]
     chi = int(payload.environment_bond_dim)
     environments = [_initialize_environment(xp, layer, chi) for layer in layers]
@@ -744,6 +766,11 @@ def run_ctmrg(
         if value is not None
     )
     converged = bool(residual <= float(payload.tolerance))
+    result_method = (
+        "ipeps-simple-update-ctmrg" if payload.optimization == "simple-update" else
+        "ipeps-ctmrg-product-optimization" if optimization_info is not None else
+        "ipeps-ctmrg-contraction"
+    )
     warnings = [
         "compare environment_bond_dim and iteration convergence before using values as scientific conclusions",
     ]
@@ -751,7 +778,11 @@ def run_ctmrg(
         warnings.insert(0, "CTMRG contraction uses a one-site translational environment")
     else:
         warnings.insert(0, "CTMRG contraction uses a periodic multi-site unit-cell environment")
-    if payload.tensor_data is None:
+    if payload.optimization == "simple-update":
+        warnings.append("simple-update is an imaginary-time entangled-tensor baseline; full-update environment feedback is not implemented")
+    elif optimization_info is not None:
+        warnings.append("product-coordinate-descent is a variational mean-field baseline with virtual_bond_dim=1; it is not an entangled iPEPS update")
+    elif payload.tensor_data is None:
         warnings.append("the tensor is a deterministic product-state ansatz; no variational ground-state optimization was performed")
     else:
         warnings.append("the imported tensor was contracted without variational ground-state optimization")
@@ -771,7 +802,7 @@ def run_ctmrg(
     ]
     research_result = ResearchResult(
         status="needs_review",
-        method="ipeps-ctmrg-contraction",
+        method=result_method,
         representation="ipeps",
         metrics={"norm": norm, "energy": float(energy), "energy_complete": interaction_values_available, "residual": float(residual)},
         truncation=TruncationReport(
@@ -792,16 +823,30 @@ def run_ctmrg(
         details={
             "initial_state": payload.initial_state,
             "environment_shapes": [[list(item.shape) for item in env.tensors()] for env in environments],
+            "optimization": (
+                {key: value for key, value in optimization_info.items() if key not in {"states", "tensors"}}
+                | ({"optimized_state_vectors": _state_pairs(xp, optimization_info["states"])} if "states" in optimization_info else {})
+                if optimization_info is not None else {"method": "none"}
+            ),
         },
     ).to_dict()
     return {
         "status": "done",
         "backend": "tensor-network-ctmrg",
-        "method": "ipeps-ctmrg-contraction",
+        "method": result_method,
         "representation": "ipeps",
         "unit_cell": unit_cell,
         "unit_cell_sites": len(tensors),
-        "tensor_source": "imported" if payload.tensor_data is not None else "generated-product-ansatz",
+        "tensor_source": (
+            "optimized-product-state" if optimization_info is not None else
+            ("imported" if payload.tensor_data is not None else "generated-product-ansatz")
+        ),
+        "optimization": payload.optimization,
+        "optimization_diagnostics": (
+            {key: value for key, value in optimization_info.items() if key not in {"states", "tensors"}}
+            | ({"optimized_state_vectors": _state_pairs(xp, optimization_info["states"])} if "states" in optimization_info else {})
+            if optimization_info is not None else None
+        ),
         "physical_bond_dim": int(payload.physical_bond_dim),
         "virtual_bond_dim": int(payload.virtual_bond_dim),
         "environment_bond_dim_requested": int(payload.environment_bond_dim),

@@ -152,6 +152,73 @@ class CTMRGTests(unittest.TestCase):
             self.assertEqual(resumed["checkpoint"]["metadata"]["environment_count"], 4)
             self.assertAlmostEqual(resumed["energy"], fresh["energy"], places=6)
 
+    def test_product_coordinate_descent_optimizes_mean_field_energy(self):
+        payload = CTMRGPayload(
+            initial_state="plus",
+            optimization="product-coordinate-descent",
+            optimization_steps=16,
+            optimization_tolerance=1e-8,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=-0.2)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=-1.0,
+            )],
+            environment_bond_dim=1,
+            iterations=1,
+        )
+        result = run_ctmrg(np, payload)
+        diagnostics = result["optimization_diagnostics"]
+        self.assertEqual(result["method"], "ipeps-ctmrg-product-optimization")
+        self.assertLess(diagnostics["final_energy"], diagnostics["initial_energy"] - 0.5)
+        self.assertAlmostEqual(result["energy"], -1.2, places=6)
+        self.assertTrue(any("mean-field baseline" in warning for warning in result["warnings"]))
+
+    def test_product_optimizer_rejects_entangled_virtual_bond(self):
+        payload = CTMRGPayload(
+            virtual_bond_dim=2,
+            optimization="product-coordinate-descent",
+            interactions=[{
+                "left_site": 0,
+                "right_site": 0,
+                "displacement": [1, 0],
+                "left_pauli": "Z",
+                "right_pauli": "Z",
+                "coefficient": 1.0,
+            }],
+        )
+        with self.assertRaisesRegex(ValueError, "virtual_bond_dim=1"):
+            run_ctmrg(np, payload)
+
+    def test_simple_update_runs_entangled_tensor_baseline_without_statevector(self):
+        result = run_ctmrg(np, CTMRGPayload(
+            unit_cell=[2, 1],
+            virtual_bond_dim=2,
+            initial_state="plus",
+            optimization="simple-update",
+            optimization_steps=3,
+            optimization_dt=0.05,
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=1,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=-1.0,
+            )],
+            environment_bond_dim=2,
+            iterations=2,
+        ))
+        self.assertEqual(result["method"], "ipeps-simple-update-ctmrg")
+        self.assertEqual(result["optimization"], "simple-update")
+        self.assertEqual(result["optimization_diagnostics"]["bond_dim_history"][-1], 2)
+        self.assertTrue(math.isfinite(result["energy"]))
+        self.assertFalse(result["resource_estimate"]["materializes_statevector"])
+        self.assertTrue(any("full-update" in warning for warning in result["warnings"]))
+
     def test_imported_complex_tensor_uses_declared_virtual_bond(self):
         tensor = np.zeros((2, 2, 2, 2, 2), dtype=np.complex128)
         tensor[0, 0, 0, 0, 0] = 1.0 / math.sqrt(2.0)

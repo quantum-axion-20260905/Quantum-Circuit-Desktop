@@ -211,11 +211,21 @@ but not released:
 - nearest-neighbor horizontal and vertical two-site Pauli expectations now
   use an explicit two-site CTM contraction; unsupported longer displacements
   remain visible as withheld values rather than product-of-averages guesses.
+- periodic unit-cell sweeps now support 2x2 cells with four independent
+  environments and atomic multi-environment checkpoint/resume;
+- a separate product-coordinate-descent optimizer provides a real D=1
+  variational mean-field baseline, with energy history and explicit
+  non-entangled limitations.
+- a bounded imaginary-time simple-update baseline now applies one- and
+  two-site Pauli gates, performs SVD truncation at the requested virtual bond
+  dimension, and reports discarded weight and bond-dimension history;
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
-periodic cells with imported tensors and multi-environment checkpoint/resume,
-but remains non-variational. Variational updates, stronger reference
-calculations, and frontend controls are still incomplete. They must land and
+periodic cells with imported tensors and multi-environment checkpoint/resume.
+The current optimizers are a D=1 mean-field baseline and a bounded simple
+update. The latter is an entangled-tensor baseline but does not feed the CTM
+environment back into a full variational update. Stronger reference
+calculations and frontend controls are still incomplete. They must land and
 pass their own gate before Phase 4 can be called complete or tagged as a
 release.
 
@@ -225,8 +235,8 @@ The next implementation packet is Phase 4 variational research-grade convergence
 
 - compare one-site through 2x2 unit-cell environments and checkpoint/resume
   against finite PEPS/reference product states;
-- add a tensor update/optimization contract that cannot be confused with bare
-  CTMRG environment contraction;
+- add full-update/environment-feedback tensor optimization that cannot be
+  confused with the current simple-update baseline;
 - add energy/variance and environment-dimension convergence evidence;
 - compare CTMRG local contractions against finite PEPS/reference product
   states and environment-dimension convergence;

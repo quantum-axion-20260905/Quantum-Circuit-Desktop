@@ -256,6 +256,8 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
     iteration_values = tensor_values + double_layer_values + corner_values + edge_values
     peak_mb = iteration_values * bytes_per_value * 3.0 / (1024 * 1024)
     work = max(1, int(payload.iterations)) * max(1, cell_sites) * max(1, environment_bond_dim) ** 3 * max(1, double_layer_dim)
+    if getattr(payload, "optimization", "none") != "none":
+        work += max(1, int(getattr(payload, "optimization_steps", 1))) * max(1, cell_sites) * 16
     estimated_ms = int(1 + work / 25_000)
     warnings: list[str] = [
         "CTMRG is an experimental infinite-2D path; compare environment-dimension convergence",
@@ -264,13 +266,15 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         warnings.append("current CTMRG solver supports unit_cell dimensions no larger than 2x2")
     if physical_bond_dim != 2:
         warnings.append("current CTMRG solver supports only physical_bond_dim=2 for Pauli observables")
+    if getattr(payload, "optimization", "none") == "product-coordinate-descent" and virtual_bond_dim != 1:
+        warnings.append("product-coordinate-descent optimization requires virtual_bond_dim=1")
     if peak_mb > float(payload.max_mem_mb):
         warnings.append(f"estimated CTMRG environment memory {peak_mb:.1f} MB exceeds memory budget")
     if gpu_free_mb is not None and peak_mb > gpu_free_mb * 0.70:
         warnings.append(f"estimated CTMRG environment memory {peak_mb:.1f} MB exceeds 70% of currently free GPU memory")
     if estimated_ms > int(payload.max_time_ms):
         warnings.append(f"estimated CTMRG time {estimated_ms} ms exceeds time budget")
-    blocking_warnings = [warning for warning in warnings if "exceeds" in warning or "current CTMRG solver supports" in warning]
+    blocking_warnings = [warning for warning in warnings if "exceeds" in warning or "current CTMRG solver supports" in warning or "product-coordinate-descent optimization requires" in warning]
     return {
         "status": "ready" if not blocking_warnings else "rejected",
         "feasible": not blocking_warnings,

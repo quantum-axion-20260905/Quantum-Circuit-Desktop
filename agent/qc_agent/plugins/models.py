@@ -231,6 +231,10 @@ class CTMRGPayload(BaseModel):
     environment_bond_dim: int = Field(default=16, ge=1, le=128)
     iterations: int = Field(default=20, ge=1, le=200)
     tolerance: float = Field(default=1e-8, gt=0, le=1.0)
+    optimization: Literal["none", "product-coordinate-descent", "simple-update"] = "none"
+    optimization_steps: int = Field(default=32, ge=1, le=256)
+    optimization_tolerance: float = Field(default=1e-7, gt=0, le=1.0)
+    optimization_dt: float = Field(default=0.01, gt=0, le=1.0)
     initial_state: Literal["up", "down", "plus", "neel"] = "up"
     checkpoint_path: str | None = Field(default=None, min_length=1, max_length=4096)
     resume_from: str | None = Field(default=None, min_length=1, max_length=4096)
