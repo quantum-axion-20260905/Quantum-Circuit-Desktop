@@ -901,7 +901,9 @@ def run_ctmrg(
         ),
         (
             "energy variance is a finite product-supercell diagnostic and is not an infinite-lattice variance proof"
-            if reference_validation.get("energy_variance") is not None else
+            if reference_validation.get("reference") == "finite-product-supercell" else
+            "energy variance is a finite 2x2 periodic-torus diagnostic and is not an infinite-lattice variance proof"
+            if reference_validation.get("reference") == "finite-periodic-peps-2x2" else
             "the selected entangled reference validates local observables but does not provide an infinite-lattice variance"
             if reference_validation["performed"] else
             "energy variance and independent reference are unavailable for the current entangled tensor"

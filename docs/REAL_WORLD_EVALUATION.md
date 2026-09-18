@@ -31,6 +31,23 @@ The same UI study for TEBD returned `E=-2.99900469 → -2.99971583` when `dt` wa
 
 For a 2×2 PEPS smoke study, the UI compared `χ=2`, `χ=4` and `χ=4, dt/2`; it returned energy spread `2.22e-3`, maximum discarded weight `1.66e-5` and norm drift `2.99e-4`, therefore also `Needs review`. This confirms that the bounded PEPS path is usable for exploration while still exposing non-convergence.
 
+## Phase 4 CTMRG/iPEPS evidence
+
+The bounded CTMRG path was exercised directly on the RTX 3060 with no dense
+statevector allocation:
+
+| Case | Configuration | Result | Interpretation |
+| --- | --- | --- | --- |
+| 2×2 periodic Ising product cell | `χ=2`, 4 CTMRG iterations | `E=-8.0`, variance `0`, product reference passed; χ=1/2 study both `-8.0` | The admitted product-limit 2D contract is reproducible and numerically stable. |
+| Canonical D=2 GHZ iPEPS | `complex128`, `χ=2`, 16 iterations | `E=0.9999963`, `<Z>=-3.7e-6`, `<ZZ>=1.0`, analytic GHZ reference passed, correlation length unresolved | One named entangled transfer fixed point is validated; the degeneracy correctly prevents a finite ξ claim. |
+| Generic D=2 iPEPS | `complex128`, `χ=2`, 3 iterations | CTMRG `E=0.4457706`; exact 2×2 torus reference `E=0.7112282`; max error `0.5033`; reference failed | This is useful diagnostic evidence, not a production answer. The current infinite-environment approximation needs larger χ/iterations and broader validation. |
+| D=1 SPSA full-update | 3 steps, 10 objective evaluations | energy `0 → -0.6320605` | The parameter-independent bounded update is GPU-usable, but remains an approximate non-AD baseline. |
+
+The generic entangled case is intentionally recorded as a failed reference
+comparison. This is a release-quality behavior: the tool surfaces the mismatch
+and keeps the result in `Needs review` instead of presenting a plausible number
+as a converged infinite-lattice result.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices
@@ -92,4 +109,4 @@ growth, cumulative discarded-weight history, and a structured truncation
 diagnostic. This keeps timestep and bond-dimension convergence inspectable in
 the exported/replayed result rather than leaving it as a UI-only heuristic.
 
-The current product therefore has real utility in narrow but meaningful research workflows. The current build now persists replayable local history, point-level backend `Run/RunArtifact` records and aggregate `Study` manifests, while the frontend exposes diagnostics, bounded physics convergence studies and A/B comparison. The PEPS path now scales past the old 16-site statevector limit, subject to double-layer boundary width and GPU preflight; CTMRG, high-entanglement full-update methods, resumable multi-step campaigns, and production-grade large-3D methods remain separate next-stage work.
+The current product therefore has real utility in narrow but meaningful research workflows. The current build now persists replayable local history, point-level backend `Run/RunArtifact` records and aggregate `Study` manifests, while the frontend exposes diagnostics, bounded physics convergence studies and A/B comparison. The PEPS path now scales past the old 16-site statevector limit, subject to double-layer boundary width and GPU preflight; CTMRG is now an experimental bounded infinite-2D path with explicit entangled-reference evidence, while generic high-entanglement convergence, resumable multi-step campaigns, and production-grade large-3D methods remain next-stage work.

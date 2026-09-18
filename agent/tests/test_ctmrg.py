@@ -133,6 +133,7 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(math.isfinite(reference["reference_energy"]))
         self.assertFalse(reference["passed"])
         self.assertTrue(any("finite-periodic-peps-2x2" in warning for warning in result["warnings"]))
+        self.assertTrue(any("finite 2x2 periodic-torus" in limitation for limitation in result["research_result"]["limitations"]))
 
     def test_two_site_checkerboard_contracts_neel_bond(self):
         payload = CTMRGPayload(
