@@ -232,6 +232,9 @@ but not released:
   explicit nested problem contract and preflight at the largest requested
   environment dimension, so the future desktop surface does not need solver
   internals.
+- the study is also a first-class `ctmrg_convergence` unified async job with
+  GPU admission, progress, cancellation/timeout callbacks, durable result
+  artifacts, and provenance; a live 3-point GPU job has been verified.
 - D=1 CTMRG runs now receive an independent NumPy finite-product-supercell
   comparison, including energy error, local observable error, finite-cell
   second moment, and variance; D>1 runs explicitly report that this reference
