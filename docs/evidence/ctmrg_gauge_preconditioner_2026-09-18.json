@@ -1,7 +1,7 @@
 {
   "artifact": "ctmrg-gauge-preconditioner-candidate",
   "date": "2026-09-18",
-  "git_revision": "f43b153",
+  "git_revision": "f985f13",
   "scope": {
     "unit_cell": [1, 1],
     "physical_bond_dim": 2,
@@ -38,7 +38,24 @@
     "interaction_zz": 1.0,
     "research_gate": "needs_review"
   },
+  "multi_site_contract": {
+    "unit_cell": [2, 1],
+    "iterations": 2,
+    "bond_count": 4,
+    "finite_torus_reference_preserved": true,
+    "bounded_ctmrg_execution": "completed",
+    "research_gate": "needs_review",
+    "reason": "bond-aware transforms preserve the exact finite reference, while the infinite environment remains a separate scientific gate"
+  },
+  "two_by_two_contract": {
+    "unit_cell": [2, 2],
+    "iterations": 2,
+    "bond_count": 8,
+    "finite_torus_reference_preserved": true,
+    "reference_energy_abs_delta": 3.2526065174565133e-19,
+    "max_bond_gram_delta_after": 0.3184823199854817
+  },
   "decision": "keep-opt-in-diagnostic",
-  "next_action": "develop a bond-aware symmetry-sector-preserving environment fixed-point/preconditioner before changing optimization or production admission",
+  "next_action": "validate 2x2 cells and develop a symmetry-sector-preserving environment fixed-point strategy before changing optimization or production admission",
   "resource_note": "bounded CPU experiment only; no unrelated high-RAM process was touched"
 }
