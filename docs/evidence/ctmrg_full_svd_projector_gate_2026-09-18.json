@@ -25,6 +25,20 @@
     "production_ready": false,
     "reason": "independent analytic GHZ transfer-fixed-point reference failed"
   },
+  "verification": {
+    "full_backend_unittest": "140/140 passed",
+    "cpu_autodiff_unittest": "7/7 passed",
+    "gpu_autodiff_unittest": "4/4 passed",
+    "torch_cuda_smoke": {
+      "passed": true,
+      "device": "cuda",
+      "virtual_bond_dim": 2,
+      "environment_bond_dim": 2,
+      "iterations": 1,
+      "research_gate_status": "needs_review",
+      "peak_bytes_estimate": 2688
+    }
+  },
   "decision": "keep-opt-in-experimental",
   "next_action": "validate quarter-index ordering and biorthogonal absorption before rerunning the entangled gate",
   "resource_note": "bounded CPU reference only; no unrelated high-RAM process was touched"
