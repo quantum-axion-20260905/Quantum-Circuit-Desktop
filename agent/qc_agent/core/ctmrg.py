@@ -961,6 +961,9 @@ def run_ctmrg_convergence_study(
     xp: Any,
     payload: CTMRGPayload,
     environment_bond_dims: list[int],
+    *,
+    progress_cb: Any = None,
+    cancel_cb: Any = None,
 ) -> dict[str, Any]:
     """Run a bounded environment-dimension convergence study.
 
@@ -985,13 +988,27 @@ def run_ctmrg_convergence_study(
 
     points: list[dict[str, Any]] = []
     previous_energy: float | None = None
-    for environment_bond_dim in normalized_dims:
+    for point_index, environment_bond_dim in enumerate(normalized_dims):
+        if cancel_cb and cancel_cb():
+            raise RuntimeError("job canceled")
         point_payload = payload.model_copy(update={
             "environment_bond_dim": environment_bond_dim,
             "checkpoint_path": None,
             "resume_from": None,
         })
-        result = run_ctmrg(xp, point_payload)
+        def point_progress(value: float, phase: str) -> None:
+            if progress_cb:
+                progress_cb(
+                    (point_index + float(value)) / len(normalized_dims),
+                    f"chi-{environment_bond_dim}-{phase}",
+                )
+
+        result = run_ctmrg(
+            xp,
+            point_payload,
+            progress_cb=point_progress,
+            cancel_cb=cancel_cb,
+        )
         energy = float(result["energy"])
         points.append({
             "environment_bond_dim": environment_bond_dim,

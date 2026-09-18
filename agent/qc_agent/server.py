@@ -993,6 +993,7 @@ def _async_parse(kind: AsyncKind, raw: dict[str, Any]) -> Any:
         "dmrg": DMRGPayload,
         "peps": PEPSPayload,
         "ctmrg": CTMRGPayload,
+        "ctmrg_convergence": CTMRGConvergenceStudyPayload,
         "tn_estimate": TNPayload,
         "tn_amplitudes": TNPayload,
         "sweep": SweepPayload,
@@ -1028,7 +1029,7 @@ def _async_backend(kind: AsyncKind, payload: Any) -> tuple[str, str]:
     if kind == "peps":
         # PEPS has the same fixed backend contract as TEBD.
         return _resolve_or_http(getattr(payload, "backend", "tensor-network"), "peps"), "peps"
-    if kind == "ctmrg":
+    if kind in ("ctmrg", "ctmrg_convergence"):
         return _resolve_or_http(getattr(payload, "backend", "tensor-network"), "ctmrg"), "ctmrg"
     if kind == "ground_state":
         return _resolve_or_http(payload.backend, "ground_state"), "ground_state"
@@ -1104,6 +1105,15 @@ def _async_preflight(kind: AsyncKind, payload: Any, resolved: str, budget: dict[
         report = preflight_peps(bounded_payload, gpu_free_mb=free_mb)
     elif kind == "ctmrg":
         report = preflight_ctmrg(bounded_payload, gpu_free_mb=free_mb)
+    elif kind == "ctmrg_convergence":
+        max_payload = payload.problem.model_copy(update={
+            "environment_bond_dim": max(payload.environment_bond_dims),
+            "max_time_ms": max_time_ms,
+            "max_mem_mb": max_mem_mb,
+        })
+        report = preflight_ctmrg(max_payload, gpu_free_mb=free_mb)
+        report["study_points"] = len(payload.environment_bond_dims)
+        report["environment_bond_dims"] = list(payload.environment_bond_dims)
     elif kind == "tebd":
         report = preflight_tebd(bounded_payload, gpu_free_mb=free_mb)
     elif resolved == "reference":
@@ -1261,6 +1271,14 @@ def _async_compute(kind: AsyncKind, payload: Any, resolved: str, job: Any) -> di
         result = run_peps(cp, payload, progress_cb=progress, cancel_cb=canceled)
     elif kind == "ctmrg":
         result = run_ctmrg(cp, payload, progress_cb=progress, cancel_cb=canceled)
+    elif kind == "ctmrg_convergence":
+        result = run_ctmrg_convergence_study(
+            cp,
+            payload.problem,
+            payload.environment_bond_dims,
+            progress_cb=progress,
+            cancel_cb=canceled,
+        )
     elif kind == "ground_state":
         result = exact_ground_state(cp, payload)
     else:

@@ -454,6 +454,32 @@ class CTMRGTests(unittest.TestCase):
                 }],
             ), [1, 2])
 
+    def test_environment_dimension_study_reports_progress_and_honors_cancellation(self):
+        payload = CTMRGPayload(
+            interactions=[{
+                "left_site": 0,
+                "right_site": 0,
+                "displacement": [1, 0],
+                "left_pauli": "Z",
+                "right_pauli": "Z",
+                "coefficient": 1.0,
+            }],
+            environment_bond_dim=2,
+            iterations=2,
+        )
+        progress = []
+        run_ctmrg_convergence_study(
+            np,
+            payload,
+            [1, 2],
+            progress_cb=lambda value, phase: progress.append((value, phase)),
+        )
+        self.assertTrue(progress)
+        self.assertLessEqual(max(value for value, _ in progress), 1.0)
+        self.assertTrue(any("chi-1" in phase for _, phase in progress))
+        with self.assertRaisesRegex(RuntimeError, "job canceled"):
+            run_ctmrg_convergence_study(np, payload, [1, 2], cancel_cb=lambda: True)
+
     def test_environment_dimension_study_api_contract_rejects_optimized_problem(self):
         with self.assertRaisesRegex(ValueError, "problem.optimization='none'"):
             CTMRGConvergenceStudyPayload(
