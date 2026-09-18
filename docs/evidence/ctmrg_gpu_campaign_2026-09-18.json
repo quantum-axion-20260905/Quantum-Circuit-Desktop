@@ -2,7 +2,7 @@
   "case_count": 5,
   "cases": [
     {
-      "elapsed_ms": 313.677,
+      "elapsed_ms": 256.621,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11757682688,
@@ -66,6 +66,8 @@
         "optimization_dt": 0.01,
         "optimization_steps": 32,
         "optimization_tolerance": 1e-07,
+        "optimizer_checkpoint_path": null,
+        "optimizer_resume_from": null,
         "physical_bond_dim": 2,
         "resume_from": null,
         "tensor_data": null,
@@ -77,7 +79,7 @@
         ],
         "virtual_bond_dim": 1
       },
-      "request_sha256": "00137844621e8913ae695ae4c86b2fd142aaaeb8104fcdfda278d2f085877dd3",
+      "request_sha256": "f7402ae6fa616fc7a27c07424abf62072067c22dcb8276a525063dc527af29c5",
       "result_sha256": "8826190b9f722fb7fa8f75ae03048209a625ba4af42873cde046a898c8b6fa6b",
       "status": "done",
       "study": {
@@ -277,8 +279,8 @@
           }
         ],
         "provenance": {
-          "git_revision": "2fc34c69977227d81756eda1002db374b8dfbc7c",
-          "request_sha256": "00137844621e8913ae695ae4c86b2fd142aaaeb8104fcdfda278d2f085877dd3",
+          "git_revision": "35f4d157c2600ea51943b1204717a1ebeeeecb9c",
+          "request_sha256": "f7402ae6fa616fc7a27c07424abf62072067c22dcb8276a525063dc527af29c5",
           "result_sha256": "8826190b9f722fb7fa8f75ae03048209a625ba4af42873cde046a898c8b6fa6b"
         },
         "reference_summary": {
@@ -303,7 +305,7 @@
       }
     },
     {
-      "elapsed_ms": 82.824,
+      "elapsed_ms": 99.534,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11757682688,
@@ -391,6 +393,8 @@
         "optimization_dt": 0.01,
         "optimization_steps": 32,
         "optimization_tolerance": 1e-07,
+        "optimizer_checkpoint_path": null,
+        "optimizer_resume_from": null,
         "physical_bond_dim": 2,
         "resume_from": null,
         "tensor_data": null,
@@ -402,7 +406,7 @@
         ],
         "virtual_bond_dim": 1
       },
-      "request_sha256": "c0f90c1c3673fb94ab8cd69cf98cd32481e4e86cab6b5bec956080f91bc90a63",
+      "request_sha256": "adde230f47cfe0e8bbf861daeacbfa65b4ff318783d44fa8b1be22442d1ed813",
       "result_sha256": "15ac5e02cbd2a7d717bc5078568d47806e124e1bd88af931e2027db4366a37b5",
       "status": "done",
       "study": {
@@ -618,8 +622,8 @@
           }
         ],
         "provenance": {
-          "git_revision": "2fc34c69977227d81756eda1002db374b8dfbc7c",
-          "request_sha256": "c0f90c1c3673fb94ab8cd69cf98cd32481e4e86cab6b5bec956080f91bc90a63",
+          "git_revision": "35f4d157c2600ea51943b1204717a1ebeeeecb9c",
+          "request_sha256": "adde230f47cfe0e8bbf861daeacbfa65b4ff318783d44fa8b1be22442d1ed813",
           "result_sha256": "15ac5e02cbd2a7d717bc5078568d47806e124e1bd88af931e2027db4366a37b5"
         },
         "reference_summary": {
@@ -644,7 +648,7 @@
       }
     },
     {
-      "elapsed_ms": 86.533,
+      "elapsed_ms": 81.975,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11757682688,
@@ -732,6 +736,8 @@
         "optimization_dt": 0.01,
         "optimization_steps": 32,
         "optimization_tolerance": 1e-07,
+        "optimizer_checkpoint_path": null,
+        "optimizer_resume_from": null,
         "physical_bond_dim": 2,
         "resume_from": null,
         "tensor_data": null,
@@ -743,7 +749,7 @@
         ],
         "virtual_bond_dim": 1
       },
-      "request_sha256": "3421da67e0f276fb182d016787ba4f32086802a3deaea559a5064bffe5ce10e6",
+      "request_sha256": "5c7abbde99328a2602d60133cb969c7d3a9a5275033160a738c23beb6649367d",
       "result_sha256": "59a54c66f202d0b3dc626aa5d86ef4fbbb6fc458f2831fa9d907774279d77ef7",
       "status": "done",
       "study": {
@@ -959,8 +965,8 @@
           }
         ],
         "provenance": {
-          "git_revision": "2fc34c69977227d81756eda1002db374b8dfbc7c",
-          "request_sha256": "3421da67e0f276fb182d016787ba4f32086802a3deaea559a5064bffe5ce10e6",
+          "git_revision": "35f4d157c2600ea51943b1204717a1ebeeeecb9c",
+          "request_sha256": "5c7abbde99328a2602d60133cb969c7d3a9a5275033160a738c23beb6649367d",
           "result_sha256": "59a54c66f202d0b3dc626aa5d86ef4fbbb6fc458f2831fa9d907774279d77ef7"
         },
         "reference_summary": {
@@ -985,7 +991,7 @@
       }
     },
     {
-      "elapsed_ms": 183.466,
+      "elapsed_ms": 161.904,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11757682688,
@@ -1121,6 +1127,8 @@
         "optimization_dt": 0.01,
         "optimization_steps": 32,
         "optimization_tolerance": 1e-07,
+        "optimizer_checkpoint_path": null,
+        "optimizer_resume_from": null,
         "physical_bond_dim": 2,
         "resume_from": null,
         "tensor_data": null,
@@ -1132,7 +1140,7 @@
         ],
         "virtual_bond_dim": 1
       },
-      "request_sha256": "fc066cd0b75f4ce83182d546e2026eb7b872ded559aa8ab6518592bccea67326",
+      "request_sha256": "0cca7328189dc7f0419f9c83e386bc09e84c883a4138ee9366e4ce1c50a6cc63",
       "result_sha256": "ef65065029d2857d959ba925c918f34aa54b019b727b11fc1fc3db9c1f20691d",
       "status": "done",
       "study": {
@@ -1380,8 +1388,8 @@
           }
         ],
         "provenance": {
-          "git_revision": "2fc34c69977227d81756eda1002db374b8dfbc7c",
-          "request_sha256": "fc066cd0b75f4ce83182d546e2026eb7b872ded559aa8ab6518592bccea67326",
+          "git_revision": "35f4d157c2600ea51943b1204717a1ebeeeecb9c",
+          "request_sha256": "0cca7328189dc7f0419f9c83e386bc09e84c883a4138ee9366e4ce1c50a6cc63",
           "result_sha256": "ef65065029d2857d959ba925c918f34aa54b019b727b11fc1fc3db9c1f20691d"
         },
         "reference_summary": {
@@ -1406,7 +1414,7 @@
       }
     },
     {
-      "elapsed_ms": 363.76,
+      "elapsed_ms": 331.428,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11753488384,
@@ -1470,6 +1478,8 @@
         "optimization_dt": 0.01,
         "optimization_steps": 32,
         "optimization_tolerance": 1e-07,
+        "optimizer_checkpoint_path": null,
+        "optimizer_resume_from": null,
         "physical_bond_dim": 2,
         "resume_from": null,
         "tensor_data": [
@@ -2002,7 +2012,7 @@
         ],
         "virtual_bond_dim": 2
       },
-      "request_sha256": "fcb36bbcc9b58a064cba00c4b2e8bba7b1177d6fc9149a1b2c7e60d374ebce7f",
+      "request_sha256": "6b5ca78eb441b0b2a2fec92a4cba415be999e1453126e0fa16cae44aab5d967a",
       "result_sha256": "6cff3582af70fd3dff4039dda55e39f8122495deaafc6539ec09f4d1e539bc86",
       "status": "done",
       "study": {
@@ -2182,8 +2192,8 @@
           }
         ],
         "provenance": {
-          "git_revision": "2fc34c69977227d81756eda1002db374b8dfbc7c",
-          "request_sha256": "fcb36bbcc9b58a064cba00c4b2e8bba7b1177d6fc9149a1b2c7e60d374ebce7f",
+          "git_revision": "35f4d157c2600ea51943b1204717a1ebeeeecb9c",
+          "request_sha256": "6b5ca78eb441b0b2a2fec92a4cba415be999e1453126e0fa16cae44aab5d967a",
           "result_sha256": "6cff3582af70fd3dff4039dda55e39f8122495deaafc6539ec09f4d1e539bc86"
         },
         "reference_summary": {
@@ -2226,14 +2236,14 @@
       2
     ]
   ],
-  "created_at": "2026-09-18T05:47:21.317464+00:00",
-  "elapsed_ms": 1257.848,
+  "created_at": "2026-09-18T06:17:48.988110+00:00",
+  "elapsed_ms": 1155.472,
   "environment_bond_dims": [
     1,
     2,
     4
   ],
-  "git_revision": "2fc34c69977227d81756eda1002db374b8dfbc7c",
+  "git_revision": "35f4d157c2600ea51943b1204717a1ebeeeecb9c",
   "limitations": [
     "campaign is bounded acceptance evidence, not a thermodynamic-limit benchmark",
     "product cases validate the admitted product reference; the generic entangled case is expected to remain review-only until variational full-update is validated",
