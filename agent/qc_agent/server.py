@@ -37,6 +37,7 @@ from .plugins.models import (
     PEPSPayload,
     CTMRGPayload,
     CTMRGConvergenceStudyPayload,
+    CTMRGBoundaryMPSStudyPayload,
     TEBDPayload,
 )
 from .plugins.registry import catalog as plugin_catalog
@@ -46,6 +47,7 @@ from .core.ground_state import exact_ground_state
 from .core.dmrg import run_dmrg
 from .core.peps import run_peps
 from .core.ctmrg import run_ctmrg, run_ctmrg_convergence_study
+from .core.ctmrg_boundary_mps import run_boundary_mps_convergence_study, tensors_from_payload
 from .plugins.tebd import run_tebd
 from .provenance import with_provenance
 from .backends.registry import catalog, method_catalog, resolve_run_backend
@@ -647,6 +649,64 @@ def jobs_ctmrg_convergence(payload: CTMRGConvergenceStudyPayload) -> dict[str, A
     )
 
 
+@app.post("/jobs/ctmrg/boundary-mps-convergence")
+@_sync_gpu_guard
+def jobs_ctmrg_boundary_mps_convergence(payload: CTMRGBoundaryMPSStudyPayload) -> dict[str, Any]:
+    """Compare the independent finite-cylinder boundary-MPS diagnostic."""
+
+    resolved = _resolve_or_http(payload.backend, "ctmrg")
+    require_gpu(cp)
+    estimate_payload = payload.problem.model_copy(update={
+        "boundary_mps_reference": True,
+        "boundary_mps_width": max(width for width, _ in payload.patch_sizes),
+        "boundary_mps_height": max(height for _, height in payload.patch_sizes),
+        "boundary_mps_bond_dim": max(payload.boundary_bond_dims),
+        "max_time_ms": payload.max_time_ms,
+        "max_mem_mb": payload.max_mem_mb,
+    })
+    report = preflight_ctmrg(estimate_payload, gpu_free_mb=_gpu_free_mb(_hardware_snapshot()))
+    report["study_points"] = len(payload.patch_sizes) * len(payload.boundary_bond_dims)
+    if not report.get("feasible", False):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "boundary-MPS convergence study rejected by preflight budget",
+                "warnings": report.get("warnings", []),
+                "estimated_peak_memory_mb": report.get("estimated_peak_memory_mb"),
+                "estimated_time_ms": report.get("estimated_time_ms"),
+            },
+        )
+    started_at = time.perf_counter()
+    problem = payload.problem.model_copy(update={
+        "boundary_mps_reference": False,
+        "max_time_ms": payload.max_time_ms,
+        "max_mem_mb": payload.max_mem_mb,
+    })
+    try:
+        ctmrg_result = run_ctmrg(cp, problem)
+        study = run_boundary_mps_convergence_study(
+            tensors_from_payload(problem),
+            problem,
+            ctmrg_energy=float(ctmrg_result["energy"]),
+            ctmrg_onsite=[float(item["value"]) for item in ctmrg_result["observables"]],
+            ctmrg_interactions=[item["value"] for item in ctmrg_result["interactions"]],
+            patch_sizes=[tuple(pair) for pair in payload.patch_sizes],
+            boundary_bond_dims=payload.boundary_bond_dims,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    result = {
+        "status": "done",
+        "method": "ctmrg-with-finite-cylinder-boundary-mps-study",
+        "ctmrg": ctmrg_result,
+        "boundary_mps": study,
+        "preflight": report,
+    }
+    return _with_run_provenance(
+        result, payload, requested_backend=payload.backend, resolved_backend=resolved, started_at=started_at,
+    )
+
+
 @app.post("/jobs/preflight")
 def jobs_preflight(payload: PreflightPayload) -> dict[str, Any]:
     unresolved = _unresolved_parameters(payload)
@@ -994,6 +1054,7 @@ def _async_parse(kind: AsyncKind, raw: dict[str, Any]) -> Any:
         "peps": PEPSPayload,
         "ctmrg": CTMRGPayload,
         "ctmrg_convergence": CTMRGConvergenceStudyPayload,
+        "ctmrg_boundary_mps_convergence": CTMRGBoundaryMPSStudyPayload,
         "tn_estimate": TNPayload,
         "tn_amplitudes": TNPayload,
         "sweep": SweepPayload,
@@ -1029,7 +1090,7 @@ def _async_backend(kind: AsyncKind, payload: Any) -> tuple[str, str]:
     if kind == "peps":
         # PEPS has the same fixed backend contract as TEBD.
         return _resolve_or_http(getattr(payload, "backend", "tensor-network"), "peps"), "peps"
-    if kind in ("ctmrg", "ctmrg_convergence"):
+    if kind in ("ctmrg", "ctmrg_convergence", "ctmrg_boundary_mps_convergence"):
         return _resolve_or_http(getattr(payload, "backend", "tensor-network"), "ctmrg"), "ctmrg"
     if kind == "ground_state":
         return _resolve_or_http(payload.backend, "ground_state"), "ground_state"
@@ -1114,6 +1175,17 @@ def _async_preflight(kind: AsyncKind, payload: Any, resolved: str, budget: dict[
         report = preflight_ctmrg(max_payload, gpu_free_mb=free_mb)
         report["study_points"] = len(payload.environment_bond_dims)
         report["environment_bond_dims"] = list(payload.environment_bond_dims)
+    elif kind == "ctmrg_boundary_mps_convergence":
+        estimate_payload = payload.problem.model_copy(update={
+            "boundary_mps_reference": True,
+            "boundary_mps_width": max(width for width, _ in payload.patch_sizes),
+            "boundary_mps_height": max(height for _, height in payload.patch_sizes),
+            "boundary_mps_bond_dim": max(payload.boundary_bond_dims),
+            "max_time_ms": max_time_ms,
+            "max_mem_mb": max_mem_mb,
+        })
+        report = preflight_ctmrg(estimate_payload, gpu_free_mb=free_mb)
+        report["study_points"] = len(payload.patch_sizes) * len(payload.boundary_bond_dims)
     elif kind == "tebd":
         report = preflight_tebd(bounded_payload, gpu_free_mb=free_mb)
     elif resolved == "reference":
@@ -1279,6 +1351,23 @@ def _async_compute(kind: AsyncKind, payload: Any, resolved: str, job: Any) -> di
             progress_cb=progress,
             cancel_cb=canceled,
         )
+    elif kind == "ctmrg_boundary_mps_convergence":
+        problem = payload.problem.model_copy(update={"boundary_mps_reference": False})
+        ctmrg_result = run_ctmrg(cp, problem, progress_cb=progress, cancel_cb=canceled)
+        result = {
+            "status": "done",
+            "method": "ctmrg-with-finite-cylinder-boundary-mps-study",
+            "ctmrg": ctmrg_result,
+            "boundary_mps": run_boundary_mps_convergence_study(
+                tensors_from_payload(problem),
+                problem,
+                ctmrg_energy=float(ctmrg_result["energy"]),
+                ctmrg_onsite=[float(item["value"]) for item in ctmrg_result["observables"]],
+                ctmrg_interactions=[item["value"] for item in ctmrg_result["interactions"]],
+                patch_sizes=[tuple(pair) for pair in payload.patch_sizes],
+                boundary_bond_dims=payload.boundary_bond_dims,
+            ),
+        }
     elif kind == "ground_state":
         result = exact_ground_state(cp, payload)
     else:

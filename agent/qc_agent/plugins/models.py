@@ -382,6 +382,51 @@ class CTMRGConvergenceStudyPayload(BaseModel):
         return self
 
 
+class CTMRGBoundaryMPSStudyPayload(BaseModel):
+    """Bounded finite-cylinder boundary-MPS diagnostic study contract."""
+
+    problem: CTMRGPayload
+    patch_sizes: list[list[int]] = Field(min_length=1, max_length=4)
+    boundary_bond_dims: list[int] = Field(min_length=1, max_length=4)
+    backend: Literal["auto", "tensor-network"] = "auto"
+    max_time_ms: int = Field(default=120000, ge=100, le=3600000)
+    max_mem_mb: float = Field(default=4096, gt=0, le=1048576)
+
+    @field_validator("patch_sizes")
+    @classmethod
+    def validate_patch_sizes(cls, value: list[list[int]]) -> list[list[int]]:
+        normalized = [[int(item) for item in pair] for pair in value]
+        if any(len(pair) != 2 for pair in normalized):
+            raise ValueError("boundary-MPS patch_sizes entries must be [width, height]")
+        if any(any(size < 2 or size > 16 for size in pair) for pair in normalized):
+            raise ValueError("boundary-MPS patch dimensions must be between 2 and 16")
+        if len({tuple(pair) for pair in normalized}) != len(normalized):
+            raise ValueError("boundary-MPS patch_sizes must be unique")
+        return normalized
+
+    @field_validator("boundary_bond_dims")
+    @classmethod
+    def validate_boundary_bond_dims(cls, value: list[int]) -> list[int]:
+        normalized = [int(item) for item in value]
+        if any(item < 1 or item > 128 for item in normalized):
+            raise ValueError("boundary-MPS bond dimensions must be between 1 and 128")
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("boundary-MPS bond dimensions must be unique")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_problem(self):
+        if len(self.patch_sizes) * len(self.boundary_bond_dims) > 8:
+            raise ValueError("boundary-MPS convergence studies are limited to eight points")
+        if self.problem.optimization != "none":
+            raise ValueError("boundary-MPS convergence studies require problem.optimization='none'")
+        if self.problem.environment_sector_policy != "single":
+            raise ValueError("boundary-MPS convergence studies and symmetry-sector ensembles are separate experimental policies")
+        if self.problem.gauge_preconditioner != "none":
+            raise ValueError("boundary-MPS convergence studies and virtual-gauge preconditioning are separate experimental policies")
+        return self
+
+
 class PEPSPayload(BaseModel):
     """Finite 2D/3D PEPS simple-update evolution with bounded contraction.
 

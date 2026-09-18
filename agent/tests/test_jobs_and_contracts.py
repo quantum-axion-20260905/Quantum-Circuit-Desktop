@@ -114,6 +114,28 @@ class UnifiedApiTests(unittest.TestCase):
         self.assertEqual(_async_backend("tebd", tebd), ("tensor-network", "evolve"))
         self.assertEqual(_async_backend("peps", peps), ("tensor-network", "peps"))
 
+    def test_boundary_mps_ctmrg_study_has_unified_async_contract(self):
+        from qc_agent.server import _async_backend, _async_parse
+
+        payload = _async_parse("ctmrg_boundary_mps_convergence", {
+            "problem": {
+                "environment_bond_dim": 2,
+                "iterations": 2,
+                "interactions": [{
+                    "left_site": 0,
+                    "right_site": 0,
+                    "displacement": [1, 0],
+                    "left_pauli": "Z",
+                    "right_pauli": "Z",
+                    "coefficient": 1.0,
+                }],
+            },
+            "patch_sizes": [[2, 2], [3, 3]],
+            "boundary_bond_dims": [2, 4],
+        })
+        self.assertEqual(payload.__class__.__name__, "CTMRGBoundaryMPSStudyPayload")
+        self.assertEqual(_async_backend("ctmrg_boundary_mps_convergence", payload), ("tensor-network", "ctmrg"))
+
     def test_gpu_benchmark_preflight_accepts_generic_budget(self):
         from qc_agent.server import _async_backend, _async_parse, _async_preflight
 

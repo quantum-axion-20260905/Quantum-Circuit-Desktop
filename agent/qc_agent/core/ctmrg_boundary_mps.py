@@ -53,6 +53,39 @@ def _double_layer(tensor: np.ndarray, operator: np.ndarray | None = None) -> np.
     return raw.reshape((virtual * virtual,) * 4)
 
 
+def tensors_from_payload(payload: Any) -> list[np.ndarray]:
+    """Materialize the small declared iPEPS cell for the reference path only."""
+
+    physical = int(payload.physical_bond_dim)
+    virtual = int(payload.virtual_bond_dim)
+    if physical != 2:
+        raise ValueError("finite-cylinder boundary-MPS currently supports physical_bond_dim=2")
+    cell_sites = int(payload.unit_cell[0]) * int(payload.unit_cell[1])
+    tensor_size = physical * virtual ** 4
+    if payload.tensor_data is not None:
+        values = [complex(float(real), float(imaginary)) for real, imaginary in payload.tensor_data]
+        if len(values) != cell_sites * tensor_size:
+            raise ValueError("boundary-MPS tensor_data length does not match the declared unit cell")
+        raw = np.asarray(values, dtype=np.complex128)
+        return [raw[index * tensor_size:(index + 1) * tensor_size].reshape(
+            (physical, virtual, virtual, virtual, virtual)
+        ) for index in range(cell_sites)]
+    tensors: list[np.ndarray] = []
+    for site in range(cell_sites):
+        tensor = np.zeros((physical, virtual, virtual, virtual, virtual), dtype=np.complex128)
+        if payload.initial_state == "plus":
+            amplitudes = [1.0 / np.sqrt(2.0), 1.0 / np.sqrt(2.0)]
+        elif payload.initial_state == "down":
+            amplitudes = [0.0, 1.0]
+        elif payload.initial_state == "neel" and ((site % int(payload.unit_cell[0])) + (site // int(payload.unit_cell[0]))) % 2:
+            amplitudes = [0.0, 1.0]
+        else:
+            amplitudes = [1.0, 0.0]
+        tensor[:, 0, 0, 0, 0] = amplitudes
+        tensors.append(tensor)
+    return tensors
+
+
 def _row_mpo(
     layer: np.ndarray,
     *,
