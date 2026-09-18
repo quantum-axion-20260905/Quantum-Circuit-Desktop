@@ -1989,6 +1989,9 @@ def run_ctmrg_convergence_study(
         points.append({
             "environment_bond_dim": environment_bond_dim,
             "environment_bond_dim_used": int(result["environment_bond_dim_used"]),
+            "environment_sector_policy": result.get("environment_sector_policy", "single"),
+            "environment_sector_count": int(result.get("environment_sector_count", 1)),
+            "environment_sector_spread": result.get("environment_sector_spread"),
             "energy": energy,
             "energy_complete": bool(result["energy_complete"]),
             "energy_delta": None if previous_energy is None else energy - previous_energy,
@@ -2045,6 +2048,26 @@ def run_ctmrg_convergence_study(
         "review_points": sum(status != "passed" for status in research_gate_statuses),
         "blocking_reasons": research_gate_blocking_reasons,
     }
+    sector_policies = sorted({
+        str(point["environment_sector_policy"])
+        for point in points
+    })
+    sector_spread_fields = (
+        "energy_abs_range",
+        "observable_max_abs_range",
+        "interaction_max_abs_range",
+    )
+    sector_spread_summary = {
+        field: max(
+            (
+                float(point["environment_sector_spread"].get(field, 0.0))
+                for point in points
+                if point.get("environment_sector_spread") is not None
+            ),
+            default=0.0,
+        )
+        for field in sector_spread_fields
+    }
 
     return {
         "status": "done",
@@ -2061,6 +2084,11 @@ def run_ctmrg_convergence_study(
             "max_abs_error": max(reference_errors, default=None),
         },
         "research_gate_summary": research_gate_summary,
+        "environment_sector_summary": {
+            "policies": sector_policies,
+            "sector_counts": sorted({int(point["environment_sector_count"]) for point in points}),
+            "max_spread": sector_spread_summary,
+        },
         "gauge_conditioning": study_gauge_conditioning or {
             "performed": False,
             "reason": "study has no points",
@@ -2069,5 +2097,6 @@ def run_ctmrg_convergence_study(
         "warnings": [
             "points are independent bounded CTMRG contractions from the same tensor ansatz",
             "compare energy, residual, correlation length, and local observables together before drawing physical conclusions",
+            "sector spread is retained per point; a small chi delta does not override a large boundary-sector spread",
         ],
     }

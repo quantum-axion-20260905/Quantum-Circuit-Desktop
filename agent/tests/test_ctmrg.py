@@ -1070,6 +1070,9 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(study["reference_summary"]["consistent_reference"], "finite-product-supercell")
         self.assertEqual(study["reference_summary"]["performed_points"], 3)
         self.assertEqual(study["reference_summary"]["passed_points"], 3)
+        self.assertEqual(study["environment_sector_summary"]["policies"], ["single"])
+        self.assertEqual(study["environment_sector_summary"]["sector_counts"], [1])
+        self.assertEqual(study["environment_sector_summary"]["max_spread"]["energy_abs_range"], 0.0)
         self.assertIn("research_gate_summary", study)
         self.assertEqual(study["research_gate_summary"]["status"], "passed")
         self.assertTrue(study["research_gate_summary"]["production_ready"])
@@ -1086,6 +1089,43 @@ class CTMRGTests(unittest.TestCase):
             self.assertGreaterEqual(len(point["environment_spectrum"]), 1)
             self.assertEqual(point["reference_name"], "finite-product-supercell")
             self.assertTrue(point["reference_passed"])
+
+    def test_environment_dimension_study_preserves_symmetry_sector_spread(self):
+        tensor_data: list[list[float]] = []
+        for physical in range(2):
+            for up in range(2):
+                for down in range(2):
+                    for left in range(2):
+                        for right in range(2):
+                            tensor_data.append([
+                                float(physical == up == down == left == right),
+                                0.0,
+                            ])
+        study = run_ctmrg_convergence_study(np, CTMRGPayload(
+            ctmrg_projector="full-svd",
+            environment_sector_policy="symmetry-ensemble",
+            virtual_bond_dim=2,
+            dtype="complex128",
+            tensor_data=tensor_data,
+            environment_bond_dim=2,
+            iterations=3,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+        ), [1, 2])
+        self.assertEqual(study["environment_sector_summary"]["policies"], ["symmetry-ensemble"])
+        self.assertEqual(study["environment_sector_summary"]["sector_counts"], [2])
+        self.assertGreater(
+            study["environment_sector_summary"]["max_spread"]["observable_max_abs_range"],
+            1.0,
+        )
+        self.assertTrue(all(point["environment_sector_spread"] for point in study["points"]))
 
     def test_environment_dimension_convergence_study_requires_plain_contraction(self):
         with self.assertRaisesRegex(ValueError, "optimization='none'"):
