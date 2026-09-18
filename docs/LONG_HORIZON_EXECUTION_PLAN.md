@@ -24,14 +24,15 @@ features.
 - Active phase: Phase 4, CTMRG/iPEPS research admission.
 - Current release: `v0.7.1`; the next release is not tagged until the Phase 4
   gate passes.
-- Current useful capability: bounded product-state CTMRG has a declared
-  research gate; generic entangled `D>1` results remain `needs_review`.
+- Current useful capability: bounded product-state CTMRG and the canonical
+  D=2 GHZ transfer-fixed-point reference both have declared gates; generic
+  entangled `D>1` results remain `needs_review`.
 - Current scientific blocker: the paired virtual-gauge energy drift is still
-  nonzero on the entangled CUDA gate. The first opt-in full-SVD projector
-  candidate preserves the D=1 product limit but also fails the D=2 GHZ
-  independent-reference gate, so it is experimental and not production-ready.
-  This is an environment/gauge-stability problem, not something to hide with
-  looser tolerances or UI wording.
+  nonzero on the entangled gate. The source-ordered one-site full-SVD path now
+  preserves the D=1 product limit and passes the D=2 GHZ independent-reference
+  gate, but it is still experimental and not production-ready until the
+  gauge-invariance gate passes. This is an environment/gauge-stability
+  problem, not something to hide with looser tolerances or UI wording.
 - Current resource rule: GPU experiments stay small and bounded; the agent
   must not inspect, stop, or compete with unrelated high-RAM training jobs.
 
@@ -444,10 +445,14 @@ but not released:
   diagnostic; this prevents harmless retained-basis rotations from being
   misreported as physical non-convergence.
 - an opt-in full-SVD CTMRG projector policy now has its own resident-tensor
-  contraction seam, resource preflight estimate, result metadata, and bounded
-  tests. It passes the D=1 product limit, but its D=2 GHZ reference and paired
-  gauge gates remain review-only; the failed evidence is preserved rather than
-  promoting the candidate.
+  contraction seam and resource preflight estimate. Its source-ordered
+  one-site projector/absorption seam now uses
+  the standard `R.T @ R_tilde` SVD construction and explicit directional
+  ket/bra contractions. A shared full-support initialization floor prevents
+  complex128 degenerate sectors from selecting a false symmetry-broken branch.
+  The D=1 product limit and canonical D=2 GHZ independent reference pass on
+  CPU; a bounded CUDA complex64 smoke also passes. The paired virtual-gauge
+  gate still fails and the multi-site full-SVD path remains experimental.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
@@ -478,9 +483,13 @@ The next implementation packet is Phase 4 variational research-grade convergence
 - replace the frozen eigenprojector with a differentiable truncation policy,
   then rerun the central-difference, paired-gauge, χ/iteration, and finite
   periodic-reference gates on small entangled cells;
-- validate the full-SVD quarter-index ordering and biorthogonal absorption
-  against the analytic GHZ transfer fixed point before using that policy for
-  any optimizer or desktop control;
+- keep the source-ordered full-SVD quarter/index and biorthogonal absorption
+  gate as a permanent regression; the canonical GHZ reference now passes, but
+  the policy remains out of optimizer/desktop production controls until the
+  paired-gauge and broader entangled gates pass;
+- investigate a covariant environment initialization/preconditioner that
+  preserves the GHZ reference under the paired virtual gauge, then rerun
+  reference, gauge, chi/iteration, and finite-periodic gates;
 - strengthen the implicit fixed-point/adjoint path with the same truncation
   policy, transfer-spectrum gap checks, and a reproducible backward-error
   budget before calling the optimizer research-grade; the current adjoint

@@ -28,7 +28,12 @@ from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, 
 from .ctmrg_admission import ctmrg_research_gate
 from .ctmrg_reference import analytic_ghz_reference, finite_periodic_peps_reference, finite_product_reference
 from .ctmrg_gauge import virtual_leg_conditioning_report
-from .ctmrg_projectors import full_svd_projectors, swap_fused_pair_columns, swap_fused_pair_rows
+from .ctmrg_projectors import (
+    full_svd_projectors,
+    standard_full_svd_projectors,
+    swap_fused_pair_columns,
+    swap_fused_pair_rows,
+)
 from .ipeps_optimizer import optimize_product_states, run_full_update, run_simple_update
 from .observables import structured_observables
 
@@ -229,9 +234,12 @@ def _initialize_environment(xp: Any, double_layer: Any, chi: int) -> CTMEnvironm
     corner[xp.arange(diagonal), xp.arange(diagonal)] = 1
     for index in range(min(chi, d2)):
         edge[index, :, index] = 1
-    # Keep the perturbation below the declared numerical precision while
-    # retaining a deterministic non-zero overlap with every boundary sector.
-    regularizer = 1e-6 if int(getattr(dtype, "itemsize", 8)) <= 8 else 1e-10
+    # Keep a deterministic non-zero overlap with every boundary sector.  The
+    # floor is deliberately shared by complex64 and complex128: a much
+    # smaller complex128 perturbation lets degenerate SVD sectors choose a
+    # different boundary branch on the first sweep, which can turn the
+    # canonical D=2 GHZ fixed point into a false symmetry-broken result.
+    regularizer = 1e-6
     corner = corner + regularizer * xp.ones_like(corner)
     edge = edge + regularizer * xp.ones_like(edge)
     return CTMEnvironment(corner, _copy(corner), _copy(corner), _copy(corner), edge, _copy(edge), _copy(edge), _copy(edge))
@@ -291,7 +299,7 @@ def _left_move(
     if projector_method == "full-svd":
         if tensor is None:
             raise ValueError("full-svd CTMRG projectors require resident raw tensors")
-        left_projector, right_projector, discarded = full_svd_projectors(
+        projector, dual_projector, discarded = standard_full_svd_projectors(
             xp,
             env,
             tensor,
@@ -299,9 +307,26 @@ def _left_move(
             "left",
             differentiate_truncation=differentiate_truncation,
         )
-        c1 = left_projector @ c1_g
-        c4 = xp.conj(right_projector).T @ c4_g
-        t4 = xp.einsum("ai,idj,jb->adb", left_projector, t4_g, right_projector)
+        virtual = int(tensor.shape[1])
+        boundary = int(env.C1.shape[0])
+        kept = int(projector.shape[1])
+        projector = projector.reshape(boundary, virtual, virtual, kept)
+        dual_projector = dual_projector.reshape(boundary, virtual, virtual, kept)
+        t1_split = env.T1.reshape(boundary, virtual, virtual, boundary)
+        t3_split = env.T3.reshape(boundary, virtual, virtual, boundary)
+        t4_split = env.T4.reshape(boundary, virtual, virtual, boundary)
+        double_layer_split = double_layer.reshape(
+            virtual, virtual, virtual, virtual, virtual, virtual, virtual, virtual
+        )
+        c1 = xp.einsum("auUp,ab,buUc->pc", dual_projector, env.C1, t1_split)
+        c4 = xp.einsum("gdDq,hg,hdDi->qi", projector, env.C4, t3_split)
+        t4 = xp.einsum(
+            "alLg,uUdDlLrR,auUp,gdDq->prRq",
+            t4_split,
+            double_layer_split,
+            dual_projector,
+            projector,
+        ).reshape(kept, virtual * virtual, kept)
         return CTMEnvironment(c1, env.C2, env.C3, c4, env.T1, env.T2, env.T3, t4), discarded
     c1, c4, t4, discarded = _ctm_move(xp, c1_g, c4_g, t4_g, chi, differentiate_truncation)
     return CTMEnvironment(c1, env.C2, env.C3, c4, env.T1, env.T2, env.T3, t4), discarded
@@ -324,7 +349,7 @@ def _right_move(
     if projector_method == "full-svd":
         if tensor is None:
             raise ValueError("full-svd CTMRG projectors require resident raw tensors")
-        left_projector, right_projector, discarded = full_svd_projectors(
+        projector, dual_projector, discarded = standard_full_svd_projectors(
             xp,
             env,
             tensor,
@@ -333,11 +358,25 @@ def _right_move(
             differentiate_truncation=differentiate_truncation,
         )
         virtual = int(tensor.shape[1])
-        left_projector = swap_fused_pair_columns(xp, left_projector, int(env.C1.shape[0]), virtual)
-        right_projector = swap_fused_pair_rows(xp, right_projector, int(env.C1.shape[0]), virtual)
-        c2 = left_projector @ c2_g
-        c3 = xp.conj(right_projector).T @ c3_g
-        t2 = xp.einsum("ai,idj,jb->adb", left_projector, t2_g, right_projector)
+        boundary = int(env.C1.shape[0])
+        kept = int(projector.shape[1])
+        projector = projector.reshape(boundary, virtual, virtual, kept)
+        dual_projector = dual_projector.reshape(boundary, virtual, virtual, kept)
+        t1_split = env.T1.reshape(boundary, virtual, virtual, boundary)
+        t3_split = env.T3.reshape(boundary, virtual, virtual, boundary)
+        t2_split = env.T2.reshape(boundary, virtual, virtual, boundary)
+        double_layer_split = double_layer.reshape(
+            virtual, virtual, virtual, virtual, virtual, virtual, virtual, virtual
+        )
+        c2 = xp.einsum("euUp,ce,buUc->pb", projector, env.C2, t1_split)
+        c3 = xp.einsum("mdDq,im,hdDi->qh", dual_projector, env.C3, t3_split)
+        t2 = xp.einsum(
+            "crRe,uUdDlLrR,euUp,mdDq->prRq",
+            t2_split,
+            double_layer_split,
+            projector,
+            dual_projector,
+        ).reshape(kept, virtual * virtual, kept)
         return CTMEnvironment(env.C1, c2, c3, env.C4, env.T1, t2, env.T3, env.T4), discarded
     c2, c3, t2, discarded = _ctm_move(xp, c2_g, c3_g, t2_g, chi, differentiate_truncation)
     return CTMEnvironment(env.C1, c2, c3, env.C4, env.T1, t2, env.T3, env.T4), discarded
@@ -360,7 +399,7 @@ def _top_move(
     if projector_method == "full-svd":
         if tensor is None:
             raise ValueError("full-svd CTMRG projectors require resident raw tensors")
-        left_projector, right_projector, discarded = full_svd_projectors(
+        projector, dual_projector, discarded = standard_full_svd_projectors(
             xp,
             env,
             tensor,
@@ -368,9 +407,26 @@ def _top_move(
             "top",
             differentiate_truncation=differentiate_truncation,
         )
-        c1 = xp.conj(right_projector).T @ c1_g
-        c2 = left_projector @ c2_g
-        t1 = xp.einsum("ai,idj,jb->adb", xp.conj(right_projector).T, t1_g, xp.conj(left_projector).T)
+        virtual = int(tensor.shape[1])
+        boundary = int(env.C1.shape[0])
+        kept = int(projector.shape[1])
+        projector = projector.reshape(boundary, virtual, virtual, kept)
+        dual_projector = dual_projector.reshape(boundary, virtual, virtual, kept)
+        t2_split = env.T2.reshape(boundary, virtual, virtual, boundary)
+        t4_split = env.T4.reshape(boundary, virtual, virtual, boundary)
+        t1_split = env.T1.reshape(boundary, virtual, virtual, boundary)
+        double_layer_split = double_layer.reshape(
+            virtual, virtual, virtual, virtual, virtual, virtual, virtual, virtual
+        )
+        c1 = xp.einsum("blLp,ab,alLg->pg", projector, env.C1, t4_split)
+        c2 = xp.einsum("crRq,ce,erRm->qm", dual_projector, env.C2, t2_split)
+        t1 = xp.einsum(
+            "auUc,uUdDlLrR,alLp,crRq->pdDq",
+            t1_split,
+            double_layer_split,
+            projector,
+            dual_projector,
+        ).reshape(kept, virtual * virtual, kept)
         return CTMEnvironment(c1, c2, env.C3, env.C4, t1, env.T2, env.T3, env.T4), discarded
     c1, c2, t1, discarded = _ctm_move(xp, c1_g, c2_g, t1_g, chi, differentiate_truncation)
     return CTMEnvironment(c1, c2, env.C3, env.C4, t1, env.T2, env.T3, env.T4), discarded
@@ -393,7 +449,7 @@ def _bottom_move(
     if projector_method == "full-svd":
         if tensor is None:
             raise ValueError("full-svd CTMRG projectors require resident raw tensors")
-        left_projector, right_projector, discarded = full_svd_projectors(
+        projector, dual_projector, discarded = standard_full_svd_projectors(
             xp,
             env,
             tensor,
@@ -402,11 +458,25 @@ def _bottom_move(
             differentiate_truncation=differentiate_truncation,
         )
         virtual = int(tensor.shape[1])
-        left_projector = swap_fused_pair_rows(xp, left_projector, int(env.C1.shape[0]), virtual)
-        right_projector = swap_fused_pair_columns(xp, right_projector, int(env.C1.shape[0]), virtual)
-        c4 = right_projector @ c4_g
-        c3 = xp.conj(left_projector).T @ c3_g
-        t3 = xp.einsum("ai,idj,jb->adb", right_projector, t3_g, left_projector)
+        boundary = int(env.C1.shape[0])
+        kept = int(projector.shape[1])
+        projector = projector.reshape(boundary, virtual, virtual, kept)
+        dual_projector = dual_projector.reshape(boundary, virtual, virtual, kept)
+        t2_split = env.T2.reshape(boundary, virtual, virtual, boundary)
+        t4_split = env.T4.reshape(boundary, virtual, virtual, boundary)
+        t3_split = env.T3.reshape(boundary, virtual, virtual, boundary)
+        double_layer_split = double_layer.reshape(
+            virtual, virtual, virtual, virtual, virtual, virtual, virtual, virtual
+        )
+        c4 = xp.einsum("hlLp,gh,alLg->pg", dual_projector, env.C4, t4_split)
+        c3 = xp.einsum("irRq,im,erRm->qe", projector, env.C3, t2_split)
+        t3 = xp.einsum(
+            "hdDi,uUdDlLrR,hlLp,irRq->puUq",
+            t3_split,
+            double_layer_split,
+            dual_projector,
+            projector,
+        ).reshape(kept, virtual * virtual, kept)
         return CTMEnvironment(env.C1, env.C2, c3, c4, env.T1, env.T2, t3, env.T4), discarded
     c4, c3, t3, discarded = _ctm_move(xp, c4_g, c3_g, t3_g, chi, differentiate_truncation)
     return CTMEnvironment(env.C1, env.C2, c3, c4, env.T1, env.T2, t3, env.T4), discarded

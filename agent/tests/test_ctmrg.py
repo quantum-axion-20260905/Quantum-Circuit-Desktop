@@ -32,7 +32,7 @@ class CTMRGTests(unittest.TestCase):
         self.assertAlmostEqual(result["energy"], 1.5, places=6)
         self.assertEqual(result["research_gate"]["status"], "passed")
 
-    def test_full_svd_entangled_gate_stays_review_only_when_reference_fails(self):
+    def test_full_svd_entangled_gate_matches_ghz_but_remains_review_only(self):
         tensor_data: list[list[float]] = []
         for physical in range(2):
             for up in range(2):
@@ -61,7 +61,10 @@ class CTMRGTests(unittest.TestCase):
             )],
         ))
         self.assertEqual(result["ctmrg_projector"], "full-svd")
-        self.assertFalse(result["reference_validation"]["passed"])
+        self.assertAlmostEqual(result["energy"], 1.0, places=5)
+        self.assertAlmostEqual(result["observables"][0]["value"], 0.0, places=5)
+        self.assertAlmostEqual(result["interactions"][0]["value"], 1.0, places=5)
+        self.assertTrue(result["reference_validation"]["passed"])
         self.assertFalse(result["research_gate"]["production_ready"])
         self.assertEqual(result["research_gate"]["status"], "needs_review")
 

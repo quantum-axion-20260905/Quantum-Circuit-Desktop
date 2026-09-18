@@ -139,6 +139,16 @@ canonical GHZ D=2 transfer fixed point, the physical residual converges below
 `4e-10` while the raw basis residual remains about `1.0`; both values are now
 reported so basis rotation is not confused with physical divergence.
 
+The one-site full-SVD projector path was then aligned with the standard
+source-ordered `R.T @ R_tilde` construction and explicit directional
+ket/bra absorption. With a shared `1e-6` full-support initialization floor,
+the complex128 canonical GHZ case (`D=2`, `χ=2`) reaches `E=1.000000000009`,
+`<Z>=9.0e-12`, and `<ZZ>=1.0`; the independent GHZ reference passes. A
+bounded CUDA complex64 smoke reaches the same `<ZZ>=1.0` result with a
+`2,688`-byte estimated peak tensor footprint. The paired virtual-gauge probe
+still reports an approximately `1.0` energy/observable drift, so this is a
+validated reference/projector slice, not production entangled CTMRG.
+
 The Torch unrolled and implicit full-update paths now have an explicit,
 opt-in optimizer checkpoint contract. A CPU resume-vs-fresh regression matches
 the final energy for both paths; checkpoint manifests bind the state to the

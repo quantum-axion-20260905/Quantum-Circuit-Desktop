@@ -141,7 +141,7 @@ def _quarter_matrices(xp: Any, env: Any, tensor: Any) -> tuple[Any, Any, Any, An
         conjugate,
     )
     top_right = xp.einsum(
-        "ce,buUc,rRme,sudlr,sUDLR->blLmDd",
+        "ce,buUc,rRme,sudlr,sUDLR->blLmdD",
         C2,
         top,
         right,
@@ -149,7 +149,7 @@ def _quarter_matrices(xp: Any, env: Any, tensor: Any) -> tuple[Any, Any, Any, An
         conjugate,
     )
     bottom_left = xp.einsum(
-        "hg,hiDd,gLla,sudlr,sUDLR->iRrauU",
+        "hg,hiDd,gLla,sudlr,sUDLR->irRauU",
         C4,
         bottom,
         left,
@@ -157,7 +157,7 @@ def _quarter_matrices(xp: Any, env: Any, tensor: Any) -> tuple[Any, Any, Any, An
         conjugate,
     )
     bottom_right = xp.einsum(
-        "mi,rRme,hiDd,sudlr,sUDLR->eUuhlL",
+        "mi,rRme,hiDd,sudlr,sUDLR->euUhlL",
         C3,
         right,
         bottom,
@@ -169,6 +169,58 @@ def _quarter_matrices(xp: Any, env: Any, tensor: Any) -> tuple[Any, Any, Any, An
         _normalize(xp, _matrix(value))
         for value in (top_left, top_right, bottom_left, bottom_right)
     )  # type: ignore[return-value]
+
+
+def standard_full_svd_projectors(
+    xp: Any,
+    env: Any,
+    tensor: Any,
+    chi: int,
+    direction: str,
+    *,
+    differentiate_truncation: bool = True,
+) -> tuple[Any, Any, float]:
+    """Build the standard CTMRG ``P``/``P~`` pair for one-site absorption.
+
+    The four quarter matrices are arranged into the two enlarged corners
+    facing the requested cut.  The source CTMRG construction then performs
+    ``SVD(R.T @ R_tilde)`` and forms
+
+    ``P = R @ conj(U) @ S**(-1/2)`` and
+    ``P_tilde = R_tilde @ V @ S**(-1/2)``.
+
+    Both returned matrices use the unfused convention ``(chi * D**2, chi)``;
+    the directional absorption code is responsible for assigning their
+    boundary and ket/bra legs.  Keeping this convention explicit prevents a
+    transpose or conjugation intended for one move from leaking into another.
+    The older ``full_svd_projectors`` function below remains available for the
+    multi-site experimental path until its neighbour-specific absorption is
+    migrated to the same contract.
+    """
+
+    if direction not in {"left", "right", "top", "bottom"}:
+        raise ValueError(f"unsupported standard full-svd CTMRG direction {direction!r}")
+    top_left, top_right, bottom_left, bottom_right = _quarter_matrices(xp, env, tensor)
+    if direction == "left":
+        R, R_tilde = top_left, _transpose(xp, bottom_left, (1, 0))
+    elif direction == "right":
+        R, R_tilde = bottom_right, _transpose(xp, top_right, (1, 0))
+    elif direction == "top":
+        R, R_tilde = top_right, _transpose(xp, top_left, (1, 0))
+    else:
+        R, R_tilde = _transpose(xp, bottom_left, (1, 0)), _transpose(xp, bottom_right, (1, 0))
+
+    inverse_sqrt, U, Vh, discarded = _truncated_svd(
+        xp,
+        _transpose(xp, R, (1, 0)) @ R_tilde,
+        chi,
+        differentiate_truncation=differentiate_truncation,
+    )
+    keep = int(inverse_sqrt.shape[0])
+    V = _transpose(xp, xp.conj(Vh), (1, 0))
+    P = (R @ xp.conj(U[:, :keep])) * inverse_sqrt[None, :]
+    P_tilde = (R_tilde @ V[:, :keep]) * inverse_sqrt[None, :]
+    return P, P_tilde, discarded
 
 
 def full_svd_projectors(
