@@ -1,0 +1,44 @@
+{
+  "artifact": "ctmrg-gauge-preconditioner-candidate",
+  "date": "2026-09-18",
+  "git_revision": "f43b153",
+  "scope": {
+    "unit_cell": [1, 1],
+    "physical_bond_dim": 2,
+    "virtual_bond_dim": 2,
+    "environment_bond_dim": 2,
+    "dtype": "complex128",
+    "iterations": 4
+  },
+  "candidate": {
+    "method": "pairwise-polar-balance",
+    "vertical_pair_delta_before": 0.4802904898109709,
+    "vertical_pair_delta_after": 0.024714051149601637,
+    "horizontal_pair_delta_before": 0.4802904898109709,
+    "horizontal_pair_delta_after": 0.024714051149601502,
+    "condition_number_before": 2.1557655818627297,
+    "condition_number_after": 1.7339326407664486,
+    "exact_periodic_pairing": true,
+    "finite_torus_reference_preserved": true
+  },
+  "ctmrg_observation": {
+    "canonical_energy": 1.0000000000090246,
+    "gauged_preconditioned_energy": 0.0,
+    "gauged_preconditioned_onsite_z": -1.0,
+    "gauged_preconditioned_interaction_zz": 1.0,
+    "paired_gauge_gate": "needs_review",
+    "reason": "local Gram balancing improves conditioning but does not prevent the truncated CTMRG environment from selecting a symmetry-broken sector"
+  },
+  "cuda_smoke": {
+    "device": "cuda",
+    "dtype": "complex64",
+    "iterations": 2,
+    "preconditioner_performed": true,
+    "energy": 1.0000000298023224,
+    "interaction_zz": 1.0,
+    "research_gate": "needs_review"
+  },
+  "decision": "keep-opt-in-diagnostic",
+  "next_action": "develop a bond-aware symmetry-sector-preserving environment fixed-point/preconditioner before changing optimization or production admission",
+  "resource_note": "bounded CPU experiment only; no unrelated high-RAM process was touched"
+}
