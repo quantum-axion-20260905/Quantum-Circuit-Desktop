@@ -345,8 +345,8 @@ tensor arithmetic, admission, execution, provenance, and persistence.
 | Finite PEPS simple update | usable for bounded 2D/3D exploration | compare with boundary-MPS/full update |
 | PEPS double-layer contraction | implemented for bounded width | environment-aware contraction path |
 | Finite boundary-MPS | in progress for open 2D | replayable observables and final 2D gate |
-| CTMRG/iPEPS | planned | Ising/Heisenberg phase benchmarks |
-| Full-update PEPS | planned | energy/gradient convergence evidence |
+| CTMRG/iPEPS | experimental bounded 1x1–2x2 | independent reference and Ising/Heisenberg phase benchmarks |
+| Full-update PEPS | bounded coordinate baseline | energy/gradient convergence evidence and scalable variational update |
 | 3D approximate contraction | planned | HOTRG/boundary-width benchmark suite |
 | Fermionic Hubbard | mapping/prototype level | symmetry-aware MPO and reference energies |
 | General chemistry | not production | FCIDUMP/active-space/reference workflow |
@@ -443,12 +443,13 @@ Current progress: M2 is complete within the declared finite open-2D scope.
 The implementation is covered by 2×2/3×3 exact-reference tests, CPU/GPU
 agreement and bounded Ising/Heisenberg smoke tests, explicit physical-versus-
 boundary truncation diagnostics, row-boundary checkpoint/resume, and live
-frontend convergence/replay verification. CTMRG, periodic PEPS, and
-large/high-entanglement production workloads remain later milestones.
+frontend convergence/replay verification. CTMRG is now available as an
+experimental bounded backend, while periodic PEPS and large/high-entanglement
+production workloads remain later milestones.
 
 ### M3 — thermodynamic 2D/high entanglement
 
-- CTMRG/iPEPS and full-update paths are available;
+- bounded CTMRG/iPEPS and full-update baseline paths are available;
 - transfer-matrix/correlation-length diagnostics exist;
 - U(1)/Z2 symmetry path is tested;
 - results agree with reference limits on benchmark models.

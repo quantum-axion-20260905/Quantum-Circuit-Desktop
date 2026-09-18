@@ -261,8 +261,8 @@ The next implementation packet is Phase 4 variational research-grade convergence
 - add energy/variance evidence and expose the environment-dimension study
   through the shared study/provenance API;
 - compare CTMRG local contractions against finite PEPS/reference product
-  states, extending the current independent product-supercell reference to a
-  finite-PEPS cross-check;
+  states across more than the current nearest-neighbor product gate, including
+  small Ising/Heisenberg reference observables;
 - add a variational/simple-update packet only after the contraction gate stays
   stable;
 - keep frontend controls hidden until these numerical acceptance tests pass.
