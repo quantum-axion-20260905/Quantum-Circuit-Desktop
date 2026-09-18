@@ -787,6 +787,37 @@ def _environment_residual(xp: Any, before: CTMEnvironment, after: CTMEnvironment
     return residual
 
 
+def _blend_environment(
+    before: CTMEnvironment,
+    candidate: CTMEnvironment,
+    damping: float,
+) -> CTMEnvironment:
+    """Under-relax one CTM fixed-point update in its resident backend."""
+
+    alpha = float(damping)
+    if alpha >= 1.0:
+        return candidate
+    one_minus = 1.0 - alpha
+    return CTMEnvironment(*(
+        one_minus * old + alpha * new
+        for old, new in zip(before.tensors(), candidate.tensors())
+    ))
+
+
+def _blend_environments(
+    xp: Any,
+    before: list[CTMEnvironment],
+    candidates: list[CTMEnvironment],
+    damping: float,
+) -> list[CTMEnvironment]:
+    """Apply the same bounded damping to every periodic cell environment."""
+
+    return [
+        _renormalize(xp, _blend_environment(old, new, damping))
+        for old, new in zip(before, candidates)
+    ]
+
+
 def _environment_diagnostics(xp: Any, environments: list[CTMEnvironment]) -> dict[str, Any]:
     """Extract bounded transfer-spectrum diagnostics from converged edges."""
 
@@ -1528,10 +1559,16 @@ def run_ctmrg(
             env, bottom_discarded = _bottom_move(
                 xp, env, layers[0], chi, tensor=tensors[0], projector_method=payload.ctmrg_projector
             )
-            environments = [_renormalize(xp, env)]
+            candidate = _renormalize(xp, env)
+            environments = _blend_environments(
+                xp,
+                before,
+                [candidate],
+                float(payload.environment_damping),
+            )
             discarded_sweep = left_discarded + right_discarded + top_discarded + bottom_discarded
         else:
-            environments, discarded_sweep = _unit_cell_sweep(
+            candidates, discarded_sweep = _unit_cell_sweep(
                 xp,
                 environments,
                 layers,
@@ -1539,6 +1576,12 @@ def run_ctmrg(
                 unit_cell,
                 tensors=tensors,
                 projector_method=payload.ctmrg_projector,
+            )
+            environments = _blend_environments(
+                xp,
+                before,
+                candidates,
+                float(payload.environment_damping),
             )
         discarded_total += discarded_sweep
         residual = max(
@@ -1654,6 +1697,10 @@ def run_ctmrg(
     warnings = [
         "compare environment_bond_dim and iteration convergence before using values as scientific conclusions",
     ]
+    if float(payload.environment_damping) < 1.0:
+        warnings.append(
+            f"CTMRG environment updates use under-relaxation damping={float(payload.environment_damping):.3f}; compare fixed-point residuals across damping values"
+        )
     if payload.ctmrg_projector == "full-svd":
         warnings.append(
             "full-svd CTMRG projector is an opt-in entangled research path; it remains needs_review until paired-gauge and independent-reference gates pass"
@@ -1831,6 +1878,7 @@ def run_ctmrg(
             "initial_state": payload.initial_state,
             "ctmrg_projector": payload.ctmrg_projector,
             "environment_sector_policy": payload.environment_sector_policy,
+            "environment_damping": float(payload.environment_damping),
             "environment_shapes": [[list(item.shape) for item in env.tensors()] for env in environments],
             "optimization": (
                 {key: value for key, value in optimization_info.items() if key not in {"states", "tensors"}}
@@ -1853,6 +1901,7 @@ def run_ctmrg(
         "representation": "ipeps",
         "ctmrg_projector": payload.ctmrg_projector,
         "environment_sector_policy": payload.environment_sector_policy,
+        "environment_damping": float(payload.environment_damping),
         "unit_cell": unit_cell,
         "unit_cell_sites": len(tensors),
         "tensor_source": (

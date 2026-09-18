@@ -291,6 +291,27 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(result["research_gate"]["status"], "passed")
         self.assertTrue(result["research_gate"]["production_ready"])
 
+    def test_environment_under_relaxation_preserves_product_reference(self):
+        result = run_ctmrg(np, CTMRGPayload(
+            environment_damping=0.25,
+            environment_bond_dim=2,
+            iterations=8,
+            tolerance=1e-6,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=0.5,
+            )],
+        ))
+        self.assertEqual(result["environment_damping"], 0.25)
+        self.assertAlmostEqual(result["energy"], 1.5, places=6)
+        self.assertTrue(result["reference_validation"]["passed"])
+        self.assertTrue(any("under-relaxation damping" in warning for warning in result["warnings"]))
+
     def test_plus_state_has_unit_x_expectation(self):
         payload = CTMRGPayload(
             terms=[PauliTerm(paulis={0: "X"}, coefficient=1.0)],

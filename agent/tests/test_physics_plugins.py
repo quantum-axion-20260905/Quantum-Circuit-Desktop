@@ -49,10 +49,24 @@ class PhysicsPluginTests(unittest.TestCase):
             initial_state="up",
             environment_bond_dim=2,
             iterations=2,
+            environment_damping=0.25,
+            environment_sector_policy="symmetry-ensemble",
         ))
         self.assertEqual(result["unit_cell"], [2, 2])
         self.assertEqual(len(result["interactions"]), 8)
         self.assertEqual(result["initial_state"], "up")
+        self.assertEqual(result["environment_damping"], 0.25)
+        self.assertEqual(result["environment_sector_policy"], "symmetry-ensemble")
+        preconditioned = SpinLatticePlugin().build_ctmrg(CTMRGSpinModelPayload(
+            dimensions=[2, 2],
+            model="ising",
+            environment_bond_dim=2,
+            iterations=2,
+            gauge_preconditioner="pairwise-polar-balance",
+            gauge_preconditioner_iterations=2,
+        ))
+        self.assertEqual(preconditioned["gauge_preconditioner"], "pairwise-polar-balance")
+        self.assertEqual(preconditioned["gauge_preconditioner_iterations"], 2)
 
     def test_periodic_single_site_axis_does_not_create_self_edge(self):
         graph = lattice_graph(LatticeHamiltonianPayload(dimensions=[1, 2], boundary="periodic"))

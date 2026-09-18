@@ -319,6 +319,10 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         warnings.append("full-svd CTMRG projector is an opt-in entangled research path; paired-gauge and independent-reference gates remain mandatory")
         if virtual_bond_dim > 2:
             warnings.append("full-svd CTMRG projectors currently require virtual_bond_dim<=2")
+    if float(getattr(payload, "environment_damping", 1.0)) < 1.0:
+        warnings.append(
+            f"CTMRG under-relaxation damping={float(payload.environment_damping):.3f} is experimental; compare fixed-point residuals across damping values"
+        )
     if getattr(payload, "optimization", "none") == "product-coordinate-descent" and virtual_bond_dim != 1:
         warnings.append("product-coordinate-descent optimization requires virtual_bond_dim=1")
     if getattr(payload, "optimization", "none") == "full-update":

@@ -29,6 +29,10 @@ class SpinLatticePlugin:
             environment_bond_dim=payload.environment_bond_dim,
             iterations=payload.iterations,
             tolerance=payload.tolerance,
+            environment_damping=payload.environment_damping,
             gauge_validation=payload.gauge_validation,
             gauge_validation_tolerance=payload.gauge_validation_tolerance,
+            gauge_preconditioner=payload.gauge_preconditioner,
+            gauge_preconditioner_iterations=payload.gauge_preconditioner_iterations,
+            environment_sector_policy=payload.environment_sector_policy,
         ).model_dump(mode="json")
