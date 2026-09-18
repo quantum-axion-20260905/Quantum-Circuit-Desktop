@@ -309,12 +309,13 @@ research claims.
 
 The next implementation packet is Phase 4 variational research-grade convergence:
 
-- compare one-site through 2x2 unit-cell environments and checkpoint/resume
-  against finite PEPS/reference product states;
+- run recorded GPU χ/iteration campaigns for each admitted 1x1–2x2 cell shape,
+  using the new finite-torus references and checkpoint/resume evidence rather
+  than relying only on isolated smoke tests;
 - replace the bounded coordinate baseline with scalable gradient/automatic
   differentiation or an equivalent research-validated full-update solver;
-- add energy/variance evidence and expose the environment-dimension study
-  through the shared study/provenance API;
+- carry energy/variance/reference error and the new point-to-point observable
+  deltas through the shared study/provenance and export APIs;
 - compare CTMRG local contractions against finite PEPS/reference product
   states across more than the current nearest-neighbor product gate, including
   small Ising/Heisenberg reference observables;
