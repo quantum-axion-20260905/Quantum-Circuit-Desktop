@@ -228,6 +228,10 @@ but not released:
 - a replayable environment-dimension convergence helper runs independent
   chi=1..8-point contractions from the same tensor ansatz and records energy,
   residual, correlation length, and statevector-free resource evidence.
+- the same study is now exposed through `/jobs/ctmrg/convergence` with an
+  explicit nested problem contract and preflight at the largest requested
+  environment dimension, so the future desktop surface does not need solver
+  internals.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.

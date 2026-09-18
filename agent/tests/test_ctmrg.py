@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 
 from qc_agent.core.ctmrg import run_ctmrg, run_ctmrg_convergence_study
-from qc_agent.plugins.models import CTMRGPayload, IPEPSInteraction, PauliTerm
+from qc_agent.plugins.models import CTMRGConvergenceStudyPayload, CTMRGPayload, IPEPSInteraction, PauliTerm
 
 
 class CTMRGTests(unittest.TestCase):
@@ -386,6 +386,23 @@ class CTMRGTests(unittest.TestCase):
                     "coefficient": 1.0,
                 }],
             ), [1, 2])
+
+    def test_environment_dimension_study_api_contract_rejects_optimized_problem(self):
+        with self.assertRaisesRegex(ValueError, "problem.optimization='none'"):
+            CTMRGConvergenceStudyPayload(
+                problem=CTMRGPayload(
+                    optimization="simple-update",
+                    interactions=[{
+                        "left_site": 0,
+                        "right_site": 0,
+                        "displacement": [1, 0],
+                        "left_pauli": "Z",
+                        "right_pauli": "Z",
+                        "coefficient": 1.0,
+                    }],
+                ),
+                environment_bond_dims=[1, 2],
+            )
 
 
 if __name__ == "__main__":

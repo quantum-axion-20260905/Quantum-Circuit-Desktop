@@ -284,6 +284,32 @@ class CTMRGPayload(BaseModel):
         return self
 
 
+class CTMRGConvergenceStudyPayload(BaseModel):
+    """Explicit API contract for independent environment-chi CTMRG points."""
+
+    problem: CTMRGPayload
+    environment_bond_dims: list[int] = Field(min_length=1, max_length=8)
+    backend: Literal["auto", "tensor-network"] = "auto"
+    max_time_ms: int = Field(default=120000, ge=100, le=3600000)
+    max_mem_mb: float = Field(default=4096, gt=0, le=1048576)
+
+    @field_validator("environment_bond_dims")
+    @classmethod
+    def validate_environment_bond_dims(cls, value: list[int]) -> list[int]:
+        normalized = [int(item) for item in value]
+        if any(item < 1 or item > 128 for item in normalized):
+            raise ValueError("environment_bond_dims values must be between 1 and 128")
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("environment_bond_dims values must be unique")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_problem(self):
+        if self.problem.optimization != "none":
+            raise ValueError("CTMRG convergence studies require problem.optimization='none'")
+        return self
+
+
 class PEPSPayload(BaseModel):
     """Finite 2D/3D PEPS simple-update evolution with bounded contraction.
 
