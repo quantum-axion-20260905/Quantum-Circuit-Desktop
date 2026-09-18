@@ -286,6 +286,35 @@ class CTMRGTests(unittest.TestCase):
         self.assertLess(diagnostics["final_energy"], diagnostics["initial_energy"])
         self.assertTrue(any("CTMRG energy" in warning for warning in result["warnings"]))
 
+    def test_finite_difference_gradient_full_update_is_explicitly_bounded(self):
+        result = run_ctmrg(np, CTMRGPayload(
+            initial_state="plus",
+            optimization="full-update",
+            full_update_optimizer="finite-difference-gradient",
+            optimization_steps=1,
+            full_update_step=0.1,
+            full_update_gradient_epsilon=1e-3,
+            full_update_max_parameters=8,
+            full_update_max_evaluations=128,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=-0.2)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=-1.0,
+            )],
+            environment_bond_dim=1,
+            iterations=1,
+        ))
+        diagnostics = result["optimization_diagnostics"]
+        self.assertEqual(result["method"], "ipeps-full-update-gradient-ctmrg")
+        self.assertEqual(diagnostics["optimizer"], "finite-difference-gradient")
+        self.assertGreater(diagnostics["evaluations"], 1)
+        self.assertLess(diagnostics["final_energy"], diagnostics["initial_energy"])
+        self.assertTrue(any("finite-difference-gradient" in warning for warning in result["warnings"]))
+
     def test_full_update_parameter_admission_is_explicit(self):
         payload = CTMRGPayload(
             virtual_bond_dim=2,

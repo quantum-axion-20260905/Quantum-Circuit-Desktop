@@ -807,6 +807,7 @@ def run_ctmrg(
     )
     converged = bool(residual <= float(payload.tolerance))
     result_method = (
+        "ipeps-full-update-gradient-ctmrg" if payload.optimization == "full-update" and payload.full_update_optimizer == "finite-difference-gradient" else
         "ipeps-full-update-ctmrg" if payload.optimization == "full-update" else
         "ipeps-simple-update-ctmrg" if payload.optimization == "simple-update" else
         "ipeps-ctmrg-product-optimization" if optimization_info is not None else
@@ -822,7 +823,10 @@ def run_ctmrg(
     if payload.optimization == "simple-update":
         warnings.append("simple-update is an imaginary-time entangled-tensor baseline; compare it against the bounded full-update path before treating energies as variational evidence")
     elif payload.optimization == "full-update":
-        warnings.append("full-update re-evaluates CTMRG energy for bounded coordinate trials; it is not an automatic-differentiation optimizer")
+        if payload.full_update_optimizer == "finite-difference-gradient":
+            warnings.append("finite-difference-gradient full-update is a bounded gradient estimate; it is not automatic differentiation and does not scale to large tensors")
+        else:
+            warnings.append("full-update re-evaluates CTMRG energy for bounded coordinate trials; it is not an automatic-differentiation optimizer")
     elif optimization_info is not None:
         warnings.append("product-coordinate-descent is a variational mean-field baseline with virtual_bond_dim=1; it is not an entangled iPEPS update")
     elif payload.tensor_data is None:
@@ -845,7 +849,7 @@ def run_ctmrg(
     }
     limitations = [
         (
-            "full-update is bounded coordinate optimization and is not a scalable automatic-differentiation or full ground-state solver"
+            "full-update is a bounded experimental optimization path and is not a scalable automatic-differentiation or full ground-state solver"
             if payload.optimization == "full-update" else
             "no environment-feedback full ground-state optimization"
         ),

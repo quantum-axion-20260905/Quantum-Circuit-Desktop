@@ -271,6 +271,156 @@ def _normalize_tensors(xp: Any, tensors: list[Any]) -> list[Any]:
     return [tensor / (xp.linalg.norm(tensor) + 1e-30) for tensor in tensors]
 
 
+def _run_finite_difference_full_update(
+    xp: Any,
+    payload: CTMRGPayload,
+    tensors: list[Any],
+    run_ctmrg: Any,
+) -> dict[str, Any]:
+    """Run a bounded CTMRG-feedback finite-difference gradient update.
+
+    This is a useful bridge for environments without an automatic
+    differentiation tensor runtime.  It estimates the real and imaginary
+    tensor gradients from the same CTMRG objective used for the final result,
+    then applies a short backtracking line search.  The evaluation budget and
+    parameter cap are explicit because this remains an experimental dense
+    fallback, not a scalable AD implementation.
+    """
+
+    parameter_count = sum(int(tensor.size) for tensor in tensors) * 2
+    if parameter_count > int(payload.full_update_max_parameters):
+        raise ValueError(
+            f"full-update tensor parameter count {parameter_count} exceeds "
+            f"full_update_max_parameters={payload.full_update_max_parameters}"
+        )
+    working = _normalize_tensors(xp, [tensor.copy() for tensor in tensors])
+    objective_payload = payload.model_copy(update={
+        "tensor_data": _tensor_data_pairs(working),
+        "optimization": "none",
+        "checkpoint_path": None,
+        "resume_from": None,
+    })
+    evaluations = 0
+    max_evaluations = int(payload.full_update_max_evaluations)
+    budget_exhausted = False
+
+    def evaluate(candidate: list[Any]) -> float | None:
+        nonlocal evaluations
+        if evaluations >= max_evaluations:
+            return None
+        candidate = _normalize_tensors(xp, candidate)
+        objective_payload.tensor_data = _tensor_data_pairs(candidate)
+        result = run_ctmrg(xp, objective_payload)
+        evaluations += 1
+        if not result.get("energy_complete", False):
+            raise ValueError("full-update requires complete nearest-neighbor interaction energy")
+        return float(result["energy"])
+
+    current_energy = evaluate(working)
+    if current_energy is None:
+        raise ValueError("full-update evaluation budget must allow an initial CTMRG evaluation")
+    initial_energy = current_energy
+    history: list[dict[str, Any]] = []
+    epsilon = float(payload.full_update_gradient_epsilon)
+
+    for iteration in range(1, int(payload.optimization_steps) + 1):
+        if evaluations + 2 * parameter_count > max_evaluations:
+            budget_exhausted = True
+            break
+        gradients: list[tuple[int, int, complex]] = []
+        gradient_squared_norm = 0.0
+        for site in range(len(working)):
+            for flat_index in range(int(working[site].size)):
+                candidates: list[list[Any]] = []
+                for delta in (epsilon, -epsilon, 1j * epsilon, -1j * epsilon):
+                    candidate = [tensor.copy() for tensor in working]
+                    flat = candidate[site].reshape(-1)
+                    flat[flat_index] = flat[flat_index] + delta
+                    candidates.append(candidate)
+                real_plus = evaluate(candidates[0])
+                real_minus = evaluate(candidates[1])
+                imag_plus = evaluate(candidates[2])
+                imag_minus = evaluate(candidates[3])
+                if None in (real_plus, real_minus, imag_plus, imag_minus):
+                    budget_exhausted = True
+                    break
+                real_gradient = (float(real_plus) - float(real_minus)) / (2.0 * epsilon)
+                imag_gradient = (float(imag_plus) - float(imag_minus)) / (2.0 * epsilon)
+                gradient = complex(real_gradient, imag_gradient)
+                gradients.append((site, flat_index, gradient))
+                gradient_squared_norm += real_gradient * real_gradient + imag_gradient * imag_gradient
+            if budget_exhausted:
+                break
+        if budget_exhausted:
+            history.append({
+                "iteration": iteration,
+                "energy": current_energy,
+                "improvement": 0.0,
+                "gradient_norm": math.sqrt(gradient_squared_norm),
+                "accepted_updates": 0,
+                "evaluations": evaluations,
+                "parameter_count": parameter_count,
+                "evaluation_budget_exhausted": True,
+            })
+            break
+
+        gradient_norm = math.sqrt(gradient_squared_norm)
+        sweep_start = current_energy
+        accepted_energy = current_energy
+        accepted_candidate: list[Any] | None = None
+        for scale in (1.0, 0.5, 0.25, 0.125):
+            if evaluations >= max_evaluations:
+                budget_exhausted = True
+                break
+            candidate = [tensor.copy() for tensor in working]
+            for site, flat_index, gradient in gradients:
+                flat = candidate[site].reshape(-1)
+                flat[flat_index] = flat[flat_index] - float(payload.full_update_step) * scale * gradient
+            candidate_energy = evaluate(candidate)
+            if candidate_energy is not None and candidate_energy < accepted_energy - float(payload.optimization_tolerance):
+                accepted_energy = candidate_energy
+                accepted_candidate = _normalize_tensors(xp, candidate)
+                break
+        if accepted_candidate is not None:
+            working = accepted_candidate
+            current_energy = accepted_energy
+        improvement = sweep_start - current_energy
+        history.append({
+            "iteration": iteration,
+            "energy": current_energy,
+            "improvement": improvement,
+            "gradient_norm": gradient_norm,
+            "accepted_updates": 1 if accepted_candidate is not None else 0,
+            "evaluations": evaluations,
+            "parameter_count": parameter_count,
+            "evaluation_budget_exhausted": budget_exhausted,
+        })
+        if budget_exhausted or improvement <= float(payload.optimization_tolerance) or gradient_norm <= float(payload.optimization_tolerance):
+            break
+
+    return {
+        "tensors": working,
+        "iterations": len(history),
+        "energy_history": history,
+        "initial_energy": initial_energy,
+        "final_energy": current_energy,
+        "evaluations": evaluations,
+        "parameter_count": parameter_count,
+        "optimizer": "finite-difference-gradient",
+        "gradient_backend": "bounded-finite-difference",
+        "evaluation_budget": max_evaluations,
+        "evaluation_budget_exhausted": budget_exhausted,
+        "converged": bool(
+            history
+            and not budget_exhausted
+            and (
+                history[-1]["improvement"] <= float(payload.optimization_tolerance)
+                or history[-1]["gradient_norm"] <= float(payload.optimization_tolerance)
+            )
+        ),
+    }
+
+
 def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[str, Any]:
     """Bounded CTMRG energy-feedback coordinate optimization.
 
@@ -281,6 +431,9 @@ def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[
     """
 
     from .ctmrg import run_ctmrg  # lazy import avoids the optimizer/core cycle
+
+    if payload.full_update_optimizer == "finite-difference-gradient":
+        return _run_finite_difference_full_update(xp, payload, tensors, run_ctmrg)
 
     parameter_count = sum(int(tensor.size) for tensor in tensors) * 2
     if parameter_count > int(payload.full_update_max_parameters):
@@ -297,9 +450,12 @@ def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[
     })
 
     evaluations = 0
+    max_evaluations = int(payload.full_update_max_evaluations)
 
     def evaluate(candidate: list[Any]) -> float:
         nonlocal evaluations
+        if evaluations >= max_evaluations:
+            raise ValueError("full-update evaluation budget exhausted")
         candidate = _normalize_tensors(xp, candidate)
         objective_payload.tensor_data = _tensor_data_pairs(candidate)
         result = run_ctmrg(xp, objective_payload)
@@ -350,5 +506,9 @@ def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[
         "final_energy": current_energy,
         "evaluations": evaluations,
         "parameter_count": component_count,
+        "optimizer": "coordinate",
+        "gradient_backend": None,
+        "evaluation_budget": max_evaluations,
+        "evaluation_budget_exhausted": evaluations >= max_evaluations,
         "converged": bool(history and history[-1]["improvement"] <= float(payload.optimization_tolerance)),
     }

@@ -240,6 +240,10 @@ but not released:
 - the 2x2 product path has an independent finite-PEPS double-layer cross-check
   for a nearest-neighbor observable; this remains a declared product/reference
   gate, not evidence for arbitrary entangled iPEPS.
+- full-update now has an explicit bounded finite-difference-gradient strategy
+  with a line search, evaluation budget, gradient diagnostics, and separate
+  result method; it is a bridge for small tensors and is still not the
+  scalable automatic-differentiation solver required for the release gate.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.

@@ -108,6 +108,25 @@ class ComputeContractTests(unittest.TestCase):
                 ],
             )
 
+    def test_ctmrg_gradient_update_evaluation_budget_is_admitted_explicitly(self):
+        payload = CTMRGPayload(
+            optimization="full-update",
+            full_update_optimizer="finite-difference-gradient",
+            full_update_max_evaluations=8,
+            interactions=[{
+                "left_site": 0,
+                "right_site": 0,
+                "displacement": [1, 0],
+                "left_pauli": "Z",
+                "right_pauli": "Z",
+                "coefficient": 1.0,
+            }],
+        )
+        report = estimate_ctmrg(payload, gpu_free_mb=4096)
+        self.assertFalse(report["feasible"])
+        self.assertGreater(report["estimated_full_update_evaluations"], report["full_update_max_evaluations"])
+        self.assertTrue(any("estimated evaluations" in warning for warning in report["blocking_warnings"]))
+
 
 if __name__ == "__main__":
     unittest.main()
