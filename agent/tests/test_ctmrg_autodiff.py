@@ -12,6 +12,19 @@ from qc_agent.plugins.models import CTMRGPayload, IPEPSInteraction
 
 TORCH_AVAILABLE = importlib.util.find_spec("torch") is not None
 
+# Windows can bind PyTorch's CUDA DLL set before CuPy has loaded its own
+# backend.  In that order CuPy's first BLAS call may fail with a misleading
+# "cublas DLL not found" error, even though both runtimes work in isolation.
+# Prime the optional CuPy runtime at module import so this test file is
+# deterministic when run by itself as well as through the full suite.  The
+# production server follows the same CuPy-first order before importing the
+# optional Torch optimizer.
+if importlib.util.find_spec("cupy") is not None:
+    from qc_agent.cuda import add_cuda_dll_dirs
+
+    add_cuda_dll_dirs()
+    import cupy as _CUPY_RUNTIME  # noqa: F401
+
 
 def _payload() -> CTMRGPayload:
     return CTMRGPayload(

@@ -244,6 +244,15 @@ optimizer history only; CTMRG environments are recomputed on resume, so this
 feature improves campaign/replay reliability without turning an unresolved
 entangled CTMRG result into a production claim.
 
+The Windows optional-runtime seam was also verified independently. If PyTorch
+loads its CUDA DLLs before CuPy, CuPy's first BLAS call can fail even though
+both runtimes work in fresh processes. The autodiff test module now primes
+CuPy before importing Torch, matching the server's production import order.
+The standalone autodiff suite passes `12/12`, including four GPU
+full-update/checkpoint cases, and the complete agent suite passes `150/150`.
+This is a runtime reliability fix, not evidence that generic entangled CTMRG
+has been promoted beyond its current `needs_review` gate.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices

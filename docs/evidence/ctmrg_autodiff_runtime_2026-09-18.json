@@ -1,0 +1,35 @@
+{
+  "artifact": "ctmrg-autodiff-runtime-import-order",
+  "date": "2026-09-18",
+  "environment": {
+    "os": "Windows",
+    "gpu": "RTX 3060",
+    "torch": "2.6.0+cu124",
+    "cupy": "14.2.0"
+  },
+  "problem": {
+    "trigger": "PyTorch imported before CuPy in a standalone unittest process",
+    "failure": "CuPy first BLAS/matmul call raised ImportError for cublas DLL",
+    "scope": "runtime loading order; no numerical assertion failure"
+  },
+  "change": {
+    "file": "agent/tests/test_ctmrg_autodiff.py",
+    "policy": "prime optional CuPy before importing Torch, matching qc_agent.server"
+  },
+  "verification": {
+    "standalone_autodiff": {
+      "command": "python -m unittest tests.test_ctmrg_autodiff -v",
+      "passed": 12,
+      "failed": 0
+    },
+    "full_agent_suite": {
+      "command": "python -m unittest discover -s tests -q",
+      "passed": 150,
+      "failed": 0,
+      "duration_seconds": 22.855
+    },
+    "gpu_cases": 4,
+    "ram_guardrail": "No unrelated high-RAM process was inspected or modified"
+  },
+  "admission": "runtime reliability gate passed; generic entangled CTMRG remains needs_review"
+}

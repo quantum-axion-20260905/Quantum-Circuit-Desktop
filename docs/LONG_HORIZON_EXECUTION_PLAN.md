@@ -94,6 +94,14 @@ features.
   lifecycle, so the desktop layer can consume the diagnostics without calling
   private numerical helpers.
 
+- The optional Torch/CuPy autodiff runtime now has a deterministic Windows
+  import seam: CuPy is primed before Torch in the standalone autodiff test
+  module, matching the production server's CUDA loading order. This closes a
+  real intermittent `cublas` DLL failure without changing numerical policy;
+  the complete autodiff module is `12/12` and the full agent suite is
+  `150/150` on the RTX 3060 environment. Evidence is recorded in
+  `docs/evidence/ctmrg_autodiff_runtime_2026-09-18.json`.
+
 ### Four-step delivery ladder for the active phase
 
 The following ladder is the working sequence. Each step produces a commit and
