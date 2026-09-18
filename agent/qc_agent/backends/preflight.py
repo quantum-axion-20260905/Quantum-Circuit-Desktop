@@ -264,11 +264,12 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         max_parameters = int(getattr(payload, "full_update_max_parameters", 32))
         optimizer = getattr(payload, "full_update_optimizer", "coordinate")
         if optimizer == "spsa-gradient":
-            # Two simultaneous perturbations plus up to four bounded line
-            # search candidates per optimizer step, independent of tensor
-            # parameter count.
+            # Two simultaneous perturbations per direction plus up to four
+            # bounded line-search candidates, independent of tensor parameter
+            # count.
             evaluations_per_parameter = 0
-            estimated_full_update_evaluations = 1 + int(getattr(payload, "optimization_steps", 1)) * 6
+            directions = int(getattr(payload, "full_update_spsa_directions", 4))
+            estimated_full_update_evaluations = 1 + int(getattr(payload, "optimization_steps", 1)) * (2 * directions + 4)
         else:
             evaluations_per_parameter = 4 if optimizer == "finite-difference-gradient" else 4
             estimated_full_update_evaluations = 1 + int(getattr(payload, "optimization_steps", 1)) * min(complex_parameters, max_parameters) * evaluations_per_parameter

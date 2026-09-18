@@ -421,16 +421,23 @@ def _run_finite_difference_full_update(
     }
 
 
-def _rademacher(index: int, iteration: int, component: int) -> float:
+def _rademacher(index: int, iteration: int, direction: int, component: int) -> float:
     """Return a deterministic +/-1 perturbation without global RNG state."""
 
     value = (
         (int(index) + 1) * 1103515245
         + (int(iteration) + 1) * 12345
+        + (int(direction) + 1) * 2246822519
         + (int(component) + 1) * 2654435761
         + 17
     ) & 0xFFFFFFFF
-    return 1.0 if value & 1 else -1.0
+    # Mix high bits before extracting a sign; using only the low bit of the
+    # linear combination creates visible alternating patterns for small
+    # tensors and defeats the intended simultaneous-perturbation averaging.
+    value ^= value >> 16
+    value = (value * 0x7FEB352D) & 0xFFFFFFFF
+    value ^= value >> 15
+    return 1.0 if value & 0x80000000 else -1.0
 
 
 def _run_spsa_full_update(
@@ -483,30 +490,40 @@ def _run_spsa_full_update(
     initial_energy = current_energy
     history: list[dict[str, Any]] = []
     epsilon = float(payload.full_update_gradient_epsilon)
+    direction_count = int(payload.full_update_spsa_directions)
 
     for iteration in range(1, int(payload.optimization_steps) + 1):
-        if evaluations + 2 > max_evaluations:
+        if evaluations + 2 * direction_count > max_evaluations:
             budget_exhausted = True
             break
-        direction: list[Any] = []
+        averaged_gradient: list[Any] = [xp.zeros_like(tensor) for tensor in working]
+        gradient_scales: list[float] = []
         direction_index = 0
-        for tensor in working:
-            delta = xp.empty_like(tensor)
-            flat = delta.reshape(-1)
-            for flat_index in range(int(tensor.size)):
-                flat[flat_index] = complex(
-                    _rademacher(direction_index, iteration, 0),
-                    _rademacher(direction_index, iteration, 1),
-                )
-                direction_index += 1
-            direction.append(delta)
-        plus = evaluate([tensor + epsilon * delta for tensor, delta in zip(working, direction)])
-        minus = evaluate([tensor - epsilon * delta for tensor, delta in zip(working, direction)])
-        if plus is None or minus is None:
-            budget_exhausted = True
+        for direction_number in range(direction_count):
+            direction: list[Any] = []
+            for tensor in working:
+                delta = xp.empty_like(tensor)
+                flat = delta.reshape(-1)
+                for flat_index in range(int(tensor.size)):
+                    flat[flat_index] = complex(
+                        _rademacher(direction_index, iteration, direction_number, 0),
+                        _rademacher(direction_index, iteration, direction_number, 1),
+                    )
+                    direction_index += 1
+                direction.append(delta)
+            plus = evaluate([tensor + epsilon * delta for tensor, delta in zip(working, direction)])
+            minus = evaluate([tensor - epsilon * delta for tensor, delta in zip(working, direction)])
+            if plus is None or minus is None:
+                budget_exhausted = True
+                break
+            gradient_scale = (float(plus) - float(minus)) / (2.0 * epsilon)
+            gradient_scales.append(gradient_scale)
+            for index, delta in enumerate(direction):
+                averaged_gradient[index] = averaged_gradient[index] + gradient_scale * delta
+        if budget_exhausted:
             break
-        gradient_scale = (float(plus) - float(minus)) / (2.0 * epsilon)
-        gradient_norm = abs(gradient_scale) * math.sqrt(max(1, parameter_count))
+        averaged_gradient = [gradient / float(direction_count) for gradient in averaged_gradient]
+        gradient_norm = math.sqrt(sum(float(_host(xp.sum(xp.abs(gradient) ** 2))) for gradient in averaged_gradient))
         sweep_start = current_energy
         accepted_energy = current_energy
         accepted_candidate: list[Any] | None = None
@@ -515,8 +532,8 @@ def _run_spsa_full_update(
                 budget_exhausted = True
                 break
             candidate = [
-                tensor - float(payload.full_update_step) * scale * gradient_scale * delta
-                for tensor, delta in zip(working, direction)
+                tensor - float(payload.full_update_step) * scale * gradient
+                for tensor, gradient in zip(working, averaged_gradient)
             ]
             candidate_energy = evaluate(candidate)
             if candidate_energy is not None and candidate_energy < accepted_energy - float(payload.optimization_tolerance):
@@ -532,7 +549,8 @@ def _run_spsa_full_update(
             "energy": current_energy,
             "improvement": improvement,
             "gradient_norm": gradient_norm,
-            "gradient_scale": gradient_scale,
+            "gradient_scales": gradient_scales,
+            "direction_count": direction_count,
             "accepted_updates": 1 if accepted_candidate is not None else 0,
             "evaluations": evaluations,
             "parameter_count": parameter_count,
@@ -551,6 +569,7 @@ def _run_spsa_full_update(
         "parameter_count": parameter_count,
         "optimizer": "spsa-gradient",
         "gradient_backend": "deterministic-simultaneous-perturbation",
+        "direction_count": direction_count,
         "evaluation_budget": max_evaluations,
         "evaluation_budget_exhausted": budget_exhausted,
         "converged": bool(

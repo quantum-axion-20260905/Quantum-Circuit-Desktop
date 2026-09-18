@@ -251,7 +251,10 @@ but not released:
   estimates a dense real/imaginary tensor direction with two objective
   evaluations per step, independent of parameter count; its budget,
   gradient scale, line search, and approximate/non-AD limitation are exposed
-  in the result and preflight contract.
+  in the result and preflight contract. Its deterministic direction stream is
+  bit-mixed and its D=1 product-limit acceptance test reaches the known
+  `E=-1.2` reference within the declared budget, while the stochastic
+  convergence flag remains separate from that numerical result.
 - CTMRG environment initialization now uses a deterministic full-support
   regularization so symmetry-degenerate D=2 transfer sectors do not produce
   accidental zero-over-zero two-site observables; unresolved transfer gaps

@@ -133,7 +133,7 @@ class ComputeContractTests(unittest.TestCase):
             optimization="full-update",
             full_update_optimizer="spsa-gradient",
             optimization_steps=3,
-            full_update_max_evaluations=32,
+            full_update_max_evaluations=64,
             interactions=[{
                 "left_site": 0,
                 "right_site": 0,
@@ -145,7 +145,7 @@ class ComputeContractTests(unittest.TestCase):
         )
         report = estimate_ctmrg(payload, gpu_free_mb=4096)
         self.assertTrue(report["feasible"])
-        self.assertEqual(report["estimated_full_update_evaluations"], 19)
+        self.assertEqual(report["estimated_full_update_evaluations"], 37)
         self.assertEqual(report["full_update_optimizer"], "spsa-gradient")
 
     def test_ctmrg_convergence_is_a_first_class_async_kind(self):

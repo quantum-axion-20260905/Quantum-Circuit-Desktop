@@ -239,6 +239,7 @@ class CTMRGPayload(BaseModel):
     full_update_max_parameters: int = Field(default=32, ge=1, le=256)
     full_update_optimizer: Literal["coordinate", "finite-difference-gradient", "spsa-gradient"] = "coordinate"
     full_update_gradient_epsilon: float = Field(default=1e-3, gt=0, le=0.1)
+    full_update_spsa_directions: int = Field(default=4, ge=1, le=16)
     full_update_max_evaluations: int = Field(default=1024, ge=8, le=4096)
     initial_state: Literal["up", "down", "plus", "neel"] = "up"
     checkpoint_path: str | None = Field(default=None, min_length=1, max_length=4096)
