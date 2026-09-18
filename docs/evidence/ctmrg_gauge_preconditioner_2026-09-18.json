@@ -1,7 +1,7 @@
 {
   "artifact": "ctmrg-gauge-preconditioner-candidate",
   "date": "2026-09-18",
-  "git_revision": "f985f13",
+  "git_revision": "bbf31f7",
   "scope": {
     "unit_cell": [1, 1],
     "physical_bond_dim": 2,
@@ -36,6 +36,16 @@
     "preconditioner_performed": true,
     "energy": 1.0000000298023224,
     "interaction_zz": 1.0,
+    "research_gate": "needs_review"
+  },
+  "multi_site_cuda_smoke": {
+    "device": "cuda",
+    "unit_cell": [2, 1],
+    "dtype": "complex64",
+    "iterations": 2,
+    "bond_count": 4,
+    "preconditioner_performed": true,
+    "bounded_ctmrg_execution": "completed",
     "research_gate": "needs_review"
   },
   "multi_site_contract": {
