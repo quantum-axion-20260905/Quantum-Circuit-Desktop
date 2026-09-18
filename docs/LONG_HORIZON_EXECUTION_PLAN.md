@@ -232,6 +232,11 @@ but not released:
   explicit nested problem contract and preflight at the largest requested
   environment dimension, so the future desktop surface does not need solver
   internals.
+- D=1 CTMRG runs now receive an independent NumPy finite-product-supercell
+  comparison, including energy error, local observable error, finite-cell
+  second moment, and variance; D>1 runs explicitly report that this reference
+  is unavailable rather than projecting an entangled tensor onto a product
+  ansatz.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
@@ -253,7 +258,8 @@ The next implementation packet is Phase 4 variational research-grade convergence
 - add energy/variance evidence and expose the environment-dimension study
   through the shared study/provenance API;
 - compare CTMRG local contractions against finite PEPS/reference product
-  states, including independent small-system references;
+  states, extending the current independent product-supercell reference to a
+  finite-PEPS cross-check;
 - add a variational/simple-update packet only after the contraction gate stays
   stable;
 - keep frontend controls hidden until these numerical acceptance tests pass.

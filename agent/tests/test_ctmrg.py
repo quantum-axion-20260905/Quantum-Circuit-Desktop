@@ -35,6 +35,10 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(math.isfinite(result["correlation_length"]))
         self.assertEqual(len(result["environment_spectrum"]), 1)
         self.assertGreaterEqual(len(result["environment_spectrum"][0]), 1)
+        self.assertTrue(result["reference_validation"]["performed"])
+        self.assertTrue(result["reference_validation"]["passed"])
+        self.assertAlmostEqual(result["reference_validation"]["energy_error"], 0.0, places=8)
+        self.assertAlmostEqual(result["energy_variance"], 0.0, places=8)
         self.assertFalse(result["resource_estimate"]["materializes_statevector"])
         self.assertEqual(result["research_result"]["status"], "needs_review")
 
@@ -290,6 +294,8 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(result["virtual_bond_dim"], 2)
         self.assertFalse(result["resource_estimate"]["materializes_statevector"])
         self.assertAlmostEqual(result["interactions"][0]["value"], 1.0, places=5)
+        self.assertFalse(result["reference_validation"]["performed"])
+        self.assertIsNone(result["energy_variance"])
         self.assertFalse(any("withheld" in warning for warning in result["warnings"]))
 
     def test_checkpoint_resume_restores_environment_and_history(self):

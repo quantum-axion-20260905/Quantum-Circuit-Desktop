@@ -23,6 +23,7 @@ from ..plugins.models import CTMRGPayload, PauliTerm
 from ..provenance import sha256_json
 from .checkpoints import load_ctm_checkpoint, save_ctm_checkpoint
 from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
+from .ctmrg_reference import finite_product_reference
 from .ipeps_optimizer import optimize_product_states, run_full_update, run_simple_update
 from .observables import structured_observables
 
@@ -796,6 +797,14 @@ def run_ctmrg(
         for term, value in zip(payload.interactions, interaction_values)
         if value is not None
     )
+    reference_validation = finite_product_reference(
+        payload,
+        tensors,
+        onsite_values,
+        interaction_values,
+        float(energy),
+        tolerance=max(float(payload.tolerance) * 10.0, 1e-6),
+    )
     converged = bool(residual <= float(payload.tolerance))
     result_method = (
         "ipeps-full-update-ctmrg" if payload.optimization == "full-update" else
@@ -822,6 +831,10 @@ def run_ctmrg(
         warnings.append("the imported tensor was contracted without variational ground-state optimization")
     if not interaction_values_available:
         warnings.append("one or more interaction displacements are outside the supported nearest-neighbor two-site CTM contraction")
+    if reference_validation["performed"] and not reference_validation["passed"]:
+        warnings.append("finite product-supercell reference comparison exceeded its declared tolerance")
+    elif not reference_validation["performed"]:
+        warnings.append(f"independent finite product reference unavailable: {reference_validation['reason']}")
     checkpoint_result = checkpoint_info or {
         "resumable": False,
         "reason": (
@@ -836,6 +849,11 @@ def run_ctmrg(
             if payload.optimization == "full-update" else
             "no environment-feedback full ground-state optimization"
         ),
+        (
+            "energy variance is a finite product-supercell diagnostic and is not an infinite-lattice variance proof"
+            if reference_validation["performed"] else
+            "energy variance and finite-product reference are unavailable for the current entangled tensor"
+        ),
         "non-nearest interaction displacements are not yet supported by the two-site-RDM contraction",
     ]
     environment_diagnostics = _environment_diagnostics(xp, environments)
@@ -848,6 +866,9 @@ def run_ctmrg(
             "energy": float(energy),
             "energy_complete": interaction_values_available,
             "residual": float(residual),
+            "energy_second_moment": reference_validation.get("energy_second_moment"),
+            "energy_variance": reference_validation.get("energy_variance"),
+            "reference_energy_error": reference_validation.get("energy_error"),
             **environment_diagnostics,
         },
         truncation=TruncationReport(
@@ -875,6 +896,7 @@ def run_ctmrg(
             ),
             "correlation_lengths_by_site": environment_diagnostics["correlation_lengths_by_site"],
             "environment_spectrum": environment_diagnostics["environment_spectrum"],
+            "reference_validation": reference_validation,
         },
     ).to_dict()
     return {
@@ -904,6 +926,9 @@ def run_ctmrg(
         "norm": norm,
         "energy": float(energy),
         "energy_complete": interaction_values_available,
+        "energy_second_moment": reference_validation.get("energy_second_moment"),
+        "energy_variance": reference_validation.get("energy_variance"),
+        "reference_validation": reference_validation,
         "correlation_length": environment_diagnostics["correlation_length"],
         "correlation_lengths_by_site": environment_diagnostics["correlation_lengths_by_site"],
         "environment_spectrum": environment_diagnostics["environment_spectrum"],
@@ -975,6 +1000,9 @@ def run_ctmrg_convergence_study(
             "correlation_length": result["correlation_length"],
             "correlation_lengths_by_site": result["correlation_lengths_by_site"],
             "environment_spectrum": result["environment_spectrum"],
+            "energy_second_moment": result["energy_second_moment"],
+            "energy_variance": result["energy_variance"],
+            "reference_validation": result["reference_validation"],
             "resource_estimate": result["resource_estimate"],
         })
         previous_energy = energy
