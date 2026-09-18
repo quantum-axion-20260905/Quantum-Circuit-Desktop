@@ -1030,6 +1030,42 @@ def run_ctmrg(
         warnings.append(f"{reference_validation.get('reference', 'independent reference')} comparison exceeded its declared tolerance")
     elif not reference_validation["performed"]:
         warnings.append(f"independent finite product reference unavailable: {reference_validation['reason']}")
+    gauge_validation: dict[str, Any] = {"performed": False, "reason": "disabled by request"}
+    if bool(getattr(payload, "gauge_validation", False)):
+        if int(payload.virtual_bond_dim) <= 1:
+            gauge_validation["reason"] = "virtual_bond_dim=1 has no non-trivial virtual gauge probe"
+        elif int(payload.virtual_bond_dim) > 2:
+            gauge_validation["reason"] = "the bounded paired gauge probe currently supports virtual_bond_dim<=2"
+        else:
+            from .ctmrg_gauge import gauge_validation_result, paired_virtual_gauge
+
+            probe_payload = payload.model_copy(update={
+                "optimization": "none",
+                "checkpoint_path": None,
+                "resume_from": None,
+                "optimizer_checkpoint_path": None,
+                "optimizer_resume_from": None,
+                "gauge_validation": False,
+            })
+            gauged_tensors = paired_virtual_gauge(xp, tensors)
+            gauged_result = run_ctmrg(xp, probe_payload, tensors=gauged_tensors)
+            gauge_validation = gauge_validation_result(
+                {
+                    "energy": float(energy),
+                    "observables": structured_observables(payload.terms, onsite_values),
+                    "interactions": [
+                        {"value": value}
+                        for value in interaction_values
+                    ],
+                },
+                gauged_result,
+                tolerance=float(payload.gauge_validation_tolerance),
+                virtual_bond_dim=int(payload.virtual_bond_dim),
+            )
+            if not gauge_validation["passed"]:
+                warnings.append(
+                    f"virtual-gauge validation exceeded tolerance: max observable/energy delta {gauge_validation['max_abs_delta']:.3e}"
+                )
     checkpoint_result = checkpoint_info or {
         "resumable": False,
         "reason": (
@@ -1071,6 +1107,7 @@ def run_ctmrg(
             "energy": float(energy),
             "energy_complete": interaction_values_available,
             "residual": float(residual),
+            "gauge_validation_max_abs_delta": gauge_validation.get("max_abs_delta"),
             "energy_second_moment": reference_validation.get("energy_second_moment"),
             "energy_variance": reference_validation.get("energy_variance"),
             "reference_energy_error": reference_validation.get("energy_error"),
@@ -1102,6 +1139,7 @@ def run_ctmrg(
             "correlation_lengths_by_site": environment_diagnostics["correlation_lengths_by_site"],
             "environment_spectrum": environment_diagnostics["environment_spectrum"],
             "reference_validation": reference_validation,
+            "gauge_validation": gauge_validation,
         },
     ).to_dict()
     return {
@@ -1134,6 +1172,7 @@ def run_ctmrg(
         "energy_second_moment": reference_validation.get("energy_second_moment"),
         "energy_variance": reference_validation.get("energy_variance"),
         "reference_validation": reference_validation,
+        "gauge_validation": gauge_validation,
         "correlation_length": environment_diagnostics["correlation_length"],
         "correlation_lengths_by_site": environment_diagnostics["correlation_lengths_by_site"],
         "environment_spectrum": environment_diagnostics["environment_spectrum"],

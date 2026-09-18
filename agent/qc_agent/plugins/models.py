@@ -244,6 +244,8 @@ class CTMRGPayload(BaseModel):
     full_update_implicit_iterations: int = Field(default=32, ge=1, le=256)
     full_update_implicit_tolerance: float = Field(default=1e-6, gt=0, le=1.0)
     full_update_implicit_damping: float = Field(default=0.5, gt=0, le=1.0)
+    gauge_validation: bool = False
+    gauge_validation_tolerance: float = Field(default=1e-4, gt=0, le=1.0)
     initial_state: Literal["up", "down", "plus", "neel"] = "up"
     checkpoint_path: str | None = Field(default=None, min_length=1, max_length=4096)
     resume_from: str | None = Field(default=None, min_length=1, max_length=4096)

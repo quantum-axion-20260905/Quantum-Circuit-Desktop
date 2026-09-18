@@ -103,6 +103,13 @@ claiming convergence. The implementation therefore passes the product-limit
 runtime gate but remains `Needs review` for generic entangled cells; complex
 truncation currently uses a frozen eigenprojector in backward mode.
 
+An opt-in paired virtual-gauge probe was added to the CTMRG request contract.
+On a deterministic random D=2 cell (`χ=2`, four iterations), the exact finite
+PEPS reference stayed invariant while the truncated CTMRG energy/observable
+delta reached `5.68e-2` against a `1e-4` tolerance. The result surfaces this as
+`gauge_validation.passed=false` and a warning, rather than treating the
+truncated value as gauge-independent evidence.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices

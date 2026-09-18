@@ -325,6 +325,10 @@ but not released:
   reports transfer-gap, fixed-point, and adjoint residual diagnostics. Complex
   truncated eigenspaces currently use a frozen eigenprojector in backward mode,
   so the path remains `needs_review` until entangled gauge and gap gates pass.
+- an opt-in paired virtual-gauge validation probe now reruns the final tensor
+  through CTMRG and reports energy/observable deltas; the independent finite
+  PEPS reference is gauge invariant, while a random D=2 truncated environment
+  correctly remains review-only when its gauge delta exceeds tolerance.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.

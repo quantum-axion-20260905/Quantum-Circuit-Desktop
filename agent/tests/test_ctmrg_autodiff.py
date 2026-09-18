@@ -109,22 +109,20 @@ class CTMRGAutodiffTests(unittest.TestCase):
         self.assertTrue(math.isfinite(float(energy.detach())))
 
     def test_independent_finite_peps_reference_preserves_virtual_gauge(self):
-        torch = __import__("torch")
-
         payload = _payload().model_copy(update={
             "dtype": "complex128",
             "virtual_bond_dim": 2,
             "environment_bond_dim": 2,
         })
-        generator = torch.Generator().manual_seed(17)
-        tensor = torch.randn((2, 2, 2, 2, 2), dtype=torch.complex128, generator=generator)
-        tensor = tensor / torch.linalg.norm(tensor)
-        gauge = torch.tensor(
+        generator = np.random.default_rng(17)
+        tensor = generator.normal(size=(2, 2, 2, 2, 2)) + 1j * generator.normal(size=(2, 2, 2, 2, 2))
+        tensor = tensor / np.linalg.norm(tensor)
+        gauge = np.asarray(
             [[1.2 + 0.1j, 0.2 - 0.1j], [0.0 + 0.2j, 0.8 - 0.05j]],
-            dtype=torch.complex128,
+            dtype=np.complex128,
         )
-        inverse_transpose = torch.linalg.inv(gauge).T
-        transformed = torch.einsum(
+        inverse_transpose = np.linalg.inv(gauge).T
+        transformed = np.einsum(
             "sUDLR,uU,dD,lL,rR->sudlr",
             tensor,
             inverse_transpose,
@@ -132,11 +130,33 @@ class CTMRGAutodiffTests(unittest.TestCase):
             inverse_transpose,
             gauge,
         )
-        original = finite_periodic_peps_reference(payload, [tensor.numpy()], [], [0.0], 0.0)
-        gauged = finite_periodic_peps_reference(payload, [transformed.numpy()], [], [0.0], 0.0)
+        original = finite_periodic_peps_reference(payload, [tensor], [], [0.0], 0.0)
+        gauged = finite_periodic_peps_reference(payload, [transformed], [], [0.0], 0.0)
         self.assertTrue(original["performed"])
         self.assertTrue(gauged["performed"])
         self.assertAlmostEqual(original["reference_energy"], gauged["reference_energy"], places=10)
+
+    def test_ctmrg_gauge_probe_surfaces_truncation_sensitivity(self):
+        from qc_agent.core.ctmrg import run_ctmrg
+
+        rng = np.random.default_rng(17)
+        tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+        tensor = tensor / np.linalg.norm(tensor)
+        payload = _payload().model_copy(update={
+            "optimization": "none",
+            "dtype": "complex128",
+            "virtual_bond_dim": 2,
+            "tensor_data": [[float(value.real), float(value.imag)] for value in tensor.reshape(-1)],
+            "environment_bond_dim": 2,
+            "iterations": 4,
+            "gauge_validation": True,
+        })
+        result = run_ctmrg(np, payload)
+        gauge = result["gauge_validation"]
+        self.assertTrue(gauge["performed"])
+        self.assertFalse(gauge["passed"])
+        self.assertGreater(gauge["max_abs_delta"], gauge["tolerance"])
+        self.assertTrue(any("virtual-gauge validation" in warning for warning in result["warnings"]))
 
     @unittest.skipUnless(
         importlib.util.find_spec("cupy") is not None,

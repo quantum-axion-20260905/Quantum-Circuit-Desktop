@@ -261,6 +261,7 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
     if getattr(payload, "optimization", "none") != "none":
         work += max(1, int(getattr(payload, "optimization_steps", 1))) * max(1, cell_sites) * 16
     estimated_full_update_evaluations = None
+    gauge_probe_evaluations = 1 if bool(getattr(payload, "gauge_validation", False)) else 0
     if getattr(payload, "optimization", "none") == "full-update":
         complex_parameters = cell_sites * physical_bond_dim * max(1, virtual_bond_dim ** 4) * 2
         max_parameters = int(getattr(payload, "full_update_max_parameters", 32))
@@ -293,7 +294,9 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
             evaluations_per_parameter = 4 if optimizer == "finite-difference-gradient" else 4
             estimated_full_update_evaluations = 1 + int(getattr(payload, "optimization_steps", 1)) * min(complex_parameters, max_parameters) * evaluations_per_parameter
             estimated_full_update_evaluations += int(getattr(payload, "optimization_steps", 1)) * (4 if optimizer == "finite-difference-gradient" else 0)
-        work *= max(1, min(estimated_full_update_evaluations, int(getattr(payload, "full_update_max_evaluations", 512))))
+        work *= max(1, min(estimated_full_update_evaluations + gauge_probe_evaluations, int(getattr(payload, "full_update_max_evaluations", 512))))
+    elif gauge_probe_evaluations:
+        work *= 2
     estimated_ms = int(1 + work / 25_000)
     warnings: list[str] = [
         "CTMRG is an experimental infinite-2D path; compare environment-dimension convergence",
@@ -336,17 +339,19 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         elif getattr(payload, "full_update_optimizer", "coordinate") == "implicit-ctmrg-gradient":
             warnings.append("implicit-ctmrg-gradient requires the optional PyTorch CUDA runtime")
             warnings.append("implicit-ctmrg-gradient is admitted only as a bounded adjoint research path until transfer-gap and gauge gates pass")
-        if estimated_full_update_evaluations is not None and estimated_full_update_evaluations > int(getattr(payload, "full_update_max_evaluations", 512)):
-            warnings.append(
-                f"full-update estimated evaluations {estimated_full_update_evaluations} exceed full_update_max_evaluations={payload.full_update_max_evaluations}"
-            )
+    if bool(getattr(payload, "gauge_validation", False)) and virtual_bond_dim > 2:
+        warnings.append("gauge validation requires virtual_bond_dim<=2")
+    if estimated_full_update_evaluations is not None and estimated_full_update_evaluations + gauge_probe_evaluations > int(getattr(payload, "full_update_max_evaluations", 512)):
+        warnings.append(
+            f"full-update estimated evaluations {estimated_full_update_evaluations + gauge_probe_evaluations} exceed full_update_max_evaluations={payload.full_update_max_evaluations}"
+        )
     if peak_mb > float(payload.max_mem_mb):
         warnings.append(f"estimated CTMRG environment memory {peak_mb:.1f} MB exceeds memory budget")
     if gpu_free_mb is not None and peak_mb > gpu_free_mb * 0.70:
         warnings.append(f"estimated CTMRG environment memory {peak_mb:.1f} MB exceeds 70% of currently free GPU memory")
     if estimated_ms > int(payload.max_time_ms):
         warnings.append(f"estimated CTMRG time {estimated_ms} ms exceeds time budget")
-    blocking_warnings = [warning for warning in warnings if "exceeds" in warning or "current CTMRG solver supports" in warning or "product-coordinate-descent optimization requires" in warning or "full-update tensor parameter count" in warning or "full-update estimated evaluations" in warning or "finite-torus-gradient requires" in warning or "finite-torus-gradient supports" in warning]
+    blocking_warnings = [warning for warning in warnings if "exceeds" in warning or "current CTMRG solver supports" in warning or "product-coordinate-descent optimization requires" in warning or "full-update tensor parameter count" in warning or "full-update estimated evaluations" in warning or "finite-torus-gradient requires" in warning or "finite-torus-gradient supports" in warning or "gauge validation requires" in warning]
     return {
         "status": "ready" if not blocking_warnings else "rejected",
         "feasible": not blocking_warnings,
@@ -371,6 +376,7 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         "estimated_time_ms": estimated_ms,
         "full_update_optimizer": getattr(payload, "full_update_optimizer", None),
         "estimated_full_update_evaluations": estimated_full_update_evaluations,
+        "gauge_probe_evaluations": gauge_probe_evaluations,
         "full_update_max_evaluations": getattr(payload, "full_update_max_evaluations", None),
         "blocking_warnings": blocking_warnings,
         "warnings": warnings,
