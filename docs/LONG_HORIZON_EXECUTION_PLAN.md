@@ -222,6 +222,12 @@ but not released:
 - a bounded full-update coordinate baseline now re-evaluates CTMRG energy for
   tensor candidates, with strict parameter/evaluation limits and explicit
   optimization history.
+- CTMRG results now report a bounded transfer-spectrum diagnostic, per-site
+  correlation lengths, and environment spectra in both the top-level result
+  and the shared `ResearchResult` contract;
+- a replayable environment-dimension convergence helper runs independent
+  chi=1..8-point contractions from the same tensor ansatz and records energy,
+  residual, correlation length, and statevector-free resource evidence.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
@@ -240,9 +246,10 @@ The next implementation packet is Phase 4 variational research-grade convergence
   against finite PEPS/reference product states;
 - replace the bounded coordinate baseline with scalable gradient/automatic
   differentiation or an equivalent research-validated full-update solver;
-- add energy/variance and environment-dimension convergence evidence;
+- add energy/variance evidence and expose the environment-dimension study
+  through the shared study/provenance API;
 - compare CTMRG local contractions against finite PEPS/reference product
-  states and environment-dimension convergence;
+  states, including independent small-system references;
 - add a variational/simple-update packet only after the contraction gate stays
   stable;
 - keep frontend controls hidden until these numerical acceptance tests pass.

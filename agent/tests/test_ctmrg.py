@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from qc_agent.core.ctmrg import run_ctmrg
+from qc_agent.core.ctmrg import run_ctmrg, run_ctmrg_convergence_study
 from qc_agent.plugins.models import CTMRGPayload, IPEPSInteraction, PauliTerm
 
 
@@ -32,6 +32,9 @@ class CTMRGTests(unittest.TestCase):
         self.assertAlmostEqual(result["interactions"][0]["value"], 1.0, places=6)
         self.assertAlmostEqual(result["energy"], 1.5, places=6)
         self.assertTrue(math.isfinite(result["residual"]))
+        self.assertTrue(math.isfinite(result["correlation_length"]))
+        self.assertEqual(len(result["environment_spectrum"]), 1)
+        self.assertGreaterEqual(len(result["environment_spectrum"][0]), 1)
         self.assertFalse(result["resource_estimate"]["materializes_statevector"])
         self.assertEqual(result["research_result"]["status"], "needs_review")
 
@@ -121,6 +124,8 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual([round(item["value"], 6) for item in result["interactions"]], [-1.0] * 4)
         self.assertTrue(result["energy_complete"])
         self.assertFalse(result["resource_estimate"]["materializes_statevector"])
+        self.assertEqual(len(result["correlation_lengths_by_site"]), 4)
+        self.assertEqual(len(result["environment_spectrum"]), 4)
 
     def test_two_by_two_checkpoint_resume_restores_all_environments(self):
         payload = CTMRGPayload(
@@ -342,6 +347,45 @@ class CTMRGTests(unittest.TestCase):
                     "coefficient": 1.0,
                 }],
             )
+
+    def test_environment_dimension_convergence_study_is_bounded_and_replayable(self):
+        payload = CTMRGPayload(
+            initial_state="plus",
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="X",
+                right_pauli="X",
+                coefficient=-1.0,
+            )],
+            environment_bond_dim=4,
+            iterations=2,
+        )
+        study = run_ctmrg_convergence_study(np, payload, [1, 2, 4])
+        self.assertEqual(study["method"], "ipeps-ctmrg-environment-convergence-study")
+        self.assertEqual([point["environment_bond_dim"] for point in study["points"]], [1, 2, 4])
+        self.assertFalse(study["materializes_statevector"])
+        self.assertIsNone(study["points"][0]["energy_delta"])
+        for point in study["points"]:
+            self.assertTrue(math.isfinite(point["energy"]))
+            self.assertTrue(math.isfinite(point["residual"]))
+            self.assertTrue(math.isfinite(point["correlation_length"]))
+            self.assertGreaterEqual(len(point["environment_spectrum"]), 1)
+
+    def test_environment_dimension_convergence_study_requires_plain_contraction(self):
+        with self.assertRaisesRegex(ValueError, "optimization='none'"):
+            run_ctmrg_convergence_study(np, CTMRGPayload(
+                optimization="simple-update",
+                interactions=[{
+                    "left_site": 0,
+                    "right_site": 0,
+                    "displacement": [1, 0],
+                    "left_pauli": "Z",
+                    "right_pauli": "Z",
+                    "coefficient": 1.0,
+                }],
+            ), [1, 2])
 
 
 if __name__ == "__main__":

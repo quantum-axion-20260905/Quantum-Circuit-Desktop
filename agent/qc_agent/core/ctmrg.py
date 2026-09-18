@@ -349,6 +349,34 @@ def _environment_residual(xp: Any, before: CTMEnvironment, after: CTMEnvironment
     return residual
 
 
+def _environment_diagnostics(xp: Any, environments: list[CTMEnvironment]) -> dict[str, Any]:
+    """Extract bounded transfer-spectrum diagnostics from converged edges."""
+
+    spectra: list[list[float]] = []
+    correlation_lengths: list[float | None] = []
+    for env in environments:
+        transfer = xp.sum(env.T1, axis=1)
+        eigenvalues = xp.linalg.eigvals(transfer)
+        magnitudes = sorted((float(abs(value)) for value in _host(eigenvalues)), reverse=True)
+        leading = magnitudes[0] if magnitudes else 0.0
+        subleading = magnitudes[1] if len(magnitudes) > 1 else 0.0
+        if leading <= 1e-30 or subleading <= 1e-30:
+            correlation_lengths.append(0.0)
+        else:
+            ratio = min(1.0 - 1e-15, max(0.0, subleading / leading))
+            correlation_lengths.append(float(-1.0 / math.log(ratio)) if ratio > 0 else 0.0)
+        singular = xp.linalg.svd(env.T1.reshape(env.T1.shape[0], -1), compute_uv=False)
+        singular_host = [float(abs(value)) for value in _host(singular)]
+        scale = max(singular_host[0] if singular_host else 0.0, 1e-30)
+        spectra.append([value / scale for value in singular_host])
+    finite_lengths = [value for value in correlation_lengths if value is not None and math.isfinite(value)]
+    return {
+        "correlation_length": max(finite_lengths) if finite_lengths else None,
+        "correlation_lengths_by_site": correlation_lengths,
+        "environment_spectrum": spectra,
+    }
+
+
 def _environment_contraction(xp: Any, env: CTMEnvironment, local_tensor: Any) -> Any:
     return xp.einsum(
         "ab,buc,ce,erm,im,hdi,gh,alg,udlr->",
@@ -783,7 +811,7 @@ def run_ctmrg(
     else:
         warnings.insert(0, "CTMRG contraction uses a periodic multi-site unit-cell environment")
     if payload.optimization == "simple-update":
-        warnings.append("simple-update is an imaginary-time entangled-tensor baseline; full-update environment feedback is not implemented")
+        warnings.append("simple-update is an imaginary-time entangled-tensor baseline; compare it against the bounded full-update path before treating energies as variational evidence")
     elif payload.optimization == "full-update":
         warnings.append("full-update re-evaluates CTMRG energy for bounded coordinate trials; it is not an automatic-differentiation optimizer")
     elif optimization_info is not None:
@@ -810,11 +838,18 @@ def run_ctmrg(
         ),
         "non-nearest interaction displacements are not yet supported by the two-site-RDM contraction",
     ]
+    environment_diagnostics = _environment_diagnostics(xp, environments)
     research_result = ResearchResult(
         status="needs_review",
         method=result_method,
         representation="ipeps",
-        metrics={"norm": norm, "energy": float(energy), "energy_complete": interaction_values_available, "residual": float(residual)},
+        metrics={
+            "norm": norm,
+            "energy": float(energy),
+            "energy_complete": interaction_values_available,
+            "residual": float(residual),
+            **environment_diagnostics,
+        },
         truncation=TruncationReport(
             discarded_weight=float(discarded_total),
             max_bond_dim=int(payload.virtual_bond_dim),
@@ -838,6 +873,8 @@ def run_ctmrg(
                 | ({"optimized_state_vectors": _state_pairs(xp, optimization_info["states"])} if "states" in optimization_info else {})
                 if optimization_info is not None else {"method": "none"}
             ),
+            "correlation_lengths_by_site": environment_diagnostics["correlation_lengths_by_site"],
+            "environment_spectrum": environment_diagnostics["environment_spectrum"],
         },
     ).to_dict()
     return {
@@ -867,6 +904,9 @@ def run_ctmrg(
         "norm": norm,
         "energy": float(energy),
         "energy_complete": interaction_values_available,
+        "correlation_length": environment_diagnostics["correlation_length"],
+        "correlation_lengths_by_site": environment_diagnostics["correlation_lengths_by_site"],
+        "environment_spectrum": environment_diagnostics["environment_spectrum"],
         "observables": structured_observables(payload.terms, onsite_values),
         "interactions": [
             {
@@ -885,4 +925,70 @@ def run_ctmrg(
         "checkpoint": checkpoint_result,
         "warnings": warnings,
         "time_ms": round((time.perf_counter() - started) * 1000, 3),
+    }
+
+
+def run_ctmrg_convergence_study(
+    xp: Any,
+    payload: CTMRGPayload,
+    environment_bond_dims: list[int],
+) -> dict[str, Any]:
+    """Run a bounded environment-dimension convergence study.
+
+    Each point is an independent contraction from the same tensor ansatz.  The
+    study intentionally disables optimization and checkpoint reuse so that an
+    energy delta reflects the requested environment dimension rather than a
+    hidden optimizer or a partially evolved state.  This is a diagnostic
+    helper, not a claim of thermodynamic convergence.
+    """
+
+    if not environment_bond_dims:
+        raise ValueError("environment_bond_dims must contain at least one value")
+    if len(environment_bond_dims) > 8:
+        raise ValueError("environment_bond_dims is limited to eight bounded study points")
+    normalized_dims = [int(value) for value in environment_bond_dims]
+    if any(value < 1 or value > 128 for value in normalized_dims):
+        raise ValueError("environment_bond_dims values must be between 1 and 128")
+    if len(set(normalized_dims)) != len(normalized_dims):
+        raise ValueError("environment_bond_dims values must be unique")
+    if payload.optimization != "none":
+        raise ValueError("CTMRG convergence studies require optimization='none'")
+
+    points: list[dict[str, Any]] = []
+    previous_energy: float | None = None
+    for environment_bond_dim in normalized_dims:
+        point_payload = payload.model_copy(update={
+            "environment_bond_dim": environment_bond_dim,
+            "checkpoint_path": None,
+            "resume_from": None,
+        })
+        result = run_ctmrg(xp, point_payload)
+        energy = float(result["energy"])
+        points.append({
+            "environment_bond_dim": environment_bond_dim,
+            "environment_bond_dim_used": int(result["environment_bond_dim_used"]),
+            "energy": energy,
+            "energy_complete": bool(result["energy_complete"]),
+            "energy_delta": None if previous_energy is None else energy - previous_energy,
+            "residual": float(result["residual"]),
+            "converged": bool(result["converged"]),
+            "correlation_length": result["correlation_length"],
+            "correlation_lengths_by_site": result["correlation_lengths_by_site"],
+            "environment_spectrum": result["environment_spectrum"],
+            "resource_estimate": result["resource_estimate"],
+        })
+        previous_energy = energy
+
+    return {
+        "status": "done",
+        "method": "ipeps-ctmrg-environment-convergence-study",
+        "optimization": "none",
+        "unit_cell": list(payload.unit_cell),
+        "unit_cell_sites": math.prod(payload.unit_cell),
+        "points": points,
+        "materializes_statevector": False,
+        "warnings": [
+            "points are independent bounded CTMRG contractions from the same tensor ansatz",
+            "compare energy, residual, correlation length, and local observables together before drawing physical conclusions",
+        ],
     }
