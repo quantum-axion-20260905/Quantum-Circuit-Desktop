@@ -338,6 +338,39 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(reference["diagnostics"]["norm_contraction"]["boundary_bond_dim_used"], 1)
         self.assertTrue(any("finite-cylinder boundary-MPS reference" in warning for warning in result["warnings"]))
 
+    def test_boundary_mps_convergence_study_is_bounded_and_replayable(self):
+        from qc_agent.core.ctmrg_boundary_mps import run_boundary_mps_convergence_study
+
+        tensor = np.zeros((2, 1, 1, 1, 1), dtype=np.complex128)
+        tensor[0, 0, 0, 0, 0] = 1.0
+        payload = CTMRGPayload(
+            boundary_mps_width=2,
+            boundary_mps_height=2,
+            boundary_mps_bond_dim=1,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=0.5,
+            )],
+        )
+        study = run_boundary_mps_convergence_study(
+            [tensor],
+            payload,
+            ctmrg_energy=1.5,
+            ctmrg_onsite=[1.0],
+            ctmrg_interactions=[1.0],
+            patch_sizes=[(2, 2), (3, 3)],
+            boundary_bond_dims=[1, 2],
+        )
+        self.assertEqual(study["point_count"], 4)
+        self.assertTrue(all(point["performed"] for point in study["points"]))
+        self.assertTrue(all(abs(point["reference_energy"] - 1.5) < 1e-8 for point in study["points"]))
+        self.assertEqual(study["max_discarded_weight"], 0.0)
+
     def test_plus_state_has_unit_x_expectation(self):
         payload = CTMRGPayload(
             terms=[PauliTerm(paulis={0: "X"}, coefficient=1.0)],

@@ -344,3 +344,87 @@ def run_boundary_mps_reference(
             "compare patch size and boundary bond dimension before using as scientific evidence",
         ],
     }
+
+
+def run_boundary_mps_convergence_study(
+    tensors: list[Any],
+    payload: Any,
+    *,
+    ctmrg_energy: float,
+    ctmrg_onsite: list[float],
+    ctmrg_interactions: list[float | None],
+    patch_sizes: list[tuple[int, int]],
+    boundary_bond_dims: list[int],
+) -> dict[str, Any]:
+    """Compare the finite-cylinder diagnostic across bounded controls."""
+
+    if not patch_sizes or not boundary_bond_dims:
+        raise ValueError("boundary-MPS convergence study requires patch sizes and bond dimensions")
+    if len(patch_sizes) * len(boundary_bond_dims) > 8:
+        raise ValueError("boundary-MPS convergence study is limited to eight points")
+    normalized_sizes = [(int(width), int(height)) for width, height in patch_sizes]
+    normalized_bonds = [int(value) for value in boundary_bond_dims]
+    if any(width < 2 or height < 2 or width > 16 or height > 16 for width, height in normalized_sizes):
+        raise ValueError("boundary-MPS study patch dimensions must be between 2 and 16")
+    if any(value < 1 or value > 128 for value in normalized_bonds):
+        raise ValueError("boundary-MPS study bond dimensions must be between 1 and 128")
+
+    points: list[dict[str, Any]] = []
+    previous: dict[str, Any] | None = None
+    for width, height in normalized_sizes:
+        for bond_dim in normalized_bonds:
+            point_payload = payload.model_copy(update={
+                "boundary_mps_width": width,
+                "boundary_mps_height": height,
+                "boundary_mps_bond_dim": bond_dim,
+            })
+            reference = run_boundary_mps_reference(
+                tensors,
+                point_payload,
+                ctmrg_energy=ctmrg_energy,
+                ctmrg_onsite=ctmrg_onsite,
+                ctmrg_interactions=ctmrg_interactions,
+            )
+            reference_energy = reference.get("reference_energy")
+            energy_delta = None
+            if reference_energy is not None and previous is not None and previous.get("reference_energy") is not None:
+                energy_delta = abs(float(reference_energy) - float(previous["reference_energy"]))
+            point = {
+                "patch": [width, height],
+                "boundary_bond_dim": bond_dim,
+                "performed": bool(reference.get("performed", False)),
+                "reference_energy": reference_energy,
+                "energy_error": reference.get("energy_error"),
+                "observable_max_abs_error": reference.get("observable_max_abs_error"),
+                "interaction_max_abs_error": reference.get("interaction_max_abs_error"),
+                "max_abs_error": reference.get("max_abs_error"),
+                "discarded_weight": (
+                    reference.get("diagnostics", {})
+                    .get("norm_contraction", {})
+                    .get("discarded_weight")
+                ),
+                "energy_abs_delta": energy_delta,
+                "reference": reference,
+            }
+            points.append(point)
+            previous = point
+
+    return {
+        "status": "done",
+        "method": "finite-cylinder-boundary-mps-convergence-study",
+        "points": points,
+        "point_count": len(points),
+        "max_abs_error": max(
+            (float(point["max_abs_error"]) for point in points if point["max_abs_error"] is not None),
+            default=None,
+        ),
+        "max_discarded_weight": max(
+            (float(point["discarded_weight"]) for point in points if point["discarded_weight"] is not None),
+            default=None,
+        ),
+        "limitations": [
+            "points are finite open patches with fixed all-ones virtual boundaries",
+            "point-to-point deltas diagnose boundary-MPS truncation, not infinite-lattice convergence",
+            "compare with CTMRG chi, residual, and paired-gauge evidence",
+        ],
+    }
