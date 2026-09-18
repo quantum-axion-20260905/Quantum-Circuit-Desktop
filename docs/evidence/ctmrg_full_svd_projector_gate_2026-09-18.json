@@ -1,7 +1,7 @@
 {
   "artifact": "ctmrg-full-svd-projector-gate",
   "date": "2026-09-18",
-  "git_revision": "working-tree-after-8888a95",
+  "git_revision": "7ea0088",
   "policy": "full-svd",
   "scope": {
     "physical_bond_dim": 2,
