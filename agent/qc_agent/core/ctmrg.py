@@ -23,7 +23,7 @@ from ..plugins.models import CTMRGPayload, PauliTerm
 from ..provenance import sha256_json
 from .checkpoints import load_ctm_checkpoint, save_ctm_checkpoint
 from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
-from .ctmrg_reference import analytic_ghz_reference, finite_product_reference
+from .ctmrg_reference import analytic_ghz_reference, finite_periodic_peps_reference, finite_product_reference
 from .ipeps_optimizer import optimize_product_states, run_full_update, run_simple_update
 from .observables import structured_observables
 
@@ -837,6 +837,15 @@ def run_ctmrg(
             float(energy),
             tolerance=max(float(payload.tolerance) * 10.0, 1e-6),
         )
+    if not reference_validation["performed"]:
+        reference_validation = finite_periodic_peps_reference(
+            payload,
+            tensors,
+            onsite_values,
+            interaction_values,
+            float(energy),
+            tolerance=max(float(payload.tolerance) * 10.0, 1e-6),
+        )
     converged = bool(residual <= float(payload.tolerance))
     result_method = (
         "ipeps-full-update-gradient-ctmrg" if payload.optimization == "full-update" and payload.full_update_optimizer == "finite-difference-gradient" else
@@ -873,7 +882,7 @@ def run_ctmrg(
     if not interaction_values_available:
         warnings.append("one or more interaction displacements are outside the supported nearest-neighbor two-site CTM contraction")
     if reference_validation["performed"] and not reference_validation["passed"]:
-        warnings.append("finite product-supercell reference comparison exceeded its declared tolerance")
+        warnings.append(f"{reference_validation.get('reference', 'independent reference')} comparison exceeded its declared tolerance")
     elif not reference_validation["performed"]:
         warnings.append(f"independent finite product reference unavailable: {reference_validation['reason']}")
     checkpoint_result = checkpoint_info or {

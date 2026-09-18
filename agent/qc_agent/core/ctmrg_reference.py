@@ -1,9 +1,9 @@
 """Small independent references for bounded CTMRG acceptance evidence.
 
-The reference deliberately covers only product iPEPS tensors (virtual bond
-dimension one).  It builds a finite product supercell with NumPy and evaluates
-the declared unit-cell Hamiltonian directly.  Entangled tensors are reported
-as unavailable rather than being silently approximated by a product state.
+References are deliberately explicit about their scope: product supercells,
+one analytic GHZ transfer fixed point, and a tiny exact 2x2 periodic PEPS
+double-layer contraction.  No arbitrary entangled tensor is silently reduced
+to a product ansatz or promoted to thermodynamic-limit evidence.
 """
 
 from __future__ import annotations
@@ -246,5 +246,161 @@ def analytic_ghz_reference(
         "limitations": [
             "analytic reference is limited to the canonical one-site GHZ transfer fixed point",
             "the reference validates selected local observables, not an infinite-lattice variance",
+        ],
+    }
+
+
+def finite_periodic_peps_reference(
+    payload: CTMRGPayload,
+    tensors: list[Any],
+    onsite_values: list[float],
+    interaction_values: list[float | None],
+    ctmrg_energy: float,
+    *,
+    size: int = 2,
+    tolerance: float = 1e-6,
+) -> dict[str, Any]:
+    """Compare a small generic one-site iPEPS against an exact 2x2 torus.
+
+    The finite torus is an independent double-layer einsum reference for
+    arbitrary complex tensors with virtual bond dimension up to two.  It is
+    deliberately reported as a finite-size comparison: agreement does not
+    prove the infinite environment is converged, while disagreement is useful
+    evidence that the current chi/iteration choice needs review.
+    """
+
+    unavailable = {
+        "performed": False,
+        "reason": "finite periodic reference is limited to one-site physical-2 iPEPS with virtual bond dimension <=2",
+        "energy_variance": None,
+    }
+    if len(tensors) != 1 or list(payload.unit_cell) != [1, 1]:
+        return unavailable
+    if int(payload.physical_bond_dim) != 2 or int(payload.virtual_bond_dim) > 2:
+        return unavailable
+    if int(size) != 2:
+        return {**unavailable, "reason": "finite periodic reference currently uses a fixed 2x2 torus"}
+    tensor = _host(tensors[0]).astype(np.complex128, copy=False)
+    if tensor.shape != (2, int(payload.virtual_bond_dim), int(payload.virtual_bond_dim), int(payload.virtual_bond_dim), int(payload.virtual_bond_dim)):
+        return {**unavailable, "reason": "tensor shape does not match the declared physical and virtual dimensions"}
+    if not np.all(np.isfinite(tensor)) or float(np.linalg.norm(tensor)) <= 1e-14:
+        return {**unavailable, "reason": "tensor is zero or non-finite"}
+    if any(len(term.paulis) > 1 or any(int(site) != 0 for site in term.paulis) for term in payload.terms):
+        return {**unavailable, "reason": "finite periodic reference supports one-site terms at unit-cell site zero"}
+    if any(
+        tuple(map(abs, interaction.displacement)) not in ((1, 0), (0, 1))
+        or interaction.left_site != 0
+        or interaction.right_site != 0
+        for interaction in payload.interactions
+    ):
+        return {**unavailable, "reason": "finite periodic reference supports nearest-neighbor unit-cell interactions"}
+
+    def site_index(x: int, y: int) -> int:
+        return (int(x) % size) + size * (int(y) % size)
+
+    # Each unique torus bond receives one fused ket/bra index.  Sharing the
+    # same label between neighboring local tensors performs the exact finite
+    # double-layer contraction without constructing a statevector.
+    edge_labels = list("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    horizontal = {(x, y): edge_labels[y * size + x] for y in range(size) for x in range(size)}
+    vertical = {(x, y): edge_labels[size * size + y * size + x] for y in range(size) for x in range(size)}
+
+    def contract(operator_by_site: dict[int, np.ndarray]) -> float:
+        operands: list[np.ndarray] = []
+        subscripts: list[str] = []
+        for y in range(size):
+            for x in range(size):
+                site = site_index(x, y)
+                operator = operator_by_site.get(site, _pauli("I"))
+                layer = np.einsum(
+                    "sudlr,st,tUDLR->uUdDlLrR",
+                    tensor,
+                    operator,
+                    np.conjugate(tensor),
+                    optimize=True,
+                ).reshape((int(payload.virtual_bond_dim) ** 2,) * 4)
+                operands.append(layer)
+                subscripts.append(
+                    "".join((
+                        vertical[(x, (y - 1) % size)],
+                        vertical[(x, y)],
+                        horizontal[((x - 1) % size, y)],
+                        horizontal[(x, y)],
+                    ))
+                )
+        value = np.einsum(",".join(subscripts), *operands, optimize=True)
+        return float(np.real_if_close(value).real)
+
+    def operator_map(paulis: dict[int, str]) -> dict[int, np.ndarray]:
+        return {int(site): _pauli(str(label)) for site, label in paulis.items()}
+
+    def multiply_maps(left: dict[int, np.ndarray], right: dict[int, np.ndarray]) -> dict[int, np.ndarray]:
+        identities = _pauli("I")
+        return {
+            site: left.get(site, identities) @ right.get(site, identities)
+            for site in set(left) | set(right)
+        }
+
+    base_terms: list[tuple[float, dict[int, np.ndarray]]] = []
+    expected_onsite: list[float] = []
+    for term in payload.terms:
+        paulis = {0: str(next(iter(term.paulis.values()), "I"))}
+        mapped = operator_map({site_index(0, 0): label for _, label in paulis.items()})
+        expected_onsite.append(contract(mapped))
+        for y in range(size):
+            for x in range(size):
+                base_terms.append((float(term.coefficient), operator_map({site_index(x, y): str(next(iter(term.paulis.values()), "I"))})))
+
+    expected_interactions: list[float] = []
+    for interaction in payload.interactions:
+        dx, dy = (int(value) for value in interaction.displacement)
+        left = site_index(0, 0)
+        right = site_index(dx, dy)
+        representative = operator_map({left: str(interaction.left_pauli), right: str(interaction.right_pauli)})
+        expected_interactions.append(contract(representative))
+        for y in range(size):
+            for x in range(size):
+                base_terms.append((
+                    float(interaction.coefficient),
+                    operator_map({
+                        site_index(x, y): str(interaction.left_pauli),
+                        site_index(x + dx, y + dy): str(interaction.right_pauli),
+                    }),
+                ))
+
+    total_sites = size * size
+    reference_energy_total = sum(coefficient * contract(operators) for coefficient, operators in base_terms)
+    reference_energy = reference_energy_total / total_sites
+    second_moment_total = 0.0
+    for left_coefficient, left_operator in base_terms:
+        for right_coefficient, right_operator in base_terms:
+            second_moment_total += left_coefficient * right_coefficient * contract(multiply_maps(left_operator, right_operator))
+    second_moment = second_moment_total / (total_sites * total_sites)
+    variance = max(0.0, float(second_moment - reference_energy * reference_energy))
+    observable_errors = [abs(float(actual) - expected) for actual, expected in zip(onsite_values, expected_onsite)]
+    interaction_errors = [
+        abs(float(actual) - expected)
+        for actual, expected in zip(interaction_values, expected_interactions)
+        if actual is not None
+    ]
+    complete = all(value is not None for value in interaction_values)
+    max_error = max([*observable_errors, *interaction_errors, abs(float(ctmrg_energy) - reference_energy)], default=0.0)
+    return {
+        "performed": True,
+        "reference": "finite-periodic-peps-2x2",
+        "reference_sites": total_sites,
+        "reference_energy": float(reference_energy),
+        "energy_error": abs(float(ctmrg_energy) - reference_energy),
+        "energy_second_moment": float(second_moment),
+        "energy_variance": variance,
+        "observable_max_abs_error": max(observable_errors, default=0.0),
+        "interaction_max_abs_error": max(interaction_errors, default=0.0),
+        "max_abs_error": max_error,
+        "energy_complete": complete,
+        "passed": bool(complete and max_error <= max(float(tolerance), 1e-5)),
+        "tolerance": max(float(tolerance), 1e-5),
+        "limitations": [
+            "this is an exact 2x2 finite torus, not a thermodynamic-limit reference",
+            "compare multiple torus sizes and environment chi before drawing infinite-lattice conclusions",
         ],
     }

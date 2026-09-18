@@ -103,6 +103,37 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(result["reference_validation"]["passed"])
         self.assertEqual(result["reference_validation"]["reference"], "analytic-ghz-transfer-fixed-point")
 
+    def test_generic_virtual_two_tensor_gets_finite_periodic_reference(self):
+        tensor = np.zeros((2, 2, 2, 2, 2), dtype=np.complex128)
+        tensor[0, 0, 0, 0, 0] = 1.0
+        tensor[0, 1, 1, 1, 1] = 0.5
+        tensor[1, 0, 0, 0, 0] = 0.3
+        tensor[1, 1, 1, 1, 1] = 0.2
+        result = run_ctmrg(np, CTMRGPayload(
+            unit_cell=[1, 1],
+            virtual_bond_dim=2,
+            dtype="complex128",
+            tensor_data=[[float(value.real), float(value.imag)] for value in tensor.reshape(-1)],
+            environment_bond_dim=2,
+            iterations=3,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=0.2)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=0.4,
+            )],
+        ))
+        reference = result["reference_validation"]
+        self.assertTrue(reference["performed"])
+        self.assertEqual(reference["reference"], "finite-periodic-peps-2x2")
+        self.assertEqual(reference["reference_sites"], 4)
+        self.assertTrue(math.isfinite(reference["reference_energy"]))
+        self.assertFalse(reference["passed"])
+        self.assertTrue(any("finite-periodic-peps-2x2" in warning for warning in result["warnings"]))
+
     def test_two_site_checkerboard_contracts_neel_bond(self):
         payload = CTMRGPayload(
             unit_cell=[2, 1],
