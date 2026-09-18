@@ -266,6 +266,9 @@ but not released:
   Ising, Heisenberg, and XXZ unit cells without putting model logic into the
   numerical core; 1x1 and 2x2 product-limit tests pass the independent
   reference gate.
+- the product reference family now covers all 2x2 periodic Heisenberg bond
+  components as well as the earlier Ising and 1x1 Heisenberg limits, while
+  preserving the explicit finite-product limitation.
 - the spin-lattice plugin exposes that builder as a first-class `build_ctmrg`
   domain action, keeping future material/chemistry builders on the same
   plugin seam instead of adding model branches to the solver.

@@ -232,6 +232,21 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(result["reference_validation"]["passed"])
         self.assertAlmostEqual(result["energy_variance"], 0.0, places=6)
 
+    def test_periodic_heisenberg_two_by_two_reference_covers_all_bonds(self):
+        payload = build_ctmrg_spin_payload(
+            LatticeHamiltonianPayload(dimensions=[2, 2], model="heisenberg", coupling=1.0),
+            initial_state="up",
+            environment_bond_dim=2,
+            iterations=2,
+        )
+        result = run_ctmrg(np, payload)
+        # The product-up state contributes only ZZ on all eight directed
+        # periodic nearest-neighbor bonds in the explicit unit-cell contract.
+        self.assertEqual(len(payload.interactions), 24)
+        self.assertAlmostEqual(result["energy"], 8.0, places=6)
+        self.assertTrue(result["reference_validation"]["passed"])
+        self.assertAlmostEqual(result["reference_validation"]["interaction_max_abs_error"], 0.0, places=8)
+
     def test_two_by_two_checkpoint_resume_restores_all_environments(self):
         payload = CTMRGPayload(
             unit_cell=[2, 2],
