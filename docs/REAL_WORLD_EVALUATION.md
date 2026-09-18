@@ -224,6 +224,12 @@ the best sampled energy error is about `7.65e-3`, while other points exceed
 the study as diagnostic-only and does not use a single finite patch to promote
 the infinite CTMRG gate.
 
+The study is exposed as `/jobs/ctmrg/boundary-mps-convergence` and as the
+`ctmrg_boundary_mps_convergence` unified async kind. It uses the same GPU
+preflight, provenance, and bounded-point admission as CTMRG, making the
+diagnostic available to the future desktop surface without bypassing resource
+guards.
+
 The Torch unrolled and implicit full-update paths now have an explicit,
 opt-in optimizer checkpoint contract. A CPU resume-vs-fresh regression matches
 the final energy for both paths; checkpoint manifests bind the state to the

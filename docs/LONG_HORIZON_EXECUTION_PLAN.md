@@ -82,6 +82,12 @@ features.
   `0.29`; discarded weight is also non-monotone. This confirms the seam is
   useful evidence, not yet a converged infinite-2D reference.
 
+- The boundary-MPS study is now a first-class backend contract at
+  `/jobs/ctmrg/boundary-mps-convergence` and in the unified async API. It
+  performs CTMRG and the independent study under the same preflight/provenance
+  lifecycle, so the desktop layer can consume the diagnostics without calling
+  private numerical helpers.
+
 ### Four-step delivery ladder for the active phase
 
 The following ladder is the working sequence. Each step produces a commit and
