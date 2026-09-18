@@ -83,7 +83,8 @@
           "finite_difference": 0.012336297892034054,
           "index": 3
         }
-      ]
+      ],
+      "truncation_gradient": "frozen-eigenprojector"
     },
     {
       "device": "cuda",
@@ -168,18 +169,191 @@
           "finite_difference": 0.05528780416593631,
           "index": 3
         }
-      ]
+      ],
+      "truncation_gradient": "frozen-eigenprojector"
+    },
+    {
+      "device": "cuda",
+      "diagnostics": {
+        "energy": -0.009090154431760311,
+        "environment_bond_dim": 2,
+        "gradient_backend": "torch-autograd-unrolled-ctmrg",
+        "iterations": 2,
+        "materializes_statevector": false,
+        "residual": 7.063677530116941e-06,
+        "truncation_gradient": "differentiable-eigh"
+      },
+      "dtype": "complex64",
+      "energy": -0.009090154431760311,
+      "gauge_energy_delta": 0.017016565427184105,
+      "gauge_passed": false,
+      "gauge_tolerance": 0.0001,
+      "gauged_energy": 0.007926410995423794,
+      "gradient_passed": false,
+      "gradient_tolerance": 0.001,
+      "limitations": [
+        "selected finite-difference components only, not a full tensor Jacobian",
+        "the bounded objective uses a frozen truncation projector",
+        "a passed small gate would still not prove thermodynamic-limit convergence"
+      ],
+      "max_gradient_abs_error": 0.0020802542567253113,
+      "passed": false,
+      "samples": [
+        {
+          "abs_error": 0.0020802542567253113,
+          "autodiff": -0.057271357625722885,
+          "direction": "real",
+          "finite_difference": -0.055191103368997574,
+          "index": 0
+        },
+        {
+          "abs_error": 0.0013004029169678688,
+          "autodiff": -0.015258366242051125,
+          "direction": "imag",
+          "finite_difference": -0.013957963325083256,
+          "index": 0
+        },
+        {
+          "abs_error": 0.0019982545636594296,
+          "autodiff": 0.002154046669602394,
+          "direction": "real",
+          "finite_difference": 0.004152301233261824,
+          "index": 1
+        },
+        {
+          "abs_error": 0.001077760010957718,
+          "autodiff": 0.055428579449653625,
+          "direction": "imag",
+          "finite_difference": 0.05435081943869591,
+          "index": 1
+        },
+        {
+          "abs_error": 0.0009599216282367706,
+          "autodiff": -0.029397234320640564,
+          "direction": "real",
+          "finite_difference": -0.030357155948877335,
+          "index": 2
+        },
+        {
+          "abs_error": 0.0007387809455394745,
+          "autodiff": -0.05911757051944733,
+          "direction": "imag",
+          "finite_difference": -0.05837878957390785,
+          "index": 2
+        },
+        {
+          "abs_error": 0.0004763007164001465,
+          "autodiff": -0.04621611163020134,
+          "direction": "real",
+          "finite_difference": -0.04573981091380119,
+          "index": 3
+        },
+        {
+          "abs_error": 0.00022499915212392807,
+          "autodiff": 0.012561297044157982,
+          "direction": "imag",
+          "finite_difference": 0.012336297892034054,
+          "index": 3
+        }
+      ],
+      "truncation_gradient": "differentiable-eigh"
+    },
+    {
+      "device": "cuda",
+      "diagnostics": {
+        "energy": -0.02440399887113678,
+        "environment_bond_dim": 2,
+        "gradient_backend": "torch-autograd-unrolled-ctmrg",
+        "iterations": 1,
+        "materializes_statevector": false,
+        "residual": 4.1165859610003963e-10,
+        "truncation_gradient": "differentiable-eigh"
+      },
+      "dtype": "complex128",
+      "energy": -0.02440399887113678,
+      "gauge_energy_delta": 0.03682313166932931,
+      "gauge_passed": false,
+      "gauge_tolerance": 0.0001,
+      "gauged_energy": -0.06122713054046609,
+      "gradient_passed": true,
+      "gradient_tolerance": 0.001,
+      "limitations": [
+        "selected finite-difference components only, not a full tensor Jacobian",
+        "the bounded objective uses a frozen truncation projector",
+        "a passed small gate would still not prove thermodynamic-limit convergence"
+      ],
+      "max_gradient_abs_error": 1.6005671094054819e-10,
+      "passed": false,
+      "samples": [
+        {
+          "abs_error": 1.6005671094054819e-10,
+          "autodiff": -0.02740592919715514,
+          "direction": "real",
+          "finite_difference": -0.027405929037098428,
+          "index": 0
+        },
+        {
+          "abs_error": 5.254014237565663e-11,
+          "autodiff": 0.020901175194266756,
+          "direction": "imag",
+          "finite_difference": 0.0209011752468069,
+          "index": 0
+        },
+        {
+          "abs_error": 7.14598519246934e-12,
+          "autodiff": 0.058687429006983344,
+          "direction": "real",
+          "finite_difference": 0.05868742899983736,
+          "index": 1
+        },
+        {
+          "abs_error": 8.757571057227409e-12,
+          "autodiff": 0.03417888261329702,
+          "direction": "imag",
+          "finite_difference": 0.03417888262205459,
+          "index": 1
+        },
+        {
+          "abs_error": 1.927592460648775e-11,
+          "autodiff": 0.02747828137443476,
+          "direction": "real",
+          "finite_difference": 0.027478281355158837,
+          "index": 2
+        },
+        {
+          "abs_error": 9.546568396912036e-12,
+          "autodiff": 0.0173307953739835,
+          "direction": "imag",
+          "finite_difference": 0.01733079536443693,
+          "index": 2
+        },
+        {
+          "abs_error": 6.240799543810738e-11,
+          "autodiff": 0.04458366483057293,
+          "direction": "real",
+          "finite_difference": 0.044583664768164936,
+          "index": 3
+        },
+        {
+          "abs_error": 5.4629335777267585e-11,
+          "autodiff": 0.055287804111306973,
+          "direction": "imag",
+          "finite_difference": 0.05528780416593631,
+          "index": 3
+        }
+      ],
+      "truncation_gradient": "differentiable-eigh"
     }
   ],
-  "created_at": "2026-09-18T07:48:10.283652+00:00",
-  "git_revision": "3c2d2d2b398e6b80a850c79709c47ead82f95a33",
+  "created_at": "2026-09-18T07:52:41.885778+00:00",
+  "git_revision": "5c08f5de1bbad22059f5d1cd358de7815f4d49ad",
   "limitations": [
     "this is bounded acceptance evidence for a generic one-site D=2 cell",
     "failure keeps the infinite-CTMRG gradient path out of production admission"
   ],
   "platform": "Windows-10-10.0.26200-SP0",
   "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
-  "result_sha256": "88c5d0e7f2533f26b525a19f7e8d950a12cb926896aa38230ba26872402cd337",
+  "result_sha256": "9a3f184abafef858ba15aeda51e07fa56784bdc89cd81de5978ad944b04d10b8",
   "schema": "quantum-circuit/ctmrg-gradient-gate-v1",
   "status": "needs_review"
 }

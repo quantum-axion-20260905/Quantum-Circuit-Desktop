@@ -309,8 +309,10 @@ Current implementation status (unreleased Phase 4 work):
 - D=1 finite-difference/adjoint and CUDA endpoint gates pass, but generic D=2
   cells can still fail transfer-gap, gauge-sensitivity, or adjoint-residual
   gates and remain `needs_review`;
-- complex truncated eigenspaces currently use a frozen eigenprojector in
-  backward mode, so this is not yet the `v0.8.0` research-grade release.
+- the default complex backward path still uses a frozen eigenprojector; an
+  opt-in differentiable-eigh policy now fixes the sampled D=2 complex128
+  gradient gate, but paired-gauge drift remains and this is not yet the
+  `v0.8.0` research-grade release.
 
 Acceptance gate: environment `chi`, truncation, CTMRG residual, correlation
 length, and physical observable convergence are all reported and benchmarked.

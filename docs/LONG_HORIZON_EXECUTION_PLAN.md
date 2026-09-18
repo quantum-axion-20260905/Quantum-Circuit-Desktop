@@ -342,6 +342,10 @@ but not released:
   unrolled/implicit optimizer contract. It is opt-in, fails on non-finite
   gradients instead of falling back silently, and is still experimental until
   the same D=2 gradient/gauge/reference gate passes.
+- the first gate run shows differentiable-eigh complex128 fixes the sampled
+  gradient error, while the paired virtual-gauge energy drift remains
+  nonzero; the next packet must therefore solve environment gauge stability,
+  not merely expose another derivative mode.
 - CTMRG convergence now uses a boundary-basis-invariant singular-spectrum
   residual, while retaining the raw corner/edge entry residual as a separate
   diagnostic; this prevents harmless retained-basis rotations from being

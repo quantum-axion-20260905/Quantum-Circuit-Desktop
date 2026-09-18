@@ -107,14 +107,18 @@ runtime gate but remains `Needs review` for generic entangled cells; complex
 truncation currently uses a frozen eigenprojector in backward mode.
 
 A dedicated reproducible D=2 CUDA gradient gate confirms that this is a real
-scientific limitation rather than only a precision warning. On the RTX 3060,
-complex64 reached residual 7.06e-6 but had maximum sampled
-autodiff-vs-central-difference error 1.74e-2 and gauge energy drift 1.70e-2.
-With complex128 and residual 4.12e-10, the maximum sampled gradient error was
-1.23e-1 and gauge drift 3.68e-2. The gate therefore returns needs_review for
-both precisions; its replayable evidence is
+scientific limitation rather than only a precision warning. With the frozen
+projector, complex64 reached residual 7.06e-6 but had maximum sampled
+autodiff-vs-central-difference error 1.74e-2 and gauge energy drift 1.70e-2;
+complex128 reached residual 4.12e-10 but still had gradient error 1.23e-1 and
+gauge drift 3.68e-2. The opt-in differentiable-eigh policy fixes the gradient
+component at complex128 (maximum error 1.60e-10) and reduces the complex64
+error to 2.08e-3, but both still retain gauge drift 3.68e-2. The gate
+therefore remains needs_review because the environment is not yet gauge
+stable; its replayable evidence is
 [ctmrg_gradient_gate_2026-09-18.json](C:/Users/shaxz/OneDrive/Dokumenty/Quantum-Circuit-Desktop/docs/evidence/ctmrg_gradient_gate_2026-09-18.json).
-This points to frozen truncation/gauge sensitivity, not host-RAM pressure.
+This separates the truncation-derivative problem from the remaining
+gauge-sensitive environment problem, not from host-RAM pressure.
 
 An opt-in paired virtual-gauge probe was added to the CTMRG request contract.
 On a deterministic random D=2 cell (`χ=2`, four iterations), the exact finite
