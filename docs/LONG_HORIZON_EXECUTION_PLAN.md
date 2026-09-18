@@ -338,6 +338,10 @@ but not released:
   gauge evidence for both complex64 and complex128. Both cases currently
   remain needs_review, so the frozen-projector gradient is not promoted by
   a small residual alone.
+- an explicit differentiable-eigh truncation mode now exists behind the Torch
+  unrolled/implicit optimizer contract. It is opt-in, fails on non-finite
+  gradients instead of falling back silently, and is still experimental until
+  the same D=2 gradient/gauge/reference gate passes.
 - CTMRG convergence now uses a boundary-basis-invariant singular-spectrum
   residual, while retaining the raw corner/edge entry residual as a separate
   diagnostic; this prevents harmless retained-basis rotations from being

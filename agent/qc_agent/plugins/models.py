@@ -244,6 +244,7 @@ class CTMRGPayload(BaseModel):
     full_update_implicit_iterations: int = Field(default=32, ge=1, le=256)
     full_update_implicit_tolerance: float = Field(default=1e-6, gt=0, le=1.0)
     full_update_implicit_damping: float = Field(default=0.5, gt=0, le=1.0)
+    full_update_truncation_gradient: Literal["frozen-eigenprojector", "differentiable-eigh"] = "frozen-eigenprojector"
     gauge_validation: bool = False
     gauge_validation_tolerance: float = Field(default=1e-4, gt=0, le=1.0)
     initial_state: Literal["up", "down", "plus", "neel"] = "up"
@@ -295,6 +296,16 @@ class CTMRGPayload(BaseModel):
         ):
             raise ValueError(
                 "optimizer checkpoint state requires a supported full-update optimizer strategy"
+            )
+        if self.full_update_truncation_gradient != "frozen-eigenprojector" and (
+            self.optimization != "full-update"
+            or self.full_update_optimizer not in {
+                "autodiff-ctmrg-gradient",
+                "implicit-ctmrg-gradient",
+            }
+        ):
+            raise ValueError(
+                "differentiable-eigh truncation requires the Torch unrolled or implicit full-update optimizer"
             )
         expected_tensor_values = (
             cell_sites * int(self.physical_bond_dim) * int(self.virtual_bond_dim) ** 4

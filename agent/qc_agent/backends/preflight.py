@@ -335,10 +335,18 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
                     break
         elif getattr(payload, "full_update_optimizer", "coordinate") == "autodiff-ctmrg-gradient":
             warnings.append("autodiff-ctmrg-gradient requires the optional PyTorch CUDA runtime")
-            warnings.append("autodiff-ctmrg-gradient differentiates a bounded unrolled CTMRG environment with a frozen truncation projector; it is not yet an implicit fixed-point variational proof")
+            warnings.append(
+                "autodiff-ctmrg-gradient uses differentiable Hermitian truncation and requires non-degenerate spectra"
+                if getattr(payload, "full_update_truncation_gradient", "frozen-eigenprojector") == "differentiable-eigh" else
+                "autodiff-ctmrg-gradient differentiates a bounded unrolled CTMRG environment with a frozen truncation projector; it is not yet an implicit fixed-point variational proof"
+            )
         elif getattr(payload, "full_update_optimizer", "coordinate") == "implicit-ctmrg-gradient":
             warnings.append("implicit-ctmrg-gradient requires the optional PyTorch CUDA runtime")
-            warnings.append("implicit-ctmrg-gradient is admitted only as a bounded adjoint research path until transfer-gap and gauge gates pass")
+            warnings.append(
+                "implicit-ctmrg-gradient with differentiable Hermitian truncation is admitted only as a bounded research path until spectral, transfer-gap, gauge, and backward-error gates pass"
+                if getattr(payload, "full_update_truncation_gradient", "frozen-eigenprojector") == "differentiable-eigh" else
+                "implicit-ctmrg-gradient is admitted only as a bounded adjoint research path until transfer-gap and gauge gates pass"
+            )
     if bool(getattr(payload, "gauge_validation", False)) and virtual_bond_dim > 2:
         warnings.append("gauge validation requires virtual_bond_dim<=2")
     if estimated_full_update_evaluations is not None and estimated_full_update_evaluations + gauge_probe_evaluations > int(getattr(payload, "full_update_max_evaluations", 512)):

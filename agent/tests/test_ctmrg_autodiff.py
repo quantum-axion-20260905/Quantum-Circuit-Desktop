@@ -58,6 +58,27 @@ class CTMRGAutodiffTests(unittest.TestCase):
         self.assertEqual(diagnostics["gradient_backend"], "torch-autograd-unrolled-ctmrg")
         self.assertFalse(diagnostics["materializes_statevector"])
 
+    def test_differentiable_eigh_truncation_is_explicit_and_finite(self):
+        import torch
+
+        from qc_agent.core.ctmrg_autodiff import differentiable_ctmrg_energy
+
+        generator = torch.Generator().manual_seed(19)
+        raw = torch.randn((2, 2, 2, 2, 2), dtype=torch.float64, generator=generator)
+        tensor = (raw + 1j * torch.flip(raw, dims=[0])).to(torch.complex128)
+        tensor = (tensor / torch.linalg.norm(tensor)).requires_grad_(True)
+        payload = _payload().model_copy(update={
+            "dtype": "complex128",
+            "virtual_bond_dim": 2,
+            "environment_bond_dim": 2,
+            "iterations": 3,
+            "full_update_truncation_gradient": "differentiable-eigh",
+        })
+        energy, diagnostics = differentiable_ctmrg_energy(torch, payload, [tensor])
+        gradient = torch.autograd.grad(energy, [tensor])[0]
+        self.assertEqual(diagnostics["truncation_gradient"], "differentiable-eigh")
+        self.assertTrue(bool(torch.isfinite(gradient).all()))
+
     def test_implicit_fixed_point_gradient_matches_central_difference(self):
         import torch
 

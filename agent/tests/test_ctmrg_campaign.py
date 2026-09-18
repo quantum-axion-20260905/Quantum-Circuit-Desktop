@@ -39,6 +39,13 @@ class CTMRGCampaignTests(unittest.TestCase):
         self.assertEqual(payload.environment_bond_dim, 2)
         self.assertEqual(payload.full_update_optimizer, "autodiff-ctmrg-gradient")
         self.assertEqual(len(payload.interactions), 1)
+        differentiable = build_gradient_payload(
+            "complex128",
+            iterations=5,
+            tolerance=1e-7,
+            truncation_gradient="differentiable-eigh",
+        )
+        self.assertEqual(differentiable.full_update_truncation_gradient, "differentiable-eigh")
 
 
 if __name__ == "__main__":

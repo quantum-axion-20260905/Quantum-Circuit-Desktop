@@ -1048,12 +1048,21 @@ def run_ctmrg(
     if payload.optimization == "simple-update":
         warnings.append("simple-update is an imaginary-time entangled-tensor baseline; compare it against the bounded full-update path before treating energies as variational evidence")
     elif payload.optimization == "full-update":
+        truncation_gradient = str(getattr(payload, "full_update_truncation_gradient", "frozen-eigenprojector"))
         if payload.full_update_optimizer == "finite-torus-gradient":
             warnings.append("finite-torus-gradient optimizes an exact bounded 2x2 periodic reference objective; it is not an infinite-lattice variational proof")
         elif payload.full_update_optimizer == "autodiff-ctmrg-gradient":
-            warnings.append("torch autograd differentiates a bounded unrolled CTMRG environment with a frozen truncation projector; it is experimental and not yet an implicit fixed-point variational proof")
+            warnings.append(
+                "torch autograd differentiates a bounded unrolled CTMRG environment with a differentiable Hermitian truncation eigenspace; it is experimental and requires non-degenerate transfer spectra"
+                if truncation_gradient == "differentiable-eigh" else
+                "torch autograd differentiates a bounded unrolled CTMRG environment with a frozen truncation projector; it is experimental and not yet an implicit fixed-point variational proof"
+            )
         elif payload.full_update_optimizer == "implicit-ctmrg-gradient":
-            warnings.append("implicit-ctmrg-gradient uses a bounded adjoint fixed-point solve with a frozen truncation projector; validate transfer gaps, gauge sensitivity, and backward residual before scientific use")
+            warnings.append(
+                "implicit-ctmrg-gradient uses a bounded adjoint fixed-point solve with differentiable Hermitian truncation; validate non-degenerate spectra, transfer gaps, gauge sensitivity, and backward residual before scientific use"
+                if truncation_gradient == "differentiable-eigh" else
+                "implicit-ctmrg-gradient uses a bounded adjoint fixed-point solve with a frozen truncation projector; validate transfer gaps, gauge sensitivity, and backward residual before scientific use"
+            )
             if optimization_info is not None:
                 transfer_gap = float(optimization_info.get("transfer_gap", 0.0))
                 adjoint_residual = float(optimization_info.get("adjoint_residual", math.inf))

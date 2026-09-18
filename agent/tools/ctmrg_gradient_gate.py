@@ -38,7 +38,13 @@ def _git_revision() -> str | None:
     return completed.stdout.strip() or None
 
 
-def build_gradient_payload(dtype: str, *, iterations: int, tolerance: float) -> CTMRGPayload:
+def build_gradient_payload(
+    dtype: str,
+    *,
+    iterations: int,
+    tolerance: float,
+    truncation_gradient: str = "frozen-eigenprojector",
+) -> CTMRGPayload:
     """Build the fixed one-site D=2 nearest-neighbor gate problem."""
 
     return CTMRGPayload(
@@ -49,6 +55,7 @@ def build_gradient_payload(dtype: str, *, iterations: int, tolerance: float) -> 
         tolerance=float(tolerance),
         optimization="full-update",
         full_update_optimizer="autodiff-ctmrg-gradient",
+        full_update_truncation_gradient=truncation_gradient,
         interactions=[IPEPSInteraction(
             left_site=0,
             right_site=0,
@@ -60,7 +67,12 @@ def build_gradient_payload(dtype: str, *, iterations: int, tolerance: float) -> 
     )
 
 
-def run_gradient_gate(torch: Any, *, dtype_name: str) -> dict[str, Any]:
+def run_gradient_gate(
+    torch: Any,
+    *,
+    dtype_name: str,
+    truncation_gradient: str,
+) -> dict[str, Any]:
     """Run one deterministic dtype case on the caller-selected Torch device."""
 
     device = torch.device("cuda")
@@ -83,7 +95,12 @@ def run_gradient_gate(torch: Any, *, dtype_name: str) -> dict[str, Any]:
     raw = torch.randn((2, 2, 2, 2, 2), dtype=real_dtype, device=device)
     raw = raw + 1j * torch.randn((2, 2, 2, 2, 2), dtype=real_dtype, device=device)
     tensor = (raw / torch.linalg.norm(raw)).to(dtype).requires_grad_(True)
-    payload = build_gradient_payload(dtype_name, iterations=iterations, tolerance=tolerance)
+    payload = build_gradient_payload(
+        dtype_name,
+        iterations=iterations,
+        tolerance=tolerance,
+        truncation_gradient=truncation_gradient,
+    )
     energy, diagnostics = differentiable_ctmrg_energy(torch, payload, [tensor])
     gradient = torch.autograd.grad(energy, [tensor])[0].detach().reshape(-1)
 
@@ -116,6 +133,7 @@ def run_gradient_gate(torch: Any, *, dtype_name: str) -> dict[str, Any]:
     gauge_tolerance = 1e-4
     return {
         "dtype": dtype_name,
+        "truncation_gradient": truncation_gradient,
         "device": str(device),
         "energy": float(energy.detach().cpu()),
         "gauged_energy": float(gauged_energy.detach().cpu()),
@@ -140,8 +158,9 @@ def run_gate(torch: Any) -> dict[str, Any]:
     """Run both precision cases and return a versioned acceptance artifact."""
 
     cases = [
-        run_gradient_gate(torch, dtype_name="complex64"),
-        run_gradient_gate(torch, dtype_name="complex128"),
+        run_gradient_gate(torch, dtype_name=dtype_name, truncation_gradient=truncation_gradient)
+        for truncation_gradient in ("frozen-eigenprojector", "differentiable-eigh")
+        for dtype_name in ("complex64", "complex128")
     ]
     return {
         "schema": "quantum-circuit/ctmrg-gradient-gate-v1",

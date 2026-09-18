@@ -53,6 +53,16 @@ def _normalize(torch: Any, tensors: list[Any]) -> list[Any]:
     return [tensor / (torch.linalg.norm(tensor) + 1e-30) for tensor in tensors]
 
 
+def _truncation_gradient_mode(payload: CTMRGPayload) -> str:
+    """Return the explicit truncation derivative policy for a Torch run."""
+
+    return str(getattr(payload, "full_update_truncation_gradient", "frozen-eigenprojector"))
+
+
+def _differentiate_truncation(payload: CTMRGPayload) -> bool:
+    return _truncation_gradient_mode(payload) == "differentiable-eigh"
+
+
 def _restore_torch_optimizer_state(
     torch: Any,
     xp: Any,
@@ -439,7 +449,7 @@ def implicit_ctmrg_energy_and_gradient(
         payload,
         layers,
         graph_environments,
-        differentiate_truncation=False,
+        differentiate_truncation=_differentiate_truncation(payload),
     )
     mapped_vector = _pack_environment(torch, mapped_environments)
 
@@ -513,7 +523,7 @@ def implicit_ctmrg_energy_and_gradient(
         "adjoint_delta": adjoint_delta,
         "adjoint_residual": adjoint_residual,
         "gradient_backend": "torch-autograd-implicit-fixed-point",
-        "truncation_gradient": "frozen-eigenprojector",
+        "truncation_gradient": _truncation_gradient_mode(payload),
         "materializes_statevector": False,
     }
 
@@ -544,7 +554,7 @@ def differentiable_ctmrg_energy(torch: Any, payload: CTMRGPayload, tensors: list
             payload,
             layers,
             environments,
-            differentiate_truncation=False,
+            differentiate_truncation=_differentiate_truncation(payload),
         )
         residual = max(
             _environment_residual(torch, old, new)
@@ -573,7 +583,7 @@ def differentiable_ctmrg_energy(torch: Any, payload: CTMRGPayload, tensors: list
         "iterations": completed,
         "environment_bond_dim": chi,
         "gradient_backend": "torch-autograd-unrolled-ctmrg",
-        "truncation_gradient": "frozen-eigenprojector",
+        "truncation_gradient": _truncation_gradient_mode(payload),
         "materializes_statevector": False,
     }
 
@@ -639,6 +649,8 @@ def run_autodiff_full_update(
             break
         energy_tensor, diagnostics = evaluated
         gradients = torch.autograd.grad(energy_tensor, working, allow_unused=False)
+        if not all(bool(torch.isfinite(gradient).all()) for gradient in gradients):
+            raise ValueError("autodiff CTMRG produced a non-finite tensor gradient")
         gradient_norm = math.sqrt(sum(float(torch.sum(torch.abs(gradient) ** 2).detach().cpu()) for gradient in gradients))
         sweep_start = float(energy_tensor.detach().cpu())
         accepted = None
@@ -706,7 +718,7 @@ def run_autodiff_full_update(
         "parameter_count": parameter_count,
         "optimizer": "autodiff-ctmrg-gradient",
         "gradient_backend": "torch-autograd-unrolled-ctmrg",
-        "truncation_gradient": "frozen-eigenprojector",
+        "truncation_gradient": _truncation_gradient_mode(payload),
         "objective": "infinite-ctmrg-unrolled-environment",
         "environment_iterations": int(payload.iterations),
         "materializes_reference_statevector": False,
@@ -794,6 +806,8 @@ def run_implicit_full_update(
             budget_exhausted = True
             break
         energy_tensor, gradients, diagnostics = evaluated
+        if not all(bool(torch.isfinite(gradient).all()) for gradient in gradients):
+            raise ValueError("implicit CTMRG produced a non-finite tensor gradient")
         gradient_norm = math.sqrt(sum(float(torch.sum(torch.abs(gradient) ** 2).detach().cpu()) for gradient in gradients))
         sweep_start = float(energy_tensor.detach().cpu())
         accepted = None
@@ -869,7 +883,7 @@ def run_implicit_full_update(
         "parameter_count": parameter_count,
         "optimizer": "implicit-ctmrg-gradient",
         "gradient_backend": "torch-autograd-implicit-fixed-point",
-        "truncation_gradient": "frozen-eigenprojector",
+        "truncation_gradient": _truncation_gradient_mode(payload),
         "objective": "infinite-ctmrg-implicit-fixed-point-environment",
         "environment_iterations": int(payload.iterations),
         "materializes_reference_statevector": False,
