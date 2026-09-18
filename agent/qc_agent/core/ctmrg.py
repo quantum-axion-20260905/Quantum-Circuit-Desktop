@@ -1355,6 +1355,7 @@ def run_ctmrg_convergence_study(
             ]
             interaction_delta = max(comparable, default=0.0)
         reference = result["reference_validation"]
+        research_gate = result["research_gate"]
         points.append({
             "environment_bond_dim": environment_bond_dim,
             "environment_bond_dim_used": int(result["environment_bond_dim_used"]),
@@ -1376,6 +1377,10 @@ def run_ctmrg_convergence_study(
             "reference_name": reference.get("reference") if reference.get("performed") else None,
             "reference_passed": bool(reference.get("passed")) if reference.get("performed") else None,
             "reference_max_abs_error": reference.get("max_abs_error"),
+            "research_gate": research_gate,
+            "research_gate_status": research_gate.get("status"),
+            "research_gate_production_ready": bool(research_gate.get("production_ready", False)),
+            "research_gate_blocking_reasons": list(research_gate.get("blocking_reasons", [])),
             "gauge_conditioning_well_conditioned": bool(
                 result["gauge_conditioning"].get("well_conditioned", False)
             ),
@@ -1395,6 +1400,21 @@ def run_ctmrg_convergence_study(
         for point in points
         if point["reference_max_abs_error"] is not None
     ]
+    research_gate_statuses = [str(point["research_gate_status"]) for point in points]
+    research_gate_blocking_reasons = sorted({
+        str(reason)
+        for point in points
+        for reason in point["research_gate_blocking_reasons"]
+    })
+    research_gate_summary = {
+        "status": "passed" if all(status == "passed" for status in research_gate_statuses) else "needs_review",
+        "scope": "bounded-declared-ctmrg-study-contract",
+        "production_ready": bool(all(point["research_gate_production_ready"] for point in points)),
+        "points": len(points),
+        "passed_points": sum(status == "passed" for status in research_gate_statuses),
+        "review_points": sum(status != "passed" for status in research_gate_statuses),
+        "blocking_reasons": research_gate_blocking_reasons,
+    }
 
     return {
         "status": "done",
@@ -1410,6 +1430,7 @@ def run_ctmrg_convergence_study(
             "passed_points": sum(1 for point in points if point["reference_passed"] is True),
             "max_abs_error": max(reference_errors, default=None),
         },
+        "research_gate_summary": research_gate_summary,
         "gauge_conditioning": study_gauge_conditioning or {
             "performed": False,
             "reason": "study has no points",

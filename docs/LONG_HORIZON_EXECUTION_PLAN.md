@@ -12,6 +12,64 @@ frontend path, replay/export path, documentation, and release evidence all
 exist. A phase can be useful before it is complete, but it is not promoted to
 the next maturity level until its gate passes.
 
+## Long-running operating agreement
+
+This file is the single source of truth for an extended autonomous work
+session. The active packet is always the first incomplete packet below; later
+phases are design constraints and backlog, not permission to open unrelated
+features.
+
+### Active status — 2026-09-18
+
+- Active phase: Phase 4, CTMRG/iPEPS research admission.
+- Current release: `v0.7.1`; the next release is not tagged until the Phase 4
+  gate passes.
+- Current useful capability: bounded product-state CTMRG has a declared
+  research gate; generic entangled `D>1` results remain `needs_review`.
+- Current scientific blocker: the paired virtual-gauge energy drift is still
+  nonzero on the entangled CUDA gate. This is an environment/gauge-stability
+  problem, not something to hide with looser tolerances or UI wording.
+- Current resource rule: GPU experiments stay small and bounded; the agent
+  must not inspect, stop, or compete with unrelated high-RAM training jobs.
+
+### Four-step delivery ladder for the active phase
+
+The following ladder is the working sequence. Each step produces a commit and
+evidence before the next step starts.
+
+1. **Contract and runtime closure.** Carry the research-gate verdict through
+   the convergence-study, async-job, export, replay, and desktop API surfaces.
+   Verify the live local server against the same contracts used by tests.
+2. **Gauge-stable contraction.** Investigate a covariant environment basis or
+   preconditioner in isolated experiments first. Promote it only if finite
+   reference energy/observables, paired-gauge invariance, residuals, and
+   chi/iteration convergence all improve or stay within declared budgets.
+3. **Variational entangled solver.** Re-run differentiable truncation and
+   implicit-adjoint gates on small entangled cells, then add bounded optimizer
+   convergence and checkpoint evidence. No generic `D>1` production label is
+   allowed before this step passes.
+4. **Research release and desktop surface.** Expose only the admitted
+   capability in the desktop UI, add replay/export/failure/cancellation QA,
+   update the capability matrix, run the full bounded gate, then tag and push
+   the release.
+
+### Checkpoint discipline
+
+After every implementation slice the agent records: changed contracts,
+focused tests, full-suite result when applicable, GPU memory/time evidence,
+known limitations, git revision, and the exact next packet. A failed gate is
+evidence and remains visible; it is not converted into a passing result by
+changing presentation code. If a packet does not improve a declared gate, it
+is reverted or kept as an explicitly experimental branch of the architecture.
+
+### Frontend timing rule
+
+The frontend may be polished continuously for capabilities already admitted,
+but new solver controls wait until the backend contract, preflight, result
+diagnostics, replay, and at least one independent reference are stable. This
+keeps the desktop useful during the long build without creating controls for
+algorithms that are not yet scientifically supported.
+
 The authoritative current release is v0.7.1: a bounded spin-lattice vertical
 slice covering Ising, Heisenberg, XXZ, MPS/DMRG/TEBD, and finite open-2D
 boundary-MPS/PEPS.

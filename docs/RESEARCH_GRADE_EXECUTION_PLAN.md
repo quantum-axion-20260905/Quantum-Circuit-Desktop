@@ -434,9 +434,10 @@ When this document is used as the goal-mode brief, the agent should:
 9. If blocked, record the exact failing contract, test, or environment
    dependency here instead of opening an unrelated backend.
 
-The Phase 2 goal-mode task is complete. The next goal may start Phase 3, but
-must preserve the same contract-first gates and must not call finite
-boundary-MPS a CTMRG or production large-3D solver.
+The Phase 2 and Phase 3 goal-mode tasks are complete. The active goal is now
+Phase 4 CTMRG/iPEPS admission, and it must preserve the same contract-first
+gates. Finite boundary-MPS must not be called CTMRG, and bounded CTMRG must
+not be called a production large-3D solver.
 
 ## 7. Progress accounting
 
