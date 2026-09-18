@@ -840,6 +840,7 @@ def run_ctmrg(
     converged = bool(residual <= float(payload.tolerance))
     result_method = (
         "ipeps-full-update-gradient-ctmrg" if payload.optimization == "full-update" and payload.full_update_optimizer == "finite-difference-gradient" else
+        "ipeps-full-update-spsa-ctmrg" if payload.optimization == "full-update" and payload.full_update_optimizer == "spsa-gradient" else
         "ipeps-full-update-ctmrg" if payload.optimization == "full-update" else
         "ipeps-simple-update-ctmrg" if payload.optimization == "simple-update" else
         "ipeps-ctmrg-product-optimization" if optimization_info is not None else
@@ -857,6 +858,8 @@ def run_ctmrg(
     elif payload.optimization == "full-update":
         if payload.full_update_optimizer == "finite-difference-gradient":
             warnings.append("finite-difference-gradient full-update is a bounded gradient estimate; it is not automatic differentiation and does not scale to large tensors")
+        elif payload.full_update_optimizer == "spsa-gradient":
+            warnings.append("SPSA full-update uses two deterministic simultaneous-perturbation evaluations per step; it is a scalable approximate gradient baseline, not automatic differentiation or a variational convergence proof")
         else:
             warnings.append("full-update re-evaluates CTMRG energy for bounded coordinate trials; it is not an automatic-differentiation optimizer")
     elif optimization_info is not None:

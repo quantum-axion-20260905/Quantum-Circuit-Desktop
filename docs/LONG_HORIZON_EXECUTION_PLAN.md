@@ -247,6 +247,11 @@ but not released:
   with a line search, evaluation budget, gradient diagnostics, and separate
   result method; it is a bridge for small tensors and is still not the
   scalable automatic-differentiation solver required for the release gate.
+- a deterministic SPSA/simultaneous-perturbation full-update baseline now
+  estimates a dense real/imaginary tensor direction with two objective
+  evaluations per step, independent of parameter count; its budget,
+  gradient scale, line search, and approximate/non-AD limitation are exposed
+  in the result and preflight contract.
 - CTMRG environment initialization now uses a deterministic full-support
   regularization so symmetry-degenerate D=2 transfer sectors do not produce
   accidental zero-over-zero two-site observables; unresolved transfer gaps

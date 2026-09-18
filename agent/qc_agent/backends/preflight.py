@@ -263,9 +263,16 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         complex_parameters = cell_sites * physical_bond_dim * max(1, virtual_bond_dim ** 4) * 2
         max_parameters = int(getattr(payload, "full_update_max_parameters", 32))
         optimizer = getattr(payload, "full_update_optimizer", "coordinate")
-        evaluations_per_parameter = 4 if optimizer == "finite-difference-gradient" else 4
-        estimated_full_update_evaluations = 1 + int(getattr(payload, "optimization_steps", 1)) * min(complex_parameters, max_parameters) * evaluations_per_parameter
-        estimated_full_update_evaluations += int(getattr(payload, "optimization_steps", 1)) * (4 if optimizer == "finite-difference-gradient" else 0)
+        if optimizer == "spsa-gradient":
+            # Two simultaneous perturbations plus up to four bounded line
+            # search candidates per optimizer step, independent of tensor
+            # parameter count.
+            evaluations_per_parameter = 0
+            estimated_full_update_evaluations = 1 + int(getattr(payload, "optimization_steps", 1)) * 6
+        else:
+            evaluations_per_parameter = 4 if optimizer == "finite-difference-gradient" else 4
+            estimated_full_update_evaluations = 1 + int(getattr(payload, "optimization_steps", 1)) * min(complex_parameters, max_parameters) * evaluations_per_parameter
+            estimated_full_update_evaluations += int(getattr(payload, "optimization_steps", 1)) * (4 if optimizer == "finite-difference-gradient" else 0)
         work *= max(1, min(estimated_full_update_evaluations, int(getattr(payload, "full_update_max_evaluations", 512))))
     estimated_ms = int(1 + work / 25_000)
     warnings: list[str] = [
