@@ -204,6 +204,18 @@ still did not converge and the sector spread became large. The result is
 useful as a fixed-point diagnostic and is forwarded through the spin-lattice
 plugin; it is not enabled as an optimizer or production policy.
 
+### Independent finite-cylinder boundary-MPS reference
+
+The CTMRG backend now has an opt-in `boundary_mps_reference` diagnostic. It
+repeats the declared unit cell on a finite open patch and contracts rows as
+MPOs against a boundary MPS, retaining discarded-weight and boundary-bond
+diagnostics. Evidence is recorded in
+`docs/evidence/ctmrg_boundary_mps_reference_2026-09-18.json`: the D=1 product
+limit matches exactly, but the random D=2 CUDA run has energy discrepancies of
+about `7.3e-2`–`8.7e-2` and substantial discarded weight. This is independent
+diagnostic evidence, not an infinite-lattice reference or a replacement for
+CTMRG; patch-size and boundary-bond convergence are still required.
+
 The Torch unrolled and implicit full-update paths now have an explicit,
 opt-in optimizer checkpoint contract. A CPU resume-vs-fresh regression matches
 the final energy for both paths; checkpoint manifests bind the state to the

@@ -1,0 +1,39 @@
+{
+  "artifact": "ctmrg-finite-cylinder-boundary-mps-reference",
+  "date": "2026-09-18",
+  "git_revision": "a6f661e",
+  "verification": {
+    "full_backend_unittest": "147/147 passed",
+    "product_reference": "passed on NumPy",
+    "random_reference": "bounded CuPy CUDA diagnostic",
+    "scope": "finite open 4x4 patch with repeated iPEPS unit cell"
+  },
+  "product_d1": {
+    "patch": [3, 3],
+    "boundary_bond_dim": 4,
+    "ctmrg_energy": 1.5,
+    "boundary_mps_energy": 1.5,
+    "max_abs_error": 0.0,
+    "discarded_weight": 0.0,
+    "decision": "reference-seam-regression-passed"
+  },
+  "random_d2_one_by_one": {
+    "seed": 20260918,
+    "backend": "CuPy CUDA",
+    "dtype": "complex64",
+    "ctmrg_environment_bond_dim": 2,
+    "ctmrg_iterations": 8,
+    "rows": [
+      {"boundary_bond_dim": 2, "ctmrg_energy": -0.23707599937915802, "boundary_mps_energy": -0.15023019915337812, "energy_error": 0.0868458002257799, "observable_max_abs_error": 0.014403977084506914, "interaction_max_abs_error": 0.10124977731028681, "norm_discarded_weight": 1.6209687231025658},
+      {"boundary_bond_dim": 4, "ctmrg_energy": -0.23707599937915802, "boundary_mps_energy": -0.15161934282089237, "energy_error": 0.08545665655826565, "observable_max_abs_error": 0.03140947463500443, "interaction_max_abs_error": 0.11686613119327008, "norm_discarded_weight": 0.6374406269005428},
+      {"boundary_bond_dim": 8, "ctmrg_energy": -0.23707599937915802, "boundary_mps_energy": -0.16451016960436077, "energy_error": 0.07256582977479725, "observable_max_abs_error": 0.060835395660025715, "interaction_max_abs_error": 0.13340122543482297, "norm_discarded_weight": 0.39054085492130697}
+    ]
+  },
+  "decision": "admit-as-independent-diagnostic-only",
+  "conclusion": [
+    "The independent boundary-MPS path reproduces the declared product limit.",
+    "For the sampled random entangled cell, truncation and boundary effects remain large; increasing boundary bond dimension does not yet provide a production-quality agreement gate.",
+    "The diagnostic is intentionally not substituted for CTMRG and does not establish an infinite-lattice fixed point."
+  ],
+  "next_action": "add patch-size/boundary-bond convergence studies and use the diagnostic to guide a future transfer-fixed-point environment"
+}

@@ -67,6 +67,14 @@ features.
   an explicit experimental control, not a production admission shortcut; the
   default remains `1.0` and optimizer paths are unchanged.
 
+- An independent finite-cylinder boundary-MPS reference seam is now available
+  behind `boundary_mps_reference`. Its product D=1 regression passes exactly,
+  while the random D=2 CUDA packet in
+  `docs/evidence/ctmrg_boundary_mps_reference_2026-09-18.json` shows large
+  truncation and finite-boundary effects. It is diagnostic-only and cannot
+  promote an infinite CTMRG result by itself. The next fixed-point packet
+  compares patch size, boundary bond dimension, and CTMRG χ together.
+
 ### Four-step delivery ladder for the active phase
 
 The following ladder is the working sequence. Each step produces a commit and
