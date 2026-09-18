@@ -237,7 +237,7 @@ class CTMRGPayload(BaseModel):
     optimization_dt: float = Field(default=0.01, gt=0, le=1.0)
     full_update_step: float = Field(default=0.05, gt=0, le=1.0)
     full_update_max_parameters: int = Field(default=128, ge=1, le=256)
-    full_update_optimizer: Literal["coordinate", "finite-difference-gradient", "spsa-gradient", "finite-torus-gradient"] = "coordinate"
+    full_update_optimizer: Literal["coordinate", "finite-difference-gradient", "spsa-gradient", "finite-torus-gradient", "autodiff-ctmrg-gradient"] = "coordinate"
     full_update_gradient_epsilon: float = Field(default=1e-3, gt=0, le=0.1)
     full_update_spsa_directions: int = Field(default=4, ge=1, le=16)
     full_update_max_evaluations: int = Field(default=1024, ge=8, le=4096)

@@ -279,6 +279,13 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
             # explicit, separately admitted validation mode.
             evaluations_per_parameter = 0
             estimated_full_update_evaluations = 1 + int(getattr(payload, "optimization_steps", 1)) * 5
+        elif optimizer == "autodiff-ctmrg-gradient":
+            # One initial objective, one gradient objective per update, and up
+            # to four bounded line-search candidates.  This is deliberately
+            # conservative because the optional Torch backend must obey the
+            # same admission budget as the CuPy optimizers.
+            evaluations_per_parameter = 0
+            estimated_full_update_evaluations = 1 + int(getattr(payload, "optimization_steps", 1)) * 5
         else:
             evaluations_per_parameter = 4 if optimizer == "finite-difference-gradient" else 4
             estimated_full_update_evaluations = 1 + int(getattr(payload, "optimization_steps", 1)) * min(complex_parameters, max_parameters) * evaluations_per_parameter
@@ -320,6 +327,9 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
                 if int(interaction.right_site) != expected_right:
                     warnings.append("finite-torus-gradient requires right_site to match left_site plus displacement")
                     break
+        elif getattr(payload, "full_update_optimizer", "coordinate") == "autodiff-ctmrg-gradient":
+            warnings.append("autodiff-ctmrg-gradient requires the optional PyTorch CUDA runtime")
+            warnings.append("autodiff-ctmrg-gradient differentiates a bounded unrolled CTMRG environment; it is not yet an implicit fixed-point variational proof")
         if estimated_full_update_evaluations is not None and estimated_full_update_evaluations > int(getattr(payload, "full_update_max_evaluations", 512)):
             warnings.append(
                 f"full-update estimated evaluations {estimated_full_update_evaluations} exceed full_update_max_evaluations={payload.full_update_max_evaluations}"

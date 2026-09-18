@@ -60,6 +60,15 @@ def _host(value: Any) -> Any:
         return value
 
 
+def _copy(value: Any) -> Any:
+    """Copy NumPy/CuPy arrays and preserve graph semantics for torch tensors."""
+
+    clone = getattr(value, "clone", None)
+    if clone is not None:
+        return clone()
+    return value.copy()
+
+
 def _real(value: Any) -> float:
     return float(complex(_host(value)).real)
 
@@ -73,6 +82,23 @@ def _state_pairs(xp: Any, states: list[Any]) -> list[list[list[float]]]:
 
 def _max_abs(xp: Any, value: Any) -> float:
     return float(_host(xp.max(xp.abs(value))))
+
+
+def _flip(xp: Any, value: Any, axis: int) -> Any:
+    """Flip an axis across NumPy, CuPy, and torch namespace conventions."""
+
+    try:
+        return xp.flip(value, axis=axis)
+    except TypeError:
+        return xp.flip(value, dims=(axis,))
+
+
+def _transpose(xp: Any, value: Any, axes: tuple[int, ...]) -> Any:
+    """Transpose across NumPy/CuPy and torch array conventions."""
+
+    if getattr(xp, "__name__", "") == "torch":
+        return value.permute(*axes)
+    return value.transpose(*axes)
 
 
 def _build_tensors(xp: Any, payload: CTMRGPayload, state_vectors: list[Any] | None = None) -> list[Any]:
@@ -140,7 +166,12 @@ def _double_layer(xp: Any, tensor: Any, operator: Any | None = None) -> Any:
 
     physical = tensor.shape[0]
     dtype = tensor.dtype
-    op = operator if operator is not None else xp.eye(physical, dtype=dtype)
+    if operator is not None:
+        op = operator
+    elif getattr(xp, "__name__", "") == "torch":
+        op = xp.eye(physical, dtype=dtype, device=tensor.device)
+    else:
+        op = xp.eye(physical, dtype=dtype)
     raw = xp.einsum(
         "sudlr,st,tUDLR->uUdDlLrR",
         tensor,
@@ -163,10 +194,14 @@ def _initialize_environment(xp: Any, double_layer: Any, chi: int) -> CTMEnvironm
     """
     d2 = int(double_layer.shape[0])
     dtype = double_layer.dtype
-    corner = xp.zeros((chi, chi), dtype=dtype)
+    if getattr(xp, "__name__", "") == "torch":
+        corner = xp.zeros((chi, chi), dtype=dtype, device=double_layer.device)
+        edge = xp.zeros((chi, d2, chi), dtype=dtype, device=double_layer.device)
+    else:
+        corner = xp.zeros((chi, chi), dtype=dtype)
+        edge = xp.zeros((chi, d2, chi), dtype=dtype)
     diagonal = min(chi, d2)
     corner[xp.arange(diagonal), xp.arange(diagonal)] = 1
-    edge = xp.zeros((chi, d2, chi), dtype=dtype)
     for index in range(min(chi, d2)):
         edge[index, :, index] = 1
     # Keep the perturbation below the declared numerical precision while
@@ -174,7 +209,7 @@ def _initialize_environment(xp: Any, double_layer: Any, chi: int) -> CTMEnvironm
     regularizer = 1e-6 if int(getattr(dtype, "itemsize", 8)) <= 8 else 1e-10
     corner = corner + regularizer * xp.ones_like(corner)
     edge = edge + regularizer * xp.ones_like(edge)
-    return CTMEnvironment(corner, corner.copy(), corner.copy(), corner.copy(), edge, edge.copy(), edge.copy(), edge.copy())
+    return CTMEnvironment(corner, _copy(corner), _copy(corner), _copy(corner), edge, _copy(edge), _copy(edge), _copy(edge))
 
 
 def _ctm_move(xp: Any, left_corner: Any, right_corner: Any, grown_edge: Any, chi: int) -> tuple[Any, Any, Any, float]:
@@ -185,7 +220,7 @@ def _ctm_move(xp: Any, left_corner: Any, right_corner: Any, grown_edge: Any, chi
     eigenvalues, eigenvectors = xp.linalg.eigh(rho)
     keep = min(int(chi), int(eigenvalues.shape[0]))
     projector = eigenvectors[:, -keep:]
-    projector = projector[:, ::-1]
+    projector = _flip(xp, projector, axis=1)
     discarded = float(_host(xp.sum(xp.clip(xp.real(eigenvalues[:-keep]), 0, None)))) if keep < eigenvalues.shape[0] else 0.0
     retained = float(_host(xp.sum(xp.clip(xp.real(eigenvalues[-keep:]), 0, None))))
     discarded_weight = discarded / max(discarded + retained, 1e-30)
@@ -205,7 +240,7 @@ def _left_move(xp: Any, env: CTMEnvironment, double_layer: Any, chi: int) -> tup
     c1_g = xp.einsum("ab,buc->auc", env.C1, env.T1).reshape(-1, env.T1.shape[2])
     c4_g = xp.einsum("gh,hdi->gdi", env.C4, env.T3).reshape(-1, env.T3.shape[2])
     t4_g = xp.einsum("alg,udlr->augdr", env.T4, double_layer)
-    t4_g = t4_g.transpose(0, 1, 4, 2, 3).reshape(c1_g.shape[0], d2, c4_g.shape[0])
+    t4_g = _transpose(xp, t4_g, (0, 1, 4, 2, 3)).reshape(c1_g.shape[0], d2, c4_g.shape[0])
     c1, c4, t4, discarded = _ctm_move(xp, c1_g, c4_g, t4_g, chi)
     return CTMEnvironment(c1, env.C2, env.C3, c4, env.T1, env.T2, env.T3, t4), discarded
 
@@ -215,7 +250,7 @@ def _right_move(xp: Any, env: CTMEnvironment, double_layer: Any, chi: int) -> tu
     c2_g = xp.einsum("ce,buc->eub", env.C2, env.T1).reshape(-1, env.T1.shape[0])
     c3_g = xp.einsum("im,hdi->mdh", env.C3, env.T3).reshape(-1, env.T3.shape[0])
     t2_g = xp.einsum("erm,udlr->eumdl", env.T2, double_layer)
-    t2_g = t2_g.transpose(0, 1, 4, 2, 3).reshape(c2_g.shape[0], d2, c3_g.shape[0])
+    t2_g = _transpose(xp, t2_g, (0, 1, 4, 2, 3)).reshape(c2_g.shape[0], d2, c3_g.shape[0])
     c2, c3, t2, discarded = _ctm_move(xp, c2_g, c3_g, t2_g, chi)
     return CTMEnvironment(env.C1, c2, c3, env.C4, env.T1, t2, env.T3, env.T4), discarded
 
@@ -225,17 +260,17 @@ def _top_move(xp: Any, env: CTMEnvironment, double_layer: Any, chi: int) -> tupl
     c1_g = xp.einsum("ab,alg->blg", env.C1, env.T4).reshape(-1, env.T4.shape[2])
     c2_g = xp.einsum("ce,erm->crm", env.C2, env.T2).reshape(-1, env.T2.shape[2])
     t1_g = xp.einsum("buc,udlr->bcdlr", env.T1, double_layer)
-    t1_g = t1_g.transpose(0, 3, 2, 1, 4).reshape(c1_g.shape[0], d2, c2_g.shape[0])
+    t1_g = _transpose(xp, t1_g, (0, 3, 2, 1, 4)).reshape(c1_g.shape[0], d2, c2_g.shape[0])
     c1, c2, t1, discarded = _ctm_move(xp, c1_g, c2_g, t1_g, chi)
     return CTMEnvironment(c1, c2, env.C3, env.C4, t1, env.T2, env.T3, env.T4), discarded
 
 
 def _bottom_move(xp: Any, env: CTMEnvironment, double_layer: Any, chi: int) -> tuple[CTMEnvironment, float]:
     d2 = int(double_layer.shape[0])
-    c4_g = xp.einsum("gh,alg->hal", env.C4, env.T4).transpose(0, 2, 1).reshape(-1, env.T4.shape[0])
+    c4_g = _transpose(xp, xp.einsum("gh,alg->hal", env.C4, env.T4), (0, 2, 1)).reshape(-1, env.T4.shape[0])
     c3_g = xp.einsum("im,erm->ire", env.C3, env.T2).reshape(-1, env.T2.shape[0])
     t3_g = xp.einsum("hdi,udlr->hiulr", env.T3, double_layer)
-    t3_g = t3_g.transpose(0, 3, 2, 1, 4).reshape(c4_g.shape[0], d2, c3_g.shape[0])
+    t3_g = _transpose(xp, t3_g, (0, 3, 2, 1, 4)).reshape(c4_g.shape[0], d2, c3_g.shape[0])
     c4, c3, t3, discarded = _ctm_move(xp, c4_g, c3_g, t3_g, chi)
     return CTMEnvironment(env.C1, env.C2, c3, c4, env.T1, env.T2, t3, env.T4), discarded
 
@@ -251,7 +286,7 @@ def _left_move_two_site(
     c1_g = xp.einsum("ab,buc->auc", env_self.C1, env_neighbor.T1).reshape(-1, env_neighbor.T1.shape[2])
     c4_g = xp.einsum("gh,hdi->gdi", env_self.C4, env_neighbor.T3).reshape(-1, env_neighbor.T3.shape[2])
     t4_g = xp.einsum("alg,udlr->augdr", env_self.T4, neighbor_layer)
-    t4_g = t4_g.transpose(0, 1, 4, 2, 3).reshape(c1_g.shape[0], d2, c4_g.shape[0])
+    t4_g = _transpose(xp, t4_g, (0, 1, 4, 2, 3)).reshape(c1_g.shape[0], d2, c4_g.shape[0])
     c1, c4, t4, discarded = _ctm_move(xp, c1_g, c4_g, t4_g, chi)
     return CTMEnvironment(c1, env_self.C2, env_self.C3, c4, env_self.T1, env_self.T2, env_self.T3, t4), discarded
 
@@ -267,7 +302,7 @@ def _right_move_two_site(
     c2_g = xp.einsum("ce,buc->eub", env_self.C2, env_neighbor.T1).reshape(-1, env_neighbor.T1.shape[0])
     c3_g = xp.einsum("im,hdi->mdh", env_self.C3, env_neighbor.T3).reshape(-1, env_neighbor.T3.shape[0])
     t2_g = xp.einsum("erm,udlr->eumdl", env_self.T2, neighbor_layer)
-    t2_g = t2_g.transpose(0, 1, 4, 2, 3).reshape(c2_g.shape[0], d2, c3_g.shape[0])
+    t2_g = _transpose(xp, t2_g, (0, 1, 4, 2, 3)).reshape(c2_g.shape[0], d2, c3_g.shape[0])
     c2, c3, t2, discarded = _ctm_move(xp, c2_g, c3_g, t2_g, chi)
     return CTMEnvironment(env_self.C1, c2, c3, env_self.C4, env_self.T1, t2, env_self.T3, env_self.T4), discarded
 
@@ -283,7 +318,7 @@ def _top_move_two_site(
     c1_g = xp.einsum("ab,alg->blg", env_self.C1, env_neighbor.T4).reshape(-1, env_neighbor.T4.shape[2])
     c2_g = xp.einsum("ce,erm->crm", env_self.C2, env_neighbor.T2).reshape(-1, env_neighbor.T2.shape[2])
     t1_g = xp.einsum("buc,udlr->bcdlr", env_self.T1, neighbor_layer)
-    t1_g = t1_g.transpose(0, 3, 2, 1, 4).reshape(c1_g.shape[0], d2, c2_g.shape[0])
+    t1_g = _transpose(xp, t1_g, (0, 3, 2, 1, 4)).reshape(c1_g.shape[0], d2, c2_g.shape[0])
     c1, c2, t1, discarded = _ctm_move(xp, c1_g, c2_g, t1_g, chi)
     return CTMEnvironment(c1, c2, env_self.C3, env_self.C4, t1, env_self.T2, env_self.T3, env_self.T4), discarded
 
@@ -296,10 +331,10 @@ def _bottom_move_two_site(
     chi: int,
 ) -> tuple[CTMEnvironment, float]:
     d2 = int(neighbor_layer.shape[0])
-    c4_g = xp.einsum("gh,alg->hal", env_self.C4, env_neighbor.T4).transpose(0, 2, 1).reshape(-1, env_neighbor.T4.shape[0])
+    c4_g = _transpose(xp, xp.einsum("gh,alg->hal", env_self.C4, env_neighbor.T4), (0, 2, 1)).reshape(-1, env_neighbor.T4.shape[0])
     c3_g = xp.einsum("im,erm->ire", env_self.C3, env_neighbor.T2).reshape(-1, env_neighbor.T2.shape[0])
     t3_g = xp.einsum("hdi,udlr->hiulr", env_self.T3, neighbor_layer)
-    t3_g = t3_g.transpose(0, 3, 2, 1, 4).reshape(c4_g.shape[0], d2, c3_g.shape[0])
+    t3_g = _transpose(xp, t3_g, (0, 3, 2, 1, 4)).reshape(c4_g.shape[0], d2, c3_g.shape[0])
     c4, c3, t3, discarded = _ctm_move(xp, c4_g, c3_g, t3_g, chi)
     return CTMEnvironment(env_self.C1, env_self.C2, c3, c4, env_self.T1, env_self.T2, t3, env_self.T4), discarded
 
@@ -310,6 +345,7 @@ def _unit_cell_sweep(
     layers: list[Any],
     chi: int,
     unit_cell: list[int],
+    renormalize: Any = None,
 ) -> tuple[list[CTMEnvironment], float]:
     """Run one periodic unit-cell CTM sweep for 2, 3, or 4 tensors.
 
@@ -348,7 +384,8 @@ def _unit_cell_sweep(
             neighbor = neighbors(site)[neighbor_position]
             working[site], discarded = move(xp, working[site], working[neighbor], layers[neighbor], chi)
             discarded_total += discarded
-    return [_renormalize(xp, env) for env in working], discarded_total
+    normalize = renormalize or _renormalize
+    return [normalize(xp, env) for env in working], discarded_total
 
 
 def _renormalize(xp: Any, env: CTMEnvironment) -> CTMEnvironment:
@@ -369,12 +406,32 @@ def _environment_residual(xp: Any, before: CTMEnvironment, after: CTMEnvironment
 def _environment_diagnostics(xp: Any, environments: list[CTMEnvironment]) -> dict[str, Any]:
     """Extract bounded transfer-spectrum diagnostics from converged edges."""
 
+    def eigenvalues(value: Any) -> Any:
+        try:
+            return xp.linalg.eigvals(value)
+        except Exception:
+            # Torch's optional CUDA runtime and CuPy can expose different
+            # cuSOLVER symbols in the same Windows process.  Diagnostics are
+            # small boundary matrices, so a host fallback keeps the primary
+            # contraction on GPU without making the result unavailable.
+            import numpy as np
+
+            return np.linalg.eigvals(_host(value))
+
+    def singular_values(value: Any) -> Any:
+        try:
+            return xp.linalg.svd(value, compute_uv=False)
+        except Exception:
+            import numpy as np
+
+            return np.linalg.svd(_host(value), compute_uv=False)
+
     spectra: list[list[float]] = []
     correlation_lengths: list[float | None] = []
     for env in environments:
         transfer = xp.sum(env.T1, axis=1)
-        eigenvalues = xp.linalg.eigvals(transfer)
-        magnitudes = sorted((float(abs(value)) for value in _host(eigenvalues)), reverse=True)
+        transfer_eigenvalues = eigenvalues(transfer)
+        magnitudes = sorted((float(abs(value)) for value in _host(transfer_eigenvalues)), reverse=True)
         leading = magnitudes[0] if magnitudes else 0.0
         subleading = magnitudes[1] if len(magnitudes) > 1 else 0.0
         if leading <= 1e-30 or subleading <= 1e-30:
@@ -391,7 +448,7 @@ def _environment_diagnostics(xp: Any, environments: list[CTMEnvironment]) -> dic
                 correlation_lengths.append(None)
             else:
                 correlation_lengths.append(float(-1.0 / math.log(ratio)) if ratio > 0 else 0.0)
-        singular = xp.linalg.svd(env.T1.reshape(env.T1.shape[0], -1), compute_uv=False)
+        singular = singular_values(env.T1.reshape(env.T1.shape[0], -1))
         singular_host = [float(abs(value)) for value in _host(singular)]
         scale = max(singular_host[0] if singular_host else 0.0, 1e-30)
         spectra.append([value / scale for value in singular_host])
@@ -882,6 +939,7 @@ def run_ctmrg(
     converged = bool(residual <= float(payload.tolerance))
     result_method = (
         "ipeps-full-update-finite-torus-gradient-ctmrg" if payload.optimization == "full-update" and payload.full_update_optimizer == "finite-torus-gradient" else
+        "ipeps-full-update-autodiff-ctmrg" if payload.optimization == "full-update" and payload.full_update_optimizer == "autodiff-ctmrg-gradient" else
         "ipeps-full-update-gradient-ctmrg" if payload.optimization == "full-update" and payload.full_update_optimizer == "finite-difference-gradient" else
         "ipeps-full-update-spsa-ctmrg" if payload.optimization == "full-update" and payload.full_update_optimizer == "spsa-gradient" else
         "ipeps-full-update-ctmrg" if payload.optimization == "full-update" else
@@ -901,6 +959,8 @@ def run_ctmrg(
     elif payload.optimization == "full-update":
         if payload.full_update_optimizer == "finite-torus-gradient":
             warnings.append("finite-torus-gradient optimizes an exact bounded 2x2 periodic reference objective; it is not an infinite-lattice variational proof")
+        elif payload.full_update_optimizer == "autodiff-ctmrg-gradient":
+            warnings.append("torch autograd differentiates a bounded unrolled CTMRG environment; it is experimental and not yet an implicit fixed-point variational proof")
         elif payload.full_update_optimizer == "finite-difference-gradient":
             warnings.append("finite-difference-gradient full-update is a bounded gradient estimate; it is not automatic differentiation and does not scale to large tensors")
         elif payload.full_update_optimizer == "spsa-gradient":
@@ -933,6 +993,8 @@ def run_ctmrg(
         (
             "finite-torus-gradient optimizes a bounded exact 2x2 reference objective and does not establish infinite-lattice convergence"
             if payload.optimization == "full-update" and payload.full_update_optimizer == "finite-torus-gradient" else
+            "autodiff-ctmrg-gradient is a bounded unrolled CTMRG gradient and does not yet provide an implicit fixed-point or thermodynamic-limit variational proof"
+            if payload.optimization == "full-update" and payload.full_update_optimizer == "autodiff-ctmrg-gradient" else
             "full-update is a bounded experimental optimization path and is not a scalable automatic-differentiation or full ground-state solver"
             if payload.optimization == "full-update" else
             "no environment-feedback full ground-state optimization"

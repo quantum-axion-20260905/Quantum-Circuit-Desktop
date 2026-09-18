@@ -1,0 +1,5 @@
+# Optional research dependency for the infinite-CTMRG autograd backend.
+# Keep this separate from requirements.txt so the bounded CuPy desktop install
+# stays lightweight and deterministic.
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch==2.6.0+cu124

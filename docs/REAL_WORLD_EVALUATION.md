@@ -85,6 +85,15 @@ checkpointed and resumed on CUDA from iteration 1. Both matched their fresh
 two-iteration runs exactly in the bounded D=1 case (`abs_delta=0`), confirming
 that all three current feedback policies have resumable state contracts.
 
+The optional Torch/CUDA autograd path was then exercised end-to-end on the same
+RTX 3060 with a bounded D=1 X-X product objective (`χ=1`, one CTMRG iteration,
+one optimizer step, eight objective evaluations allowed). It returned
+`method=ipeps-full-update-autodiff-ctmrg`, `E=-1.0`, finite gradients, and
+`gradient_backend=torch-autograd-unrolled-ctmrg`; measured free VRAM remained
+about 11.1 GB after cleanup. This validates the runtime seam and GPU execution,
+not a production claim: the objective is an unrolled bounded environment, not
+yet an implicit CTMRG fixed-point/thermodynamic-limit gradient.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices

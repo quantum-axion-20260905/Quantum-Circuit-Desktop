@@ -312,15 +312,24 @@ but not released:
   contracts with exact method/request/dtype/shape validation and
   partial-resume equivalence tests on CPU and CUDA; they remain experimental
   numerical baselines rather than variational convergence proofs.
+- an optional Torch/CUDA autograd backend now differentiates a bounded,
+  unrolled CTMRG environment through the resident tensor seam; CPU gradient
+  checks and a real RTX 3060 end-to-end smoke pass, while the result explicitly
+  remains experimental and is not labelled an implicit fixed-point solver.
+- the Torch path is isolated in `requirements-autodiff.txt`, keeps the default
+  CuPy desktop install lightweight, and uses a bounded evaluation budget;
+  small transfer-spectrum diagnostics fall back to host LAPACK if optional
+  Torch/CuPy CUDA libraries expose incompatible Windows solver symbols.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
 The current optimizers are a D=1 mean-field baseline, a bounded simple update,
-bounded CTMRG-feedback coordinate/finite-difference/SPSA baselines, and an
-analytic finite-torus gradient reference path. The finite-torus path is not
-yet a scalable infinite-CTMRG automatic-differentiation/full ground-state
-solver. Stronger infinite-objective validation and broader frontend coverage
-are still incomplete.
+bounded CTMRG-feedback coordinate/finite-difference/SPSA baselines, an
+analytic finite-torus gradient reference path, and an optional Torch
+unrolled-autograd CTMRG path. The Torch path is not yet a scalable
+infinite-CTMRG implicit-gradient/full ground-state solver. Stronger
+infinite-objective validation and broader frontend coverage are still
+incomplete.
 They must land and pass their own gate before Phase 4 can be called complete or tagged
 as a release. The current frontend panel is an admitted experimental path,
 not evidence that the full variational solver is complete.
@@ -337,16 +346,20 @@ The next implementation packet is Phase 4 variational research-grade convergence
 - run recorded GPU χ/iteration campaigns for each admitted 1x1–2x2 cell shape,
   using the new finite-torus references and checkpoint/resume evidence rather
   than relying only on isolated smoke tests;
-- lift the validated finite-torus analytic gradient seam to the infinite CTMRG
-  objective with scalable automatic differentiation or an equivalent
-  research-validated full-update solver; retain the finite path as a permanent
+- validate the Torch unrolled gradient against finite differences, gauge
+  transformations, χ/iteration changes, and independent finite references on
+  small entangled cells; retain the finite path as a permanent
   regression/reference gate;
+- then replace or augment unrolling with an implicit fixed-point/adjoint
+  gradient contract, including transfer-spectrum gap checks and a reproducible
+  backward-error budget before calling the optimizer research-grade;
 - carry energy/variance/reference error and the new point-to-point observable
   deltas through the shared study/provenance and export APIs;
 - extend optimizer-state checkpointing from the finite-reference and bounded
   feedback paths to the eventual infinite-CTMRG AD/implicit-gradient
-  full-update solver; the future differentiable backend must define its own
-  optimizer state and fixed-point/environment compatibility contract;
+  full-update solver; the current Torch path stays non-resumable until its
+  optimizer state and fixed-point/environment compatibility contract are
+  defined;
 - compare CTMRG local contractions against finite PEPS/reference product
   states across more than the current nearest-neighbor product gate, including
   small Ising/Heisenberg reference observables;

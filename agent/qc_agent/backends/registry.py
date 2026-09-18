@@ -133,7 +133,7 @@ def method_catalog(*, gpu_available: bool, tensor_network_available: bool) -> li
             available=tensor_network_ready,
             status=runtime_status,
             description="Bounded one-site through 2x2 periodic infinite-2D iPEPS CTMRG contraction with explicit corner/edge environment convergence.",
-            limitations=("bounded unit cells up to 2x2; larger cells require a new admission contract", "coordinate, finite-difference-gradient, and SPSA paths are strict infinite-objective experimental baselines; finite-torus-gradient is an exact four-site reference/initializer, not an infinite variational solver", "no fallback to finite boundary-MPS"),
+            limitations=("bounded unit cells up to 2x2; larger cells require a new admission contract", "coordinate, finite-difference-gradient, and SPSA paths are strict infinite-objective experimental baselines; autodiff-ctmrg-gradient is a bounded unrolled Torch autograd baseline; finite-torus-gradient is an exact four-site reference/initializer, not an infinite variational solver", "no fallback to finite boundary-MPS"),
         ),
     ]
 
