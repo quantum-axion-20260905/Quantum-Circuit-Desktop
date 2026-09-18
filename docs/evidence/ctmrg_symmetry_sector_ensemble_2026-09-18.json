@@ -1,0 +1,79 @@
+{
+  "artifact": "ctmrg-symmetry-sector-ensemble-gate",
+  "date": "2026-09-18",
+  "git_revision": "9e758b5",
+  "verification": {
+    "full_backend_unittest": "144/144 passed",
+    "cuda_complex128_ensemble_smoke": "passed in a fresh Torch process"
+  },
+  "policy": "symmetry-ensemble",
+  "scope": {
+    "unit_cell": [1, 1],
+    "physical_bond_dim": 2,
+    "virtual_bond_dim": 2,
+    "environment_bond_dim": 2,
+    "iterations": 8,
+    "sector_count": 2
+  },
+  "cpu_complex128": {
+    "energy": 1.0,
+    "onsite_z": 0.0,
+    "interaction_zz": 1.0,
+    "reference_passed": true,
+    "paired_gauge_max_abs_delta": 2.5356897118911093e-05,
+    "paired_gauge_passed": true,
+    "research_gate_status": "passed",
+    "production_ready": false,
+    "sector_energy_abs_range": 2.0,
+    "sector_observable_abs_range": 2.0,
+    "sector_interaction_abs_range": 0.0
+  },
+  "cuda_complex128": {
+    "device": "cuda",
+    "energy": 1.0,
+    "onsite_z": 0.0,
+    "interaction_zz": 1.0,
+    "paired_gauge_max_abs_delta": 9.992007221626409e-16,
+    "paired_gauge_passed": true,
+    "research_gate_status": "passed"
+  },
+  "cuda_complex64": {
+    "device": "cuda",
+    "paired_gauge_max_abs_delta": 0.060559868812561035,
+    "paired_gauge_passed": false,
+    "research_gate_status": "needs_review",
+    "reason": "complex64 transfer-sector precision is insufficient for this strict gauge tolerance"
+  },
+  "random_d2_cpu_complex128": {
+    "unit_cell": [1, 1],
+    "iterations": 4,
+    "energy": 0.07732693754861525,
+    "onsite_z": 0.13165432116000902,
+    "interaction_zz": 0.10199214663322687,
+    "paired_gauge_max_abs_delta": 1.0893520375935735,
+    "paired_gauge_passed": false,
+    "sector_energy_abs_range": 0.09293927827370176,
+    "sector_observable_abs_range": 0.19953104768764582,
+    "sector_interaction_abs_range": 0.10606613747234517,
+    "research_gate_status": "needs_review"
+  },
+  "random_2x2_cpu_complex128": {
+    "unit_cell": [2, 2],
+    "iterations": 2,
+    "energy": -0.06165122008033262,
+    "converged": false,
+    "reference_passed": false,
+    "paired_gauge_max_abs_delta": 0.24680922697647253,
+    "paired_gauge_passed": false,
+    "sector_interaction_abs_range": 0.09017204702757611,
+    "research_gate_status": "needs_review"
+  },
+  "decision": "admit-as-opt-in-degenerate-sector-diagnostic",
+  "limitations": [
+    "two deterministic boundary sectors are averaged; the sector spread remains visible",
+    "a passed bounded GHZ gate is not a generic entangled thermodynamic-limit proof",
+    "entangled results remain production-ineligible until broader cells and convergence gates pass"
+  ],
+  "next_action": "rerun random D=2 and 2x2 cells with sector spread and chi convergence before any broader admission",
+  "resource_note": "bounded CPU and CUDA experiments; no unrelated high-RAM process was touched"
+}
