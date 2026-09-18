@@ -33,6 +33,12 @@ features.
   gate, but it is still experimental and not production-ready until the
   gauge-invariance gate passes. This is an environment/gauge-stability
   problem, not something to hide with looser tolerances or UI wording.
+- The next isolated candidate is now explicit: a bounded 1x1
+  `pairwise-polar-balance` preconditioner reduces the GHZ virtual-leg Gram
+  mismatch from about `0.4803` to `0.0247` and keeps the exact finite-torus
+  reference invariant, but the CTMRG paired-gauge observable drift remains
+  about `1.0`. It is therefore diagnostic-only and is not admitted into an
+  optimizer or a production gate.
 - Current resource rule: GPU experiments stay small and bounded; the agent
   must not inspect, stop, or compete with unrelated high-RAM training jobs.
 
@@ -500,9 +506,10 @@ The next implementation packet is Phase 4 variational research-grade convergence
   request/dtype/shape/method/history checks remain mandatory, and the CTMRG
   fixed-point environment is deliberately recomputed on resume rather than
   serialized as optimizer state;
-- add a bounded PEPS gauge-preconditioning contract, with explicit
+- extend the bounded PEPS gauge-preconditioning contract from the current 1x1
+  diagnostic candidate to bond-aware multi-site transforms, with explicit
   canonicalization diagnostics and independent finite-reference checks before
-  any gauge transform is allowed to alter the optimization path;
+  any gauge transform is allowed to alter an optimization path;
 - compare CTMRG local contractions against finite PEPS/reference product
   states across more than the current nearest-neighbor product gate, including
   small Ising/Heisenberg reference observables;

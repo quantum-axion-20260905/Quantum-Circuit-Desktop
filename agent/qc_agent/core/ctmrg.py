@@ -27,7 +27,7 @@ from .checkpoints import load_ctm_checkpoint, save_ctm_checkpoint
 from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
 from .ctmrg_admission import ctmrg_research_gate
 from .ctmrg_reference import analytic_ghz_reference, finite_periodic_peps_reference, finite_product_reference
-from .ctmrg_gauge import virtual_leg_conditioning_report
+from .ctmrg_gauge import pairwise_virtual_gauge_preconditioner, virtual_leg_conditioning_report
 from .ctmrg_projectors import (
     full_svd_projectors,
     standard_full_svd_projectors,
@@ -1110,6 +1110,17 @@ def run_ctmrg(
         elif payload.optimization == "full-update":
             optimization_info = run_full_update(xp, payload, tensors)
             tensors = optimization_info["tensors"]
+    gauge_preconditioning: dict[str, Any] = {
+        "performed": False,
+        "method": str(payload.gauge_preconditioner),
+        "reason": "disabled by request",
+    }
+    if payload.gauge_preconditioner == "pairwise-polar-balance":
+        tensors, gauge_preconditioning = pairwise_virtual_gauge_preconditioner(
+            xp,
+            tensors,
+            iterations=int(payload.gauge_preconditioner_iterations),
+        )
     layers = [_double_layer(xp, tensor) for tensor in tensors]
     chi = int(payload.environment_bond_dim)
     environments = [_initialize_environment(xp, layer, chi) for layer in layers]
@@ -1382,6 +1393,10 @@ def run_ctmrg(
         warnings.append("the imported tensor was contracted without variational ground-state optimization")
     if int(payload.virtual_bond_dim) > 1 and payload.dtype == "complex64":
         warnings.append("complex64 entangled iPEPS runs may lose transfer-sector precision; use complex128 for reference-quality observables")
+    if payload.gauge_preconditioner != "none":
+        warnings.append(
+            "pairwise-polar-balance is an opt-in 1x1 gauge diagnostic; it preserves the finite periodic pairing but is not admitted into optimization or production paths"
+        )
     if gauge_conditioning.get("performed") and not gauge_conditioning.get("well_conditioned", False):
         warnings.append("one or more virtual-leg Gram spectra are rank-deficient or ill-conditioned; gauge preconditioning remains diagnostic-only")
     if not interaction_values_available:
@@ -1510,6 +1525,7 @@ def run_ctmrg(
             "reference_validation": reference_validation,
             "gauge_validation": gauge_validation,
             "gauge_conditioning": gauge_conditioning,
+            "gauge_preconditioning": gauge_preconditioning,
             "research_gate": research_gate,
         },
     ).to_dict()
@@ -1547,6 +1563,7 @@ def run_ctmrg(
         "reference_validation": reference_validation,
         "gauge_validation": gauge_validation,
         "gauge_conditioning": gauge_conditioning,
+        "gauge_preconditioning": gauge_preconditioning,
         "research_gate": research_gate,
         "correlation_length": environment_diagnostics["correlation_length"],
         "correlation_lengths_by_site": environment_diagnostics["correlation_lengths_by_site"],

@@ -230,6 +230,8 @@ class CTMRGPayload(BaseModel):
     tensor_data: list[list[float]] | None = Field(default=None, max_length=32768)
     environment_bond_dim: int = Field(default=16, ge=1, le=128)
     ctmrg_projector: Literal["half-density", "full-svd"] = "half-density"
+    gauge_preconditioner: Literal["none", "pairwise-polar-balance"] = "none"
+    gauge_preconditioner_iterations: int = Field(default=4, ge=1, le=16)
     iterations: int = Field(default=20, ge=1, le=200)
     tolerance: float = Field(default=1e-8, gt=0, le=1.0)
     optimization: Literal["none", "product-coordinate-descent", "simple-update", "full-update"] = "none"
@@ -282,6 +284,10 @@ class CTMRGPayload(BaseModel):
         cell_sites = math.prod(self.unit_cell)
         if self.ctmrg_projector == "full-svd" and self.virtual_bond_dim > 2:
             raise ValueError("full-svd CTMRG projectors currently require virtual_bond_dim<=2")
+        if self.gauge_preconditioner != "none" and self.unit_cell != [1, 1]:
+            raise ValueError("the bounded virtual-gauge preconditioner currently requires unit_cell=[1, 1]")
+        if self.gauge_preconditioner != "none" and self.optimization != "none":
+            raise ValueError("virtual-gauge preconditioning is diagnostic-only and cannot alter an optimization path yet")
         if self.optimization != "none" and (self.checkpoint_path is not None or self.resume_from is not None):
             raise ValueError(
                 "CTMRG optimizer checkpoint/resume is not supported yet; checkpointing currently covers contraction-only runs"
@@ -436,6 +442,8 @@ class CTMRGSpinModelPayload(LatticeHamiltonianPayload):
     tolerance: float = Field(default=1e-8, gt=0, le=1.0)
     gauge_validation: bool = False
     gauge_validation_tolerance: float = Field(default=1e-4, gt=0, le=1.0)
+    gauge_preconditioner: Literal["none", "pairwise-polar-balance"] = "none"
+    gauge_preconditioner_iterations: int = Field(default=4, ge=1, le=16)
 
     @model_validator(mode="after")
     def validate_ctmrg_geometry(self):
@@ -443,6 +451,8 @@ class CTMRGSpinModelPayload(LatticeHamiltonianPayload):
             raise ValueError("CTMRG spin models require a 2D unit-cell dimensions=[nx, ny]")
         if any(int(size) > 2 for size in self.dimensions):
             raise ValueError("CTMRG spin model unit-cell dimensions are limited to 2x2")
+        if self.gauge_preconditioner != "none" and self.dimensions != [1, 1]:
+            raise ValueError("the bounded virtual-gauge preconditioner currently requires dimensions=[1, 1]")
         return self
 
 

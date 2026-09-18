@@ -149,6 +149,18 @@ bounded CUDA complex64 smoke reaches the same `<ZZ>=1.0` result with a
 still reports an approximately `1.0` energy/observable drift, so this is a
 validated reference/projector slice, not production entangled CTMRG.
 
+The next isolated packet adds an opt-in `pairwise-polar-balance` preconditioner
+for a 1x1 periodic cell. On the gauged GHZ tensor it reduces the vertical and
+horizontal virtual-leg Gram mismatch from about `0.4803` to `0.0247`, lowers
+the reported condition estimate from about `2.16` to `1.73`, and preserves the
+independent finite-torus reference energy. It does not yet restore the CTMRG
+paired-gauge observable: the gauged run still selects a symmetry-broken
+`<Z>≈-1` sector. The candidate therefore remains diagnostic-only and is not
+used by optimization or production admission.
+The same opt-in path also completed a bounded Torch CUDA `complex64` smoke
+with `E=1.00000003` and `<ZZ>=1.0`; CUDA execution does not change its
+diagnostic-only admission status.
+
 The Torch unrolled and implicit full-update paths now have an explicit,
 opt-in optimizer checkpoint contract. A CPU resume-vs-fresh regression matches
 the final energy for both paths; checkpoint manifests bind the state to the

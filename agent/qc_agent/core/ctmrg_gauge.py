@@ -8,6 +8,7 @@ environment can expose gauge sensitivity that must remain visible to users.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 
@@ -97,6 +98,166 @@ def virtual_leg_conditioning_report(
             "this is a conditioning diagnostic, not PEPS canonicalization",
             "a future preconditioner must pair inverse transforms across every virtual bond",
             "conditioning does not establish CTMRG gauge invariance or thermodynamic convergence",
+        ],
+    }
+
+
+def _moveaxis(xp: Any, value: Any, source: int, destination: int) -> Any:
+    """Move one tensor axis without importing a backend-specific helper."""
+
+    if hasattr(value, "movedim"):
+        return value.movedim(source, destination)
+    return xp.moveaxis(value, source, destination)
+
+
+def _leg_gram(xp: Any, tensor: Any, axis: int) -> Any:
+    moved = _moveaxis(xp, tensor, axis, 0)
+    matrix = moved.reshape((int(moved.shape[0]), -1))
+    gram = matrix @ xp.conj(matrix).T
+    return 0.5 * (gram + xp.conj(gram).T)
+
+
+def _hermitian_sqrt(xp: Any, matrix: Any, *, inverse: bool, eigenvalue_floor: float) -> Any:
+    values, vectors = xp.linalg.eigh(0.5 * (matrix + xp.conj(matrix).T))
+    values = xp.real(values)
+    scale = max(float(max(_host_array(values))), 1e-30) if int(values.shape[0]) else 1.0
+    floor = max(float(eigenvalue_floor) * scale, 1e-30)
+    values = xp.maximum(values, floor)
+    factors = 1.0 / xp.sqrt(values) if inverse else xp.sqrt(values)
+    return (vectors * factors[None, :]) @ xp.conj(vectors).T
+
+
+def _pair_balance_transform(
+    xp: Any,
+    lower_gram: Any,
+    upper_gram: Any,
+    *,
+    eigenvalue_floor: float,
+) -> Any:
+    """Return X for lower<-X and upper<-inv(X).T pair balancing.
+
+    The positive solution balances ``X G_lower X†`` against
+    ``X⁻ᵀ G_upper X⁻*``.  It is a bounded local gauge choice, not a PEPS
+    canonical-form theorem; callers must keep it opt-in and reference-tested.
+    """
+
+    lower_root = _hermitian_sqrt(
+        xp, lower_gram, inverse=False, eigenvalue_floor=eigenvalue_floor
+    )
+    lower_inverse_root = _hermitian_sqrt(
+        xp, lower_gram, inverse=True, eigenvalue_floor=eigenvalue_floor
+    )
+    middle = lower_root @ upper_gram @ lower_root
+    squared = lower_inverse_root @ _hermitian_sqrt(
+        xp, middle, inverse=False, eigenvalue_floor=eigenvalue_floor
+    ) @ lower_inverse_root
+    squared = 0.5 * (squared + xp.conj(squared).T)
+    return _hermitian_sqrt(xp, squared, inverse=False, eigenvalue_floor=eigenvalue_floor)
+
+
+def _pair_metric(xp: Any, tensor: Any, lower_axis: int, upper_axis: int) -> tuple[float, float]:
+    lower = _leg_gram(xp, tensor, lower_axis)
+    upper = _leg_gram(xp, tensor, upper_axis)
+    delta = _host_array(xp.linalg.norm(lower - upper))
+    scale = max(_host_array(xp.linalg.norm(lower)), _host_array(xp.linalg.norm(upper)), 1e-30)
+    values = []
+    for gram in (lower, upper):
+        values.extend(float(value.real if hasattr(value, "real") else value) for value in _host_array(xp.linalg.eigvalsh(gram)))
+    positive = [max(value, 0.0) for value in values]
+    condition = max(positive) / max(min(positive), 1e-30) if positive else math.inf
+    return float(delta / scale), float(condition)
+
+
+def pairwise_virtual_gauge_preconditioner(
+    xp: Any,
+    tensors: list[Any],
+    *,
+    iterations: int = 4,
+    eigenvalue_floor: float = 1e-10,
+) -> tuple[list[Any], dict[str, Any]]:
+    """Apply an isolated 1x1 paired polar-balance candidate.
+
+    A one-site periodic cell can receive ``X`` on its down/right legs and the
+    exact inverse-transpose on its up/left legs, so the finite PEPS contraction
+    is unchanged.  Multi-site cells require bond-aware transforms and are
+    deliberately rejected here rather than silently breaking their bonds.
+    """
+
+    if len(tensors) != 1:
+        return list(tensors), {
+            "performed": False,
+            "method": "pairwise-polar-balance",
+            "reason": "the bounded candidate supports only a 1x1 periodic cell",
+            "mutated_tensors": False,
+        }
+    if int(iterations) < 1:
+        raise ValueError("pairwise virtual-gauge preconditioner iterations must be positive")
+    tensor = tensors[0]
+    mutated = False
+    before_vertical = _pair_metric(xp, tensor, 2, 1)
+    before_horizontal = _pair_metric(xp, tensor, 4, 3)
+    for _ in range(int(iterations)):
+        vertical_metric = _pair_metric(xp, tensor, 2, 1)
+        if vertical_metric[0] > 1e-12:
+            vertical = _pair_balance_transform(
+                xp,
+                _leg_gram(xp, tensor, 2),
+                _leg_gram(xp, tensor, 1),
+                eigenvalue_floor=eigenvalue_floor,
+            )
+            tensor = _moveaxis(
+                xp,
+                xp.tensordot(vertical, tensor, axes=([1], [2])),
+                0,
+                2,
+            )
+            mutated = True
+            tensor = _moveaxis(
+                xp,
+                xp.tensordot(xp.linalg.inv(vertical).T, tensor, axes=([1], [1])),
+                0,
+                1,
+            )
+        horizontal_metric = _pair_metric(xp, tensor, 4, 3)
+        if horizontal_metric[0] > 1e-12:
+            horizontal = _pair_balance_transform(
+                xp,
+                _leg_gram(xp, tensor, 4),
+                _leg_gram(xp, tensor, 3),
+                eigenvalue_floor=eigenvalue_floor,
+            )
+            tensor = _moveaxis(
+                xp,
+                xp.tensordot(horizontal, tensor, axes=([1], [4])),
+                0,
+                4,
+            )
+            mutated = True
+            tensor = _moveaxis(
+                xp,
+                xp.tensordot(xp.linalg.inv(horizontal).T, tensor, axes=([1], [3])),
+                0,
+                3,
+            )
+    after_vertical = _pair_metric(xp, tensor, 2, 1)
+    after_horizontal = _pair_metric(xp, tensor, 4, 3)
+    return [tensor], {
+        "performed": True,
+        "method": "pairwise-polar-balance",
+        "iterations": int(iterations),
+        "eigenvalue_floor": float(eigenvalue_floor),
+        "vertical_pair_delta_before": before_vertical[0],
+        "vertical_pair_delta_after": after_vertical[0],
+        "horizontal_pair_delta_before": before_horizontal[0],
+        "horizontal_pair_delta_after": after_horizontal[0],
+        "condition_number_before": max(before_vertical[1], before_horizontal[1]),
+        "condition_number_after": max(after_vertical[1], after_horizontal[1]),
+        "mutated_tensors": mutated,
+        "exact_periodic_pairing": True,
+        "limitations": [
+            "bounded 1x1 candidate only; it is not a general PEPS canonical form",
+            "independent finite-PEPS/reference and paired-gauge gates remain mandatory",
+            "not admitted into optimization paths until those gates pass",
         ],
     }
 

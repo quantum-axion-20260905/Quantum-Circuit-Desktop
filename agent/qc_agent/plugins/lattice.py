@@ -91,6 +91,8 @@ def build_ctmrg_spin_payload(
     tolerance: float = 1e-8,
     gauge_validation: bool = False,
     gauge_validation_tolerance: float = 1e-4,
+    gauge_preconditioner: str = "none",
+    gauge_preconditioner_iterations: int = 4,
 ) -> CTMRGPayload:
     """Build a periodic 2D spin model for the bounded iPEPS CTMRG backend.
 
@@ -155,4 +157,6 @@ def build_ctmrg_spin_payload(
         tolerance=tolerance,
         gauge_validation=gauge_validation,
         gauge_validation_tolerance=gauge_validation_tolerance,
+        gauge_preconditioner=gauge_preconditioner,
+        gauge_preconditioner_iterations=gauge_preconditioner_iterations,
     )

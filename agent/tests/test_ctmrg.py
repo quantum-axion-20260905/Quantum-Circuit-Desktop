@@ -6,6 +6,7 @@ import unittest
 import numpy as np
 
 from qc_agent.core.ctmrg import run_ctmrg, run_ctmrg_convergence_study
+from qc_agent.core.ctmrg_reference import finite_periodic_peps_reference
 from qc_agent.core.peps import PEPSRuntime
 from qc_agent.plugins.lattice import build_ctmrg_spin_payload
 from qc_agent.plugins.models import CTMRGConvergenceStudyPayload, CTMRGPayload, IPEPSInteraction, LatticeHamiltonianPayload, LatticeSpec, PEPSPayload, PauliTerm
@@ -67,6 +68,60 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(result["reference_validation"]["passed"])
         self.assertFalse(result["research_gate"]["production_ready"])
         self.assertEqual(result["research_gate"]["status"], "needs_review")
+
+    def test_pairwise_preconditioner_preserves_finite_reference_and_reports_candidate(self):
+        from qc_agent.core.ctmrg_gauge import paired_virtual_gauge, pairwise_virtual_gauge_preconditioner
+
+        tensor = np.zeros((2, 2, 2, 2, 2), dtype=np.complex128)
+        tensor[0, 0, 0, 0, 0] = 1.0
+        tensor[1, 1, 1, 1, 1] = 1.0
+        gauged = paired_virtual_gauge(np, [tensor])[0]
+        preconditioned, report = pairwise_virtual_gauge_preconditioner(np, [gauged], iterations=4)
+        self.assertTrue(report["performed"])
+        self.assertTrue(report["exact_periodic_pairing"])
+        self.assertLess(report["vertical_pair_delta_after"], report["vertical_pair_delta_before"])
+        self.assertLess(report["horizontal_pair_delta_after"], report["horizontal_pair_delta_before"])
+        payload = CTMRGPayload(
+            virtual_bond_dim=2,
+            dtype="complex128",
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+        )
+        original_reference = finite_periodic_peps_reference(
+            payload, [tensor], [0.0], [1.0], 1.0, tolerance=1e-10
+        )
+        preconditioned_reference = finite_periodic_peps_reference(
+            payload, preconditioned, [0.0], [1.0], 1.0, tolerance=1e-10
+        )
+        self.assertTrue(original_reference["performed"])
+        self.assertTrue(preconditioned_reference["performed"])
+        self.assertAlmostEqual(
+            original_reference["reference_energy"],
+            preconditioned_reference["reference_energy"],
+            places=10,
+        )
+
+    def test_pairwise_preconditioner_is_restricted_to_one_site_contraction(self):
+        with self.assertRaisesRegex(ValueError, "requires unit_cell=\[1, 1\]"):
+            CTMRGPayload(
+                unit_cell=[2, 1],
+                gauge_preconditioner="pairwise-polar-balance",
+                interactions=[IPEPSInteraction(
+                    left_site=0,
+                    right_site=1,
+                    displacement=[1, 0],
+                    left_pauli="Z",
+                    right_pauli="Z",
+                    coefficient=1.0,
+                )],
+            )
 
     def test_full_svd_projector_rejects_unbounded_virtual_bond(self):
         with self.assertRaisesRegex(ValueError, "full-svd CTMRG projectors"):
