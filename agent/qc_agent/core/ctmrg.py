@@ -23,7 +23,7 @@ from ..plugins.models import CTMRGPayload, PauliTerm
 from ..provenance import sha256_json
 from .checkpoints import load_ctm_checkpoint, save_ctm_checkpoint
 from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
-from .ctmrg_reference import finite_product_reference
+from .ctmrg_reference import analytic_ghz_reference, finite_product_reference
 from .ipeps_optimizer import optimize_product_states, run_full_update, run_simple_update
 from .observables import structured_observables
 
@@ -150,6 +150,15 @@ def _double_layer(xp: Any, tensor: Any, operator: Any | None = None) -> Any:
 
 
 def _initialize_environment(xp: Any, double_layer: Any, chi: int) -> CTMEnvironment:
+    """Create a deterministic, full-support CTM boundary.
+
+    A diagonal-only boundary is sufficient for product tensors, but it can
+    select a zero-overlap sector when the transfer operator has degenerate
+    fixed points (for example a GHZ-like D=2 iPEPS).  A tiny positive
+    full-support component regularizes that initialization without changing
+    the normalized fixed point; it also prevents an otherwise valid two-site
+    observable from becoming an accidental ``0/0`` contraction.
+    """
     d2 = int(double_layer.shape[0])
     dtype = double_layer.dtype
     corner = xp.zeros((chi, chi), dtype=dtype)
@@ -158,6 +167,11 @@ def _initialize_environment(xp: Any, double_layer: Any, chi: int) -> CTMEnvironm
     edge = xp.zeros((chi, d2, chi), dtype=dtype)
     for index in range(min(chi, d2)):
         edge[index, :, index] = 1
+    # Keep the perturbation below the declared numerical precision while
+    # retaining a deterministic non-zero overlap with every boundary sector.
+    regularizer = 1e-6 if int(getattr(dtype, "itemsize", 8)) <= 8 else 1e-10
+    corner = corner + regularizer * xp.ones_like(corner)
+    edge = edge + regularizer * xp.ones_like(edge)
     return CTMEnvironment(corner, corner.copy(), corner.copy(), corner.copy(), edge, edge.copy(), edge.copy(), edge.copy())
 
 
@@ -364,8 +378,17 @@ def _environment_diagnostics(xp: Any, environments: list[CTMEnvironment]) -> dic
         if leading <= 1e-30 or subleading <= 1e-30:
             correlation_lengths.append(0.0)
         else:
-            ratio = min(1.0 - 1e-15, max(0.0, subleading / leading))
-            correlation_lengths.append(float(-1.0 / math.log(ratio)) if ratio > 0 else 0.0)
+            ratio = max(0.0, subleading / leading)
+            # A degenerate leading transfer eigenvalue has no finite
+            # correlation length.  Returning a huge finite sentinel is
+            # misleading and can be mistaken for a measured scale.
+            # Below this gap the bounded environment cannot resolve a
+            # reliable finite length; report it as unresolved instead of
+            # turning round-off into a giant scientific number.
+            if ratio >= 1.0 - 1e-5:
+                correlation_lengths.append(None)
+            else:
+                correlation_lengths.append(float(-1.0 / math.log(ratio)) if ratio > 0 else 0.0)
         singular = xp.linalg.svd(env.T1.reshape(env.T1.shape[0], -1), compute_uv=False)
         singular_host = [float(abs(value)) for value in _host(singular)]
         scale = max(singular_host[0] if singular_host else 0.0, 1e-30)
@@ -805,6 +828,15 @@ def run_ctmrg(
         float(energy),
         tolerance=max(float(payload.tolerance) * 10.0, 1e-6),
     )
+    if not reference_validation["performed"]:
+        reference_validation = analytic_ghz_reference(
+            payload,
+            tensors,
+            onsite_values,
+            interaction_values,
+            float(energy),
+            tolerance=max(float(payload.tolerance) * 10.0, 1e-6),
+        )
     converged = bool(residual <= float(payload.tolerance))
     result_method = (
         "ipeps-full-update-gradient-ctmrg" if payload.optimization == "full-update" and payload.full_update_optimizer == "finite-difference-gradient" else
@@ -833,6 +865,8 @@ def run_ctmrg(
         warnings.append("the tensor is a deterministic product-state ansatz; no variational ground-state optimization was performed")
     else:
         warnings.append("the imported tensor was contracted without variational ground-state optimization")
+    if int(payload.virtual_bond_dim) > 1 and payload.dtype == "complex64":
+        warnings.append("complex64 entangled iPEPS runs may lose transfer-sector precision; use complex128 for reference-quality observables")
     if not interaction_values_available:
         warnings.append("one or more interaction displacements are outside the supported nearest-neighbor two-site CTM contraction")
     if reference_validation["performed"] and not reference_validation["passed"]:
@@ -855,8 +889,10 @@ def run_ctmrg(
         ),
         (
             "energy variance is a finite product-supercell diagnostic and is not an infinite-lattice variance proof"
+            if reference_validation.get("energy_variance") is not None else
+            "the selected entangled reference validates local observables but does not provide an infinite-lattice variance"
             if reference_validation["performed"] else
-            "energy variance and finite-product reference are unavailable for the current entangled tensor"
+            "energy variance and independent reference are unavailable for the current entangled tensor"
         ),
         "non-nearest interaction displacements are not yet supported by the two-site-RDM contraction",
     ]

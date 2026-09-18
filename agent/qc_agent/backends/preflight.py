@@ -275,6 +275,8 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         warnings.append("current CTMRG solver supports unit_cell dimensions no larger than 2x2")
     if physical_bond_dim != 2:
         warnings.append("current CTMRG solver supports only physical_bond_dim=2 for Pauli observables")
+    if virtual_bond_dim > 1 and payload.dtype == "complex64":
+        warnings.append("complex64 entangled iPEPS runs may lose transfer-sector precision; complex128 is recommended for reference-quality observables")
     if getattr(payload, "optimization", "none") == "product-coordinate-descent" and virtual_bond_dim != 1:
         warnings.append("product-coordinate-descent optimization requires virtual_bond_dim=1")
     if getattr(payload, "optimization", "none") == "full-update":

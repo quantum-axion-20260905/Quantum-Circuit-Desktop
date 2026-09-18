@@ -63,6 +63,46 @@ class CTMRGTests(unittest.TestCase):
         self.assertAlmostEqual(result["observables"][0]["value"], 1.0, places=6)
         self.assertAlmostEqual(result["interactions"][0]["value"], 1.0, places=6)
 
+    def test_entangled_ghz_tensor_keeps_two_site_order_parameter(self):
+        """A D=2 symmetry-degenerate tensor must not collapse to a 0/0 bond."""
+
+        tensor_data: list[list[float]] = []
+        for physical in range(2):
+            for up in range(2):
+                for down in range(2):
+                    for left in range(2):
+                        for right in range(2):
+                            tensor_data.append([
+                                float(physical == up == down == left == right),
+                                0.0,
+                            ])
+        result = run_ctmrg(np, CTMRGPayload(
+            unit_cell=[1, 1],
+            virtual_bond_dim=2,
+            dtype="complex64",
+            tensor_data=tensor_data,
+            environment_bond_dim=2,
+            iterations=8,
+            tolerance=1e-6,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+        ))
+        # The symmetric GHZ transfer fixed point has <Z>=0 and <Z_i Z_j>=1.
+        self.assertAlmostEqual(result["observables"][0]["value"], 0.0, places=5)
+        self.assertAlmostEqual(result["interactions"][0]["value"], 1.0, places=5)
+        self.assertAlmostEqual(result["energy"], 1.0, places=5)
+        self.assertIsNone(result["correlation_length"])
+        self.assertTrue(result["reference_validation"]["performed"])
+        self.assertTrue(result["reference_validation"]["passed"])
+        self.assertEqual(result["reference_validation"]["reference"], "analytic-ghz-transfer-fixed-point")
+
     def test_two_site_checkerboard_contracts_neel_bond(self):
         payload = CTMRGPayload(
             unit_cell=[2, 1],
@@ -384,7 +424,9 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(result["virtual_bond_dim"], 2)
         self.assertFalse(result["resource_estimate"]["materializes_statevector"])
         self.assertAlmostEqual(result["interactions"][0]["value"], 1.0, places=5)
-        self.assertFalse(result["reference_validation"]["performed"])
+        self.assertTrue(result["reference_validation"]["performed"])
+        self.assertTrue(result["reference_validation"]["passed"])
+        self.assertEqual(result["reference_validation"]["reference"], "analytic-ghz-transfer-fixed-point")
         self.assertIsNone(result["energy_variance"])
         self.assertFalse(any("withheld" in warning for warning in result["warnings"]))
 

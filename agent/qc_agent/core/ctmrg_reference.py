@@ -138,3 +138,113 @@ def finite_product_reference(
             "translated same-site interactions use a copied unit cell in the reference",
         ],
     }
+
+
+def analytic_ghz_reference(
+    payload: CTMRGPayload,
+    tensors: list[Any],
+    onsite_values: list[float],
+    interaction_values: list[float | None],
+    ctmrg_energy: float,
+    *,
+    tolerance: float = 1e-6,
+) -> dict[str, Any]:
+    """Validate the canonical one-site GHZ transfer fixed point.
+
+    This is intentionally a narrow entangled reference, not a generic
+    entangled-iPEPS approximation.  The tensor has two equal virtual sectors
+    and only ``A^0_{0000}``/``A^1_{1111}`` non-zero.  Its symmetric infinite
+    transfer fixed point has ``<Z>=0`` and nearest-neighbor ``<Z Z>=1``.
+    Keeping this reference explicit lets the solver validate one important
+    D=2 case without projecting arbitrary entangled tensors onto a product
+    ansatz.
+    """
+
+    unavailable = {
+        "performed": False,
+        "reason": "analytic GHZ reference requires a one-site physical-2, virtual-2 tensor",
+        "energy_variance": None,
+    }
+    if len(tensors) != 1 or int(payload.unit_cell[0]) != 1 or int(payload.unit_cell[1]) != 1:
+        return unavailable
+    if int(payload.physical_bond_dim) != 2 or int(payload.virtual_bond_dim) != 2:
+        return unavailable
+    tensor = _host(tensors[0]).astype(np.complex128, copy=False)
+    expected = np.zeros_like(tensor)
+    expected[(0, 0, 0, 0, 0)] = 1.0
+    expected[(1, 1, 1, 1, 1)] = 1.0
+    scale = float(np.linalg.norm(tensor))
+    if scale <= 1e-14 or not np.all(np.isfinite(tensor)):
+        return {**unavailable, "reason": "tensor is zero or non-finite"}
+    normalized = tensor / scale
+    expected /= float(np.linalg.norm(expected))
+    # Global phase and harmless overall normalization are gauge freedoms.
+    overlap = np.vdot(expected, normalized)
+    if abs(overlap) <= 1e-12 or not np.allclose(normalized, overlap / abs(overlap) * expected, atol=1e-6, rtol=1e-6):
+        return unavailable
+
+    def one_site(pauli: str) -> float | None:
+        if pauli == "I":
+            return 1.0
+        if pauli in {"X", "Y", "Z"}:
+            return 0.0
+        return None
+
+    def two_site(left: str, right: str) -> float | None:
+        if left == right == "I":
+            return 1.0
+        if left == right == "Z":
+            return 1.0
+        if left in {"I", "X", "Y", "Z"} and right in {"I", "X", "Y", "Z"}:
+            return 0.0
+        return None
+
+    expected_onsite: list[float] = []
+    for term in payload.terms:
+        if len(term.paulis) > 1 or any(int(site) != 0 for site in term.paulis):
+            return unavailable
+        value = one_site(str(next(iter(term.paulis.values()), "I")))
+        if value is None:
+            return unavailable
+        expected_onsite.append(value)
+    expected_interactions: list[float] = []
+    for interaction in payload.interactions:
+        if interaction.left_site != 0 or interaction.right_site != 0 or tuple(map(abs, interaction.displacement)) not in ((1, 0), (0, 1)):
+            return unavailable
+        value = two_site(str(interaction.left_pauli), str(interaction.right_pauli))
+        if value is None:
+            return unavailable
+        expected_interactions.append(value)
+
+    onsite_errors = [abs(float(actual) - expected) for actual, expected in zip(onsite_values, expected_onsite)]
+    interaction_errors = [
+        abs(float(actual) - expected)
+        for actual, expected in zip(interaction_values, expected_interactions)
+        if actual is not None
+    ]
+    complete = all(value is not None for value in interaction_values)
+    max_error = max([*onsite_errors, *interaction_errors], default=0.0)
+    expected_energy = sum(float(term.coefficient) * value for term, value in zip(payload.terms, expected_onsite))
+    expected_energy += sum(
+        float(term.coefficient) * value
+        for term, value in zip(payload.interactions, expected_interactions)
+    )
+    max_error = max(max_error, abs(float(ctmrg_energy) - expected_energy))
+    return {
+        "performed": True,
+        "reference": "analytic-ghz-transfer-fixed-point",
+        "reference_energy": expected_energy,
+        "energy_error": abs(float(ctmrg_energy) - expected_energy),
+        "energy_second_moment": None,
+        "energy_variance": None,
+        "observable_max_abs_error": max(onsite_errors, default=0.0),
+        "interaction_max_abs_error": max(interaction_errors, default=0.0),
+        "max_abs_error": max_error,
+        "energy_complete": complete,
+        "passed": bool(complete and max_error <= max(float(tolerance), 1e-5)),
+        "tolerance": max(float(tolerance), 1e-5),
+        "limitations": [
+            "analytic reference is limited to the canonical one-site GHZ transfer fixed point",
+            "the reference validates selected local observables, not an infinite-lattice variance",
+        ],
+    }

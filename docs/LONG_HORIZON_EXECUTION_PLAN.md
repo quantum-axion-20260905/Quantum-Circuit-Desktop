@@ -247,6 +247,16 @@ but not released:
   with a line search, evaluation budget, gradient diagnostics, and separate
   result method; it is a bridge for small tensors and is still not the
   scalable automatic-differentiation solver required for the release gate.
+- CTMRG environment initialization now uses a deterministic full-support
+  regularization so symmetry-degenerate D=2 transfer sectors do not produce
+  accidental zero-over-zero two-site observables; unresolved transfer gaps
+  are reported as an unavailable correlation length rather than a huge finite
+  sentinel.
+- a narrow analytic GHZ transfer-fixed-point reference now validates the
+  canonical one-site virtual-D=2 tensor (`<Z>=0`, nearest-neighbor
+  `<ZZ>=1`) without pretending it is a generic entangled-iPEPS reference;
+  complex64 entangled runs expose a precision warning and recommend
+  complex128 for reference-quality observables.
 - the lattice domain plugin now builds periodic iPEPS CTMRG payloads for
   Ising, Heisenberg, and XXZ unit cells without putting model logic into the
   numerical core; 1x1 and 2x2 product-limit tests pass the independent
@@ -270,6 +280,11 @@ reference calculations and broader frontend coverage are still incomplete.
 They must land and pass their own gate before Phase 4 can be called complete or tagged
 as a release. The current frontend panel is an admitted experimental path,
 not evidence that the full variational solver is complete.
+
+The entangled-reference gate is intentionally narrow: generic virtual-bond
+dimensions above one still require broader independent references and a
+scalable variational optimizer before they can be promoted to production
+research claims.
 
 ## Current next packet
 
