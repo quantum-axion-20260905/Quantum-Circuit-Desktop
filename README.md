@@ -12,6 +12,7 @@ surface is embedded in that shell and the Python/CUDA agent owns numerical work:
 ## Docs
 
 - Master plan: [`docs/PLAN.md`](docs/PLAN.md)
+- Long-horizon execution plan: [`docs/LONG_HORIZON_EXECUTION_PLAN.md`](docs/LONG_HORIZON_EXECUTION_PLAN.md)
 - Compute architecture and staged research roadmap: [`docs/COMPUTE_ARCHITECTURE.md`](docs/COMPUTE_ARCHITECTURE.md)
 - Active research-grade execution plan: [`docs/RESEARCH_GRADE_EXECUTION_PLAN.md`](docs/RESEARCH_GRADE_EXECUTION_PLAN.md)
 - v0.7.1 release notes: [`docs/RELEASE_NOTES_v0.7.1.md`](docs/RELEASE_NOTES_v0.7.1.md)
