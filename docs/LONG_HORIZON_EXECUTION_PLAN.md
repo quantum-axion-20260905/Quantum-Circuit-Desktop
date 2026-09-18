@@ -329,6 +329,10 @@ but not released:
   through CTMRG and reports energy/observable deltas; the independent finite
   PEPS reference is gauge invariant, while a random D=2 truncated environment
   correctly remains review-only when its gauge delta exceeds tolerance.
+- CTMRG convergence now uses a boundary-basis-invariant singular-spectrum
+  residual, while retaining the raw corner/edge entry residual as a separate
+  diagnostic; this prevents harmless retained-basis rotations from being
+  misreported as physical non-convergence.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.

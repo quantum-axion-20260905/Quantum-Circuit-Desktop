@@ -421,11 +421,55 @@ def _renormalize(xp: Any, env: CTMEnvironment) -> CTMEnvironment:
     return CTMEnvironment(*(normalize(value) for value in env.tensors()))
 
 
-def _environment_residual(xp: Any, before: CTMEnvironment, after: CTMEnvironment) -> float:
+def _raw_environment_residual(xp: Any, before: CTMEnvironment, after: CTMEnvironment) -> float:
     residual = 0.0
     for old, new in zip(before.tensors(), after.tensors()):
         scale = max(_max_abs(xp, old), 1e-30)
         residual = max(residual, _max_abs(xp, new - old) / scale)
+    return residual
+
+
+def _environment_residual(xp: Any, before: CTMEnvironment, after: CTMEnvironment) -> float:
+    """Compare environments modulo their internal boundary-basis gauge.
+
+    CTM truncation can rotate or rephase the retained boundary basis even
+    after the physical environment has converged.  Comparing raw tensor
+    entries therefore reports false residuals near two.  Singular spectra of
+    each corner/edge flattening are invariant under those retained-basis
+    unitaries and provide a conservative bounded convergence diagnostic.
+    """
+
+    def spectrum(value: Any) -> list[float]:
+        matrix = value.reshape(value.shape[0], -1)
+        try:
+            if getattr(xp, "__name__", "") == "torch":
+                singular = xp.linalg.svdvals(matrix)
+                host = singular.detach().cpu().tolist()
+            else:
+                singular = xp.linalg.svd(matrix, compute_uv=False)
+                host = _host(singular)
+        except Exception:
+            import numpy as np
+
+            if getattr(xp, "__name__", "") == "torch":
+                host = np.linalg.svd(matrix.detach().cpu().numpy(), compute_uv=False)
+            else:
+                host = np.linalg.svd(_host(matrix), compute_uv=False)
+        values = [float(abs(item)) for item in host]
+        scale = max(values[0] if values else 0.0, 1e-30)
+        return [item / scale for item in values]
+
+    residual = 0.0
+    for old, new in zip(before.tensors(), after.tensors()):
+        old_spectrum = spectrum(old)
+        new_spectrum = spectrum(new)
+        size = max(len(old_spectrum), len(new_spectrum))
+        old_spectrum.extend([0.0] * (size - len(old_spectrum)))
+        new_spectrum.extend([0.0] * (size - len(new_spectrum)))
+        residual = max(
+            residual,
+            max(abs(left - right) for left, right in zip(old_spectrum, new_spectrum)),
+        )
     return residual
 
 
@@ -798,6 +842,7 @@ def run_ctmrg(
     points: list[ConvergencePoint] = []
     discarded_total = 0.0
     residual = math.inf
+    raw_residual = math.inf
     start_iteration = 0
     checkpoint_info: dict[str, Any] = {}
 
@@ -880,6 +925,10 @@ def run_ctmrg(
         discarded_total += discarded_sweep
         residual = max(
             _environment_residual(xp, old, new)
+            for old, new in zip(before, environments)
+        )
+        raw_residual = max(
+            _raw_environment_residual(xp, old, new)
             for old, new in zip(before, environments)
         )
         points.append(ConvergencePoint(
@@ -986,6 +1035,10 @@ def run_ctmrg(
     warnings = [
         "compare environment_bond_dim and iteration convergence before using values as scientific conclusions",
     ]
+    if raw_residual > max(float(payload.tolerance) * 10.0, 1e-6) and residual <= float(payload.tolerance):
+        warnings.append(
+            f"raw boundary-basis residual is {raw_residual:.3e}; convergence uses a gauge-invariant environment spectrum"
+        )
     if len(tensors) == 1:
         warnings.insert(0, "CTMRG contraction uses a one-site translational environment")
     else:
@@ -1107,6 +1160,7 @@ def run_ctmrg(
             "energy": float(energy),
             "energy_complete": interaction_values_available,
             "residual": float(residual),
+            "raw_boundary_basis_residual": float(raw_residual),
             "gauge_validation_max_abs_delta": gauge_validation.get("max_abs_delta"),
             "energy_second_moment": reference_validation.get("energy_second_moment"),
             "energy_variance": reference_validation.get("energy_variance"),
@@ -1166,6 +1220,7 @@ def run_ctmrg(
         "iterations": len(points),
         "converged": converged,
         "residual": float(residual),
+        "raw_boundary_basis_residual": float(raw_residual),
         "norm": norm,
         "energy": float(energy),
         "energy_complete": interaction_values_available,

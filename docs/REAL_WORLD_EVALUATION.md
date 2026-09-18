@@ -110,6 +110,12 @@ delta reached `5.68e-2` against a `1e-4` tolerance. The result surfaces this as
 `gauge_validation.passed=false` and a warning, rather than treating the
 truncated value as gauge-independent evidence.
 
+The CTMRG convergence criterion was also hardened to compare normalized
+corner/edge singular spectra rather than raw retained-basis entries. On the
+canonical GHZ D=2 transfer fixed point, the physical residual converges below
+`4e-10` while the raw basis residual remains about `1.0`; both values are now
+reported so basis rotation is not confused with physical divergence.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices

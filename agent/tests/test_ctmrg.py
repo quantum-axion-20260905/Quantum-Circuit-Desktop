@@ -99,6 +99,7 @@ class CTMRGTests(unittest.TestCase):
         self.assertAlmostEqual(result["interactions"][0]["value"], 1.0, places=5)
         self.assertAlmostEqual(result["energy"], 1.0, places=5)
         self.assertIsNone(result["correlation_length"])
+        self.assertGreater(result["raw_boundary_basis_residual"], result["residual"])
         self.assertTrue(result["reference_validation"]["performed"])
         self.assertTrue(result["reference_validation"]["passed"])
         self.assertEqual(result["reference_validation"]["reference"], "analytic-ghz-transfer-fixed-point")
