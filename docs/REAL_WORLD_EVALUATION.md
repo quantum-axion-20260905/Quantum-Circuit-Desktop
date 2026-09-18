@@ -80,6 +80,11 @@ and resumed to four iterations. The resumed and fresh runs agreed within
 `2.5e-7` in energy, with `start_iteration=2`; the checkpoint is still an
 experimental infinite-objective baseline, not a variational convergence claim.
 
+The coordinate and finite-difference CTMRG-feedback baselines were also
+checkpointed and resumed on CUDA from iteration 1. Both matched their fresh
+two-iteration runs exactly in the bounded D=1 case (`abs_delta=0`), confirming
+that all three current feedback policies have resumable state contracts.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices

@@ -284,23 +284,37 @@ def _run_finite_difference_full_update(
             f"full-update tensor parameter count {parameter_count} exceeds "
             f"full_update_max_parameters={payload.full_update_max_parameters}"
         )
-    working = normalize_tensors(xp, [tensor.copy() for tensor in tensors])
     objective = CTMRGObjective(xp, payload, run_ctmrg)
+    state = _restore_optimizer_state(
+        xp,
+        payload,
+        tensors,
+        objective,
+        expected_method="ipeps-full-update-finite-difference-gradient-ctmrg",
+        optimizer_name="finite-difference-gradient",
+    )
+    request_sha256 = state["request_sha256"]
+    working = state["working"]
     max_evaluations = int(payload.full_update_max_evaluations)
     budget_exhausted = False
+    start_iteration = state["start_iteration"]
+    history: list[dict[str, Any]] = state["history"]
+    checkpoint_info: dict[str, Any] = state["checkpoint"]
+    initial_energy: float | None = state["initial_energy"]
+    current_energy: float | None = state["current_energy"]
 
     def evaluate(candidate: list[Any]) -> float | None:
         result = objective.evaluate(candidate)
         return None if result is None else float(result["energy"])
 
-    current_energy = evaluate(working)
     if current_energy is None:
-        raise ValueError("full-update evaluation budget must allow an initial CTMRG evaluation")
-    initial_energy = current_energy
-    history: list[dict[str, Any]] = []
+        current_energy = evaluate(working)
+        if current_energy is None:
+            raise ValueError("full-update evaluation budget must allow an initial CTMRG evaluation")
+        initial_energy = current_energy
     epsilon = float(payload.full_update_gradient_epsilon)
 
-    for iteration in range(1, int(payload.optimization_steps) + 1):
+    for iteration in range(start_iteration + 1, int(payload.optimization_steps) + 1):
         if objective.evaluations + 2 * parameter_count > max_evaluations:
             budget_exhausted = True
             break
@@ -372,6 +386,20 @@ def _run_finite_difference_full_update(
             "parameter_count": parameter_count,
             "evaluation_budget_exhausted": budget_exhausted,
         })
+        checkpoint_info = _save_optimizer_state(
+            xp,
+            payload,
+            objective,
+            working,
+            request_sha256=request_sha256,
+            method="ipeps-full-update-finite-difference-gradient-ctmrg",
+            optimizer_name="finite-difference-gradient",
+            iteration=iteration,
+            history=history,
+            initial_energy=float(initial_energy),
+            current_energy=float(current_energy),
+            parameter_count=parameter_count,
+        ) or checkpoint_info
         if budget_exhausted or improvement <= float(payload.optimization_tolerance) or gradient_norm <= float(payload.optimization_tolerance):
             break
 
@@ -379,14 +407,20 @@ def _run_finite_difference_full_update(
         "tensors": working,
         "iterations": len(history),
         "energy_history": history,
-        "initial_energy": initial_energy,
-        "final_energy": current_energy,
+        "initial_energy": float(initial_energy),
+        "final_energy": float(current_energy),
         "evaluations": objective.evaluations,
         "parameter_count": parameter_count,
         "optimizer": "finite-difference-gradient",
         "gradient_backend": "bounded-finite-difference",
         "evaluation_budget": max_evaluations,
         "evaluation_budget_exhausted": budget_exhausted,
+        "start_iteration": start_iteration,
+        "request_sha256": request_sha256,
+        "checkpoint": checkpoint_info or {
+            "resumable": False,
+            "reason": "set optimizer_checkpoint_path to persist and optimizer_resume_from to resume the bounded finite-difference update",
+        },
         "converged": bool(
             history
             and not budget_exhausted
@@ -417,6 +451,118 @@ def _rademacher(index: int, iteration: int, direction: int, component: int) -> f
     return 1.0 if value & 0x80000000 else -1.0
 
 
+def _restore_optimizer_state(
+    xp: Any,
+    payload: CTMRGPayload,
+    tensors: list[Any],
+    objective: CTMRGObjective,
+    *,
+    expected_method: str,
+    optimizer_name: str,
+) -> dict[str, Any]:
+    """Restore a bounded CTMRG-feedback optimizer state after strict checks."""
+
+    request_sha256 = optimizer_request_sha256(payload)
+    if not payload.optimizer_resume_from:
+        return {
+            "request_sha256": request_sha256,
+            "working": normalize_tensors(xp, [tensor.copy() for tensor in tensors]),
+            "start_iteration": 0,
+            "history": [],
+            "initial_energy": None,
+            "current_energy": None,
+            "checkpoint": {},
+        }
+    manifest, restored_tensors = load_optimizer_checkpoint(
+        payload.optimizer_resume_from,
+        xp,
+        expected_method=expected_method,
+    )
+    if manifest.get("request_sha256") != request_sha256:
+        raise ValueError("optimizer checkpoint does not match the scientific CTMRG problem")
+    if manifest.get("dtype") != payload.dtype:
+        raise ValueError("optimizer checkpoint dtype does not match the requested dtype")
+    metadata = manifest.get("metadata", {})
+    if metadata.get("optimizer") != optimizer_name:
+        raise ValueError(f"optimizer checkpoint is not a {optimizer_name} state")
+    if int(metadata.get("tensor_count", -1)) != len(tensors):
+        raise ValueError("optimizer checkpoint tensor count does not match the request")
+    if any(tuple(restored.shape) != tuple(current.shape) for restored, current in zip(restored_tensors, tensors)):
+        raise ValueError("optimizer checkpoint tensor shapes do not match the request")
+    start_iteration = int(manifest.get("step", 0))
+    if start_iteration > int(payload.optimization_steps):
+        raise ValueError(
+            f"optimizer checkpoint already contains {start_iteration} iterations, "
+            f"but the requested run only allows {payload.optimization_steps}"
+        )
+    raw_history = metadata.get("energy_history", [])
+    if not isinstance(raw_history, list) or len(raw_history) != start_iteration:
+        raise ValueError("optimizer checkpoint energy history is invalid")
+    objective.evaluations = int(metadata.get("evaluations", 0))
+    if objective.evaluations > int(payload.full_update_max_evaluations):
+        raise ValueError("optimizer checkpoint evaluations exceed the requested evaluation budget")
+    initial_energy = float(metadata["initial_energy"])
+    current_energy = float(metadata.get("current_energy", initial_energy))
+    return {
+        "request_sha256": request_sha256,
+        "working": normalize_tensors(xp, [tensor.copy() for tensor in restored_tensors]),
+        "start_iteration": start_iteration,
+        "history": [dict(point) for point in raw_history],
+        "initial_energy": initial_energy,
+        "current_energy": current_energy,
+        "checkpoint": manifest,
+    }
+
+
+def _save_optimizer_state(
+    xp: Any,
+    payload: CTMRGPayload,
+    objective: CTMRGObjective,
+    working: list[Any],
+    *,
+    request_sha256: str,
+    method: str,
+    optimizer_name: str,
+    iteration: int,
+    history: list[dict[str, Any]],
+    initial_energy: float,
+    current_energy: float,
+    parameter_count: int,
+    extra_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Persist a bounded CTMRG optimizer state when checkpointing is enabled."""
+
+    if not payload.optimizer_checkpoint_path:
+        return {}
+    metadata = {
+        "optimizer": optimizer_name,
+        "completed_iterations": int(iteration),
+        "evaluations": int(objective.evaluations),
+        "initial_energy": float(initial_energy),
+        "current_energy": float(current_energy),
+        "energy_history": [dict(point) for point in history],
+        "tensor_count": len(working),
+        "parameter_count": int(parameter_count),
+    }
+    if extra_metadata:
+        metadata.update(extra_metadata)
+    return save_optimizer_checkpoint(
+        payload.optimizer_checkpoint_path,
+        working,
+        CheckpointManifest(
+            checkpoint_id=f"{optimizer_name}-ctmrg-{request_sha256[:12]}-iteration-{iteration}",
+            request_sha256=request_sha256,
+            method=method,
+            representation="ipeps-optimizer-state",
+            dtype=payload.dtype,
+            device="cuda" if hasattr(xp, "cuda") else "cpu",
+            step=int(iteration),
+            created_at=datetime.now(timezone.utc).isoformat(),
+            metadata=metadata,
+        ),
+    )
+
+
 def _run_spsa_full_update(
     xp: Any,
     payload: CTMRGPayload,
@@ -438,51 +584,24 @@ def _run_spsa_full_update(
             f"full-update tensor parameter count {parameter_count} exceeds "
             f"full_update_max_parameters={payload.full_update_max_parameters}"
         )
-    request_sha256 = optimizer_request_sha256(payload)
-    working = normalize_tensors(xp, [tensor.copy() for tensor in tensors])
     objective = CTMRGObjective(xp, payload, run_ctmrg)
+    state = _restore_optimizer_state(
+        xp,
+        payload,
+        tensors,
+        objective,
+        expected_method="ipeps-full-update-spsa-ctmrg",
+        optimizer_name="spsa-gradient",
+    )
+    request_sha256 = state["request_sha256"]
+    working = state["working"]
     max_evaluations = int(payload.full_update_max_evaluations)
     budget_exhausted = False
-    start_iteration = 0
-    history: list[dict[str, Any]] = []
-    checkpoint_info: dict[str, Any] = {}
-    initial_energy: float | None = None
-    current_energy: float | None = None
-
-    if payload.optimizer_resume_from:
-        manifest, restored_tensors = load_optimizer_checkpoint(
-            payload.optimizer_resume_from,
-            xp,
-            expected_method="ipeps-full-update-spsa-ctmrg",
-        )
-        if manifest.get("request_sha256") != request_sha256:
-            raise ValueError("optimizer checkpoint does not match the scientific CTMRG problem")
-        if manifest.get("dtype") != payload.dtype:
-            raise ValueError("optimizer checkpoint dtype does not match the requested dtype")
-        metadata = manifest.get("metadata", {})
-        if metadata.get("optimizer") != "spsa-gradient":
-            raise ValueError("optimizer checkpoint is not an SPSA state")
-        if int(metadata.get("tensor_count", -1)) != len(tensors):
-            raise ValueError("optimizer checkpoint tensor count does not match the request")
-        if any(tuple(restored.shape) != tuple(current.shape) for restored, current in zip(restored_tensors, tensors)):
-            raise ValueError("optimizer checkpoint tensor shapes do not match the request")
-        start_iteration = int(manifest.get("step", 0))
-        if start_iteration > int(payload.optimization_steps):
-            raise ValueError(
-                f"optimizer checkpoint already contains {start_iteration} iterations, "
-                f"but the requested run only allows {payload.optimization_steps}"
-            )
-        raw_history = metadata.get("energy_history", [])
-        if not isinstance(raw_history, list):
-            raise ValueError("optimizer checkpoint energy history is invalid")
-        history = [dict(point) for point in raw_history]
-        objective.evaluations = int(metadata.get("evaluations", 0))
-        if objective.evaluations > max_evaluations:
-            raise ValueError("optimizer checkpoint evaluations exceed the requested evaluation budget")
-        initial_energy = float(metadata["initial_energy"])
-        current_energy = float(metadata["current_energy"])
-        working = normalize_tensors(xp, [tensor.copy() for tensor in restored_tensors])
-        checkpoint_info = manifest
+    start_iteration = state["start_iteration"]
+    history: list[dict[str, Any]] = state["history"]
+    checkpoint_info: dict[str, Any] = state["checkpoint"]
+    initial_energy: float | None = state["initial_energy"]
+    current_energy: float | None = state["current_energy"]
 
     def evaluate(candidate: list[Any]) -> float | None:
         result = objective.evaluate(candidate)
@@ -495,36 +614,6 @@ def _run_spsa_full_update(
         initial_energy = current_energy
     epsilon = float(payload.full_update_gradient_epsilon)
     direction_count = int(payload.full_update_spsa_directions)
-
-    def save_optimizer_state(iteration: int) -> None:
-        nonlocal checkpoint_info
-        if not payload.optimizer_checkpoint_path:
-            return
-        checkpoint_info = save_optimizer_checkpoint(
-            payload.optimizer_checkpoint_path,
-            working,
-            CheckpointManifest(
-                checkpoint_id=f"spsa-ctmrg-{request_sha256[:12]}-iteration-{iteration}",
-                request_sha256=request_sha256,
-                method="ipeps-full-update-spsa-ctmrg",
-                representation="ipeps-optimizer-state",
-                dtype=payload.dtype,
-                device="cuda" if hasattr(xp, "cuda") else "cpu",
-                step=iteration,
-                created_at=datetime.now(timezone.utc).isoformat(),
-                metadata={
-                    "optimizer": "spsa-gradient",
-                    "completed_iterations": iteration,
-                    "evaluations": int(objective.evaluations),
-                    "initial_energy": float(initial_energy if initial_energy is not None else 0.0),
-                    "current_energy": float(current_energy if current_energy is not None else 0.0),
-                    "energy_history": [dict(point) for point in history],
-                    "tensor_count": len(working),
-                    "parameter_count": parameter_count,
-                    "direction_count": direction_count,
-                },
-            ),
-        )
 
     for iteration in range(start_iteration + 1, int(payload.optimization_steps) + 1):
         if objective.evaluations + 2 * direction_count > max_evaluations:
@@ -590,7 +679,21 @@ def _run_spsa_full_update(
             "parameter_count": parameter_count,
             "evaluation_budget_exhausted": budget_exhausted,
         })
-        save_optimizer_state(iteration)
+        checkpoint_info = _save_optimizer_state(
+            xp,
+            payload,
+            objective,
+            working,
+            request_sha256=request_sha256,
+            method="ipeps-full-update-spsa-ctmrg",
+            optimizer_name="spsa-gradient",
+            iteration=iteration,
+            history=history,
+            initial_energy=float(initial_energy),
+            current_energy=float(current_energy),
+            parameter_count=parameter_count,
+            extra_metadata={"direction_count": direction_count},
+        ) or checkpoint_info
         if budget_exhausted or improvement <= float(payload.optimization_tolerance) or gradient_norm <= float(payload.optimization_tolerance):
             break
 
@@ -651,9 +754,23 @@ def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[
             f"full-update tensor parameter count {parameter_count} exceeds "
             f"full_update_max_parameters={payload.full_update_max_parameters}"
         )
-    working = normalize_tensors(xp, [tensor.copy() for tensor in tensors])
     objective = CTMRGObjective(xp, payload, run_ctmrg)
+    state = _restore_optimizer_state(
+        xp,
+        payload,
+        tensors,
+        objective,
+        expected_method="ipeps-full-update-coordinate-ctmrg",
+        optimizer_name="coordinate",
+    )
+    request_sha256 = state["request_sha256"]
+    working = state["working"]
     max_evaluations = int(payload.full_update_max_evaluations)
+    start_iteration = state["start_iteration"]
+    history: list[dict[str, Any]] = state["history"]
+    checkpoint_info: dict[str, Any] = state["checkpoint"]
+    initial_energy: float | None = state["initial_energy"]
+    current_energy: float | None = state["current_energy"]
 
     def evaluate(candidate: list[Any]) -> float:
         result = objective.evaluate(candidate)
@@ -661,10 +778,11 @@ def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[
             raise ValueError("full-update evaluation budget exhausted")
         return float(result["energy"])
 
-    current_energy = evaluate(working)
-    history: list[dict[str, Any]] = []
+    if current_energy is None:
+        current_energy = evaluate(working)
+        initial_energy = current_energy
     component_count = parameter_count
-    for iteration in range(1, int(payload.optimization_steps) + 1):
+    for iteration in range(start_iteration + 1, int(payload.optimization_steps) + 1):
         sweep_start = current_energy
         accepted_updates = 0
         step = float(payload.full_update_step)
@@ -693,19 +811,39 @@ def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[
             "evaluations": objective.evaluations,
             "parameter_count": component_count,
         })
+        checkpoint_info = _save_optimizer_state(
+            xp,
+            payload,
+            objective,
+            working,
+            request_sha256=request_sha256,
+            method="ipeps-full-update-coordinate-ctmrg",
+            optimizer_name="coordinate",
+            iteration=iteration,
+            history=history,
+            initial_energy=float(initial_energy),
+            current_energy=float(current_energy),
+            parameter_count=parameter_count,
+        ) or checkpoint_info
         if improvement <= float(payload.optimization_tolerance):
             break
     return {
         "tensors": working,
         "iterations": len(history),
         "energy_history": history,
-        "initial_energy": history[0]["energy"] + history[0]["improvement"] if history else current_energy,
-        "final_energy": current_energy,
+        "initial_energy": float(initial_energy),
+        "final_energy": float(current_energy),
         "evaluations": objective.evaluations,
         "parameter_count": component_count,
         "optimizer": "coordinate",
         "gradient_backend": None,
         "evaluation_budget": max_evaluations,
         "evaluation_budget_exhausted": objective.evaluations >= max_evaluations,
+        "start_iteration": start_iteration,
+        "request_sha256": request_sha256,
+        "checkpoint": checkpoint_info or {
+            "resumable": False,
+            "reason": "set optimizer_checkpoint_path to persist and optimizer_resume_from to resume the bounded coordinate update",
+        },
         "converged": bool(history and history[-1]["improvement"] <= float(payload.optimization_tolerance)),
     }

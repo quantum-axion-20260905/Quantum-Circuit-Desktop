@@ -612,6 +612,57 @@ class CTMRGTests(unittest.TestCase):
             self.assertAlmostEqual(resumed_diagnostics["final_energy"], fresh["optimization_diagnostics"]["final_energy"], places=12)
             self.assertAlmostEqual(resumed["energy"], fresh["energy"], places=12)
 
+    def test_bounded_feedback_optimizer_checkpoints_resume_for_coordinate_and_finite_difference(self):
+        common = {
+            "dtype": "complex128",
+            "initial_state": "plus",
+            "optimization": "full-update",
+            "full_update_step": 0.05,
+            "full_update_gradient_epsilon": 1e-3,
+            "full_update_max_parameters": 8,
+            "full_update_max_evaluations": 128,
+            "terms": [PauliTerm(paulis={0: "Z"}, coefficient=-0.2)],
+            "interactions": [IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=-1.0,
+            )],
+            "environment_bond_dim": 1,
+            "iterations": 1,
+        }
+        for optimizer in ("coordinate", "finite-difference-gradient"):
+            with self.subTest(optimizer=optimizer), TemporaryDirectory() as directory:
+                checkpoint = os.path.join(directory, f"{optimizer}.npz")
+                partial = run_ctmrg(np, CTMRGPayload(
+                    **common,
+                    full_update_optimizer=optimizer,
+                    optimization_steps=1,
+                    optimizer_checkpoint_path=checkpoint,
+                ))
+                resumed = run_ctmrg(np, CTMRGPayload(
+                    **common,
+                    full_update_optimizer=optimizer,
+                    optimization_steps=2,
+                    optimizer_checkpoint_path=checkpoint,
+                    optimizer_resume_from=checkpoint,
+                ))
+                fresh = run_ctmrg(np, CTMRGPayload(
+                    **common,
+                    full_update_optimizer=optimizer,
+                    optimization_steps=2,
+                ))
+                self.assertTrue(partial["optimization_diagnostics"]["checkpoint"]["resumable"])
+                self.assertEqual(resumed["optimization_diagnostics"]["start_iteration"], 1)
+                self.assertAlmostEqual(
+                    resumed["optimization_diagnostics"]["final_energy"],
+                    fresh["optimization_diagnostics"]["final_energy"],
+                    places=10,
+                )
+                self.assertAlmostEqual(resumed["energy"], fresh["energy"], places=10)
+
     def test_full_update_parameter_admission_is_explicit(self):
         payload = CTMRGPayload(
             virtual_bond_dim=2,
@@ -732,7 +783,7 @@ class CTMRGTests(unittest.TestCase):
     def test_optimizer_state_checkpoint_is_limited_to_supported_strategies(self):
         with self.assertRaisesRegex(ValueError, "optimizer checkpoint state"):
             CTMRGPayload(
-                optimization="full-update",
+                optimization="simple-update",
                 full_update_optimizer="coordinate",
                 optimizer_checkpoint_path="optimizer.npz",
                 interactions=[{
