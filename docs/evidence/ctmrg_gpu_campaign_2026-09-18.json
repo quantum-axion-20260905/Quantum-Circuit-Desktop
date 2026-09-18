@@ -2,7 +2,7 @@
   "case_count": 5,
   "cases": [
     {
-      "elapsed_ms": 266.129,
+      "elapsed_ms": 313.677,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11757682688,
@@ -28,7 +28,7 @@
         "environment_bond_dim": 4,
         "full_update_gradient_epsilon": 0.001,
         "full_update_max_evaluations": 1024,
-        "full_update_max_parameters": 32,
+        "full_update_max_parameters": 128,
         "full_update_optimizer": "coordinate",
         "full_update_spsa_directions": 4,
         "full_update_step": 0.05,
@@ -77,7 +77,7 @@
         ],
         "virtual_bond_dim": 1
       },
-      "request_sha256": "c61f84b0d994b1c6376f9cab7bb4e792c25271182c77748bfa341be46aae5dec",
+      "request_sha256": "00137844621e8913ae695ae4c86b2fd142aaaeb8104fcdfda278d2f085877dd3",
       "result_sha256": "8826190b9f722fb7fa8f75ae03048209a625ba4af42873cde046a898c8b6fa6b",
       "status": "done",
       "study": {
@@ -277,8 +277,8 @@
           }
         ],
         "provenance": {
-          "git_revision": "26244533abdfea1d4cba34d5f40fa6c9070bfdfc",
-          "request_sha256": "c61f84b0d994b1c6376f9cab7bb4e792c25271182c77748bfa341be46aae5dec",
+          "git_revision": "2fc34c69977227d81756eda1002db374b8dfbc7c",
+          "request_sha256": "00137844621e8913ae695ae4c86b2fd142aaaeb8104fcdfda278d2f085877dd3",
           "result_sha256": "8826190b9f722fb7fa8f75ae03048209a625ba4af42873cde046a898c8b6fa6b"
         },
         "reference_summary": {
@@ -303,7 +303,7 @@
       }
     },
     {
-      "elapsed_ms": 76.106,
+      "elapsed_ms": 82.824,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11757682688,
@@ -329,7 +329,7 @@
         "environment_bond_dim": 4,
         "full_update_gradient_epsilon": 0.001,
         "full_update_max_evaluations": 1024,
-        "full_update_max_parameters": 32,
+        "full_update_max_parameters": 128,
         "full_update_optimizer": "coordinate",
         "full_update_spsa_directions": 4,
         "full_update_step": 0.05,
@@ -402,7 +402,7 @@
         ],
         "virtual_bond_dim": 1
       },
-      "request_sha256": "f20f8b4f2b9187819088bfc25e95d92363c61dad1a1177f47c95351c1ad59876",
+      "request_sha256": "c0f90c1c3673fb94ab8cd69cf98cd32481e4e86cab6b5bec956080f91bc90a63",
       "result_sha256": "15ac5e02cbd2a7d717bc5078568d47806e124e1bd88af931e2027db4366a37b5",
       "status": "done",
       "study": {
@@ -618,8 +618,8 @@
           }
         ],
         "provenance": {
-          "git_revision": "26244533abdfea1d4cba34d5f40fa6c9070bfdfc",
-          "request_sha256": "f20f8b4f2b9187819088bfc25e95d92363c61dad1a1177f47c95351c1ad59876",
+          "git_revision": "2fc34c69977227d81756eda1002db374b8dfbc7c",
+          "request_sha256": "c0f90c1c3673fb94ab8cd69cf98cd32481e4e86cab6b5bec956080f91bc90a63",
           "result_sha256": "15ac5e02cbd2a7d717bc5078568d47806e124e1bd88af931e2027db4366a37b5"
         },
         "reference_summary": {
@@ -644,7 +644,7 @@
       }
     },
     {
-      "elapsed_ms": 74.778,
+      "elapsed_ms": 86.533,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11757682688,
@@ -670,7 +670,7 @@
         "environment_bond_dim": 4,
         "full_update_gradient_epsilon": 0.001,
         "full_update_max_evaluations": 1024,
-        "full_update_max_parameters": 32,
+        "full_update_max_parameters": 128,
         "full_update_optimizer": "coordinate",
         "full_update_spsa_directions": 4,
         "full_update_step": 0.05,
@@ -743,7 +743,7 @@
         ],
         "virtual_bond_dim": 1
       },
-      "request_sha256": "7eaa5fc515fab4baa841c526fd84db990a3f281fc778abd835b65260d94dda4e",
+      "request_sha256": "3421da67e0f276fb182d016787ba4f32086802a3deaea559a5064bffe5ce10e6",
       "result_sha256": "59a54c66f202d0b3dc626aa5d86ef4fbbb6fc458f2831fa9d907774279d77ef7",
       "status": "done",
       "study": {
@@ -959,8 +959,8 @@
           }
         ],
         "provenance": {
-          "git_revision": "26244533abdfea1d4cba34d5f40fa6c9070bfdfc",
-          "request_sha256": "7eaa5fc515fab4baa841c526fd84db990a3f281fc778abd835b65260d94dda4e",
+          "git_revision": "2fc34c69977227d81756eda1002db374b8dfbc7c",
+          "request_sha256": "3421da67e0f276fb182d016787ba4f32086802a3deaea559a5064bffe5ce10e6",
           "result_sha256": "59a54c66f202d0b3dc626aa5d86ef4fbbb6fc458f2831fa9d907774279d77ef7"
         },
         "reference_summary": {
@@ -985,7 +985,7 @@
       }
     },
     {
-      "elapsed_ms": 149.187,
+      "elapsed_ms": 183.466,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11757682688,
@@ -1011,7 +1011,7 @@
         "environment_bond_dim": 4,
         "full_update_gradient_epsilon": 0.001,
         "full_update_max_evaluations": 1024,
-        "full_update_max_parameters": 32,
+        "full_update_max_parameters": 128,
         "full_update_optimizer": "coordinate",
         "full_update_spsa_directions": 4,
         "full_update_step": 0.05,
@@ -1132,7 +1132,7 @@
         ],
         "virtual_bond_dim": 1
       },
-      "request_sha256": "1b744c60f6c8173ac213d69a5688a5be9fab2b1acd5f8548c1b97b2d27ae8b0a",
+      "request_sha256": "fc066cd0b75f4ce83182d546e2026eb7b872ded559aa8ab6518592bccea67326",
       "result_sha256": "ef65065029d2857d959ba925c918f34aa54b019b727b11fc1fc3db9c1f20691d",
       "status": "done",
       "study": {
@@ -1380,8 +1380,8 @@
           }
         ],
         "provenance": {
-          "git_revision": "26244533abdfea1d4cba34d5f40fa6c9070bfdfc",
-          "request_sha256": "1b744c60f6c8173ac213d69a5688a5be9fab2b1acd5f8548c1b97b2d27ae8b0a",
+          "git_revision": "2fc34c69977227d81756eda1002db374b8dfbc7c",
+          "request_sha256": "fc066cd0b75f4ce83182d546e2026eb7b872ded559aa8ab6518592bccea67326",
           "result_sha256": "ef65065029d2857d959ba925c918f34aa54b019b727b11fc1fc3db9c1f20691d"
         },
         "reference_summary": {
@@ -1406,7 +1406,7 @@
       }
     },
     {
-      "elapsed_ms": 357.598,
+      "elapsed_ms": 363.76,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11753488384,
@@ -1432,7 +1432,7 @@
         "environment_bond_dim": 4,
         "full_update_gradient_epsilon": 0.001,
         "full_update_max_evaluations": 1024,
-        "full_update_max_parameters": 32,
+        "full_update_max_parameters": 128,
         "full_update_optimizer": "coordinate",
         "full_update_spsa_directions": 4,
         "full_update_step": 0.05,
@@ -2002,7 +2002,7 @@
         ],
         "virtual_bond_dim": 2
       },
-      "request_sha256": "afb287ae3067a27d0c644ae8c7544fa04ffebfb683694b686ec16a39289c23de",
+      "request_sha256": "fcb36bbcc9b58a064cba00c4b2e8bba7b1177d6fc9149a1b2c7e60d374ebce7f",
       "result_sha256": "6cff3582af70fd3dff4039dda55e39f8122495deaafc6539ec09f4d1e539bc86",
       "status": "done",
       "study": {
@@ -2182,8 +2182,8 @@
           }
         ],
         "provenance": {
-          "git_revision": "26244533abdfea1d4cba34d5f40fa6c9070bfdfc",
-          "request_sha256": "afb287ae3067a27d0c644ae8c7544fa04ffebfb683694b686ec16a39289c23de",
+          "git_revision": "2fc34c69977227d81756eda1002db374b8dfbc7c",
+          "request_sha256": "fcb36bbcc9b58a064cba00c4b2e8bba7b1177d6fc9149a1b2c7e60d374ebce7f",
           "result_sha256": "6cff3582af70fd3dff4039dda55e39f8122495deaafc6539ec09f4d1e539bc86"
         },
         "reference_summary": {
@@ -2226,14 +2226,14 @@
       2
     ]
   ],
-  "created_at": "2026-09-18T05:35:44.605910+00:00",
-  "elapsed_ms": 1150.002,
+  "created_at": "2026-09-18T05:47:21.317464+00:00",
+  "elapsed_ms": 1257.848,
   "environment_bond_dims": [
     1,
     2,
     4
   ],
-  "git_revision": "26244533abdfea1d4cba34d5f40fa6c9070bfdfc",
+  "git_revision": "2fc34c69977227d81756eda1002db374b8dfbc7c",
   "limitations": [
     "campaign is bounded acceptance evidence, not a thermodynamic-limit benchmark",
     "product cases validate the admitted product reference; the generic entangled case is expected to remain review-only until variational full-update is validated",
