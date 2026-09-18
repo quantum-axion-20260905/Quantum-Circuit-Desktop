@@ -11,9 +11,15 @@ gates are completed.
 from __future__ import annotations
 
 import math
+from datetime import datetime, timezone
 from typing import Any
 
+import numpy as np
+
 from ..plugins.models import CTMRGPayload
+from .checkpoints import load_optimizer_checkpoint, save_optimizer_checkpoint
+from .contracts import CheckpointManifest
+from .ctmrg_objective import optimizer_request_sha256
 
 
 def _torch():
@@ -45,6 +51,139 @@ def _from_torch(torch: Any, xp: Any, tensor: Any) -> Any:
 
 def _normalize(torch: Any, tensors: list[Any]) -> list[Any]:
     return [tensor / (torch.linalg.norm(tensor) + 1e-30) for tensor in tensors]
+
+
+def _restore_torch_optimizer_state(
+    torch: Any,
+    xp: Any,
+    payload: CTMRGPayload,
+    tensors: list[Any],
+    *,
+    expected_method: str,
+    optimizer_name: str,
+) -> dict[str, Any]:
+    """Restore a stateless Torch full-update line-search state.
+
+    The current AD optimizers do not carry momentum or an opaque library
+    optimizer object: the complete state is the normalized tensor cell plus
+    deterministic history and evaluation counters.  Keeping that contract
+    explicit makes a resumed run comparable with a fresh run and prevents a
+    checkpoint from being silently reused for another scientific problem.
+    """
+
+    request_sha256 = optimizer_request_sha256(payload)
+    working = _normalize(torch, [tensor.detach().clone() for tensor in tensors])
+    if not payload.optimizer_resume_from:
+        return {
+            "request_sha256": request_sha256,
+            "working": working,
+            "start_iteration": 0,
+            "history": [],
+            "initial_energy": None,
+            "current_energy": None,
+            "evaluations": 0,
+            "checkpoint": {},
+        }
+
+    manifest, restored = load_optimizer_checkpoint(
+        payload.optimizer_resume_from,
+        np,
+        expected_method=expected_method,
+    )
+    if manifest.get("request_sha256") != request_sha256:
+        raise ValueError("optimizer checkpoint does not match the scientific CTMRG problem")
+    if manifest.get("dtype") != payload.dtype:
+        raise ValueError("optimizer checkpoint dtype does not match the requested dtype")
+    metadata = manifest.get("metadata", {})
+    if metadata.get("optimizer") != optimizer_name:
+        raise ValueError(f"optimizer checkpoint is not a {optimizer_name} state")
+    if int(metadata.get("tensor_count", -1)) != len(tensors):
+        raise ValueError("optimizer checkpoint tensor count does not match the request")
+    if any(tuple(restored_tensor.shape) != tuple(current.shape) for restored_tensor, current in zip(restored, tensors)):
+        raise ValueError("optimizer checkpoint tensor shapes do not match the request")
+    start_iteration = int(manifest.get("step", 0))
+    if start_iteration > int(payload.optimization_steps):
+        raise ValueError(
+            f"optimizer checkpoint already contains {start_iteration} iterations, "
+            f"but the requested run only allows {payload.optimization_steps}"
+        )
+    raw_history = metadata.get("energy_history", [])
+    if not isinstance(raw_history, list) or len(raw_history) != start_iteration:
+        raise ValueError("optimizer checkpoint energy history is invalid")
+    evaluations = int(metadata.get("evaluations", 0))
+    if evaluations < 0 or evaluations > int(payload.full_update_max_evaluations):
+        raise ValueError("optimizer checkpoint evaluations exceed the requested evaluation budget")
+    if "initial_energy" not in metadata:
+        raise ValueError("optimizer checkpoint initial energy is missing")
+    restored_torch = [
+        _to_torch(torch, xp, tensor, dtype=tensors[0].dtype, device=tensors[0].device)
+        for tensor in restored
+    ]
+    return {
+        "request_sha256": request_sha256,
+        "working": _normalize(torch, [tensor.detach().clone() for tensor in restored_torch]),
+        "start_iteration": start_iteration,
+        "history": [dict(point) for point in raw_history],
+        "initial_energy": float(metadata["initial_energy"]),
+        "current_energy": float(metadata.get("current_energy", metadata["initial_energy"])),
+        "evaluations": evaluations,
+        "last_diagnostics": dict(metadata.get("last_diagnostics", {})),
+        "checkpoint": manifest,
+    }
+
+
+def _save_torch_optimizer_state(
+    torch: Any,
+    xp: Any,
+    payload: CTMRGPayload,
+    working: list[Any],
+    *,
+    request_sha256: str,
+    method: str,
+    optimizer_name: str,
+    iteration: int,
+    evaluations: int,
+    history: list[dict[str, Any]],
+    initial_energy: float,
+    current_energy: float,
+    parameter_count: int,
+    extra_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Persist Torch optimizer state only when the caller explicitly asks."""
+
+    if not payload.optimizer_checkpoint_path:
+        return {}
+    # save_optimizer_checkpoint is backend-neutral.  Convert only at the
+    # explicit checkpoint boundary; normal GPU objective evaluations stay
+    # resident and do not materialize host copies.
+    host_backend_tensors = [_from_torch(torch, xp, tensor.detach()) for tensor in working]
+    metadata = {
+        "optimizer": optimizer_name,
+        "completed_iterations": int(iteration),
+        "evaluations": int(evaluations),
+        "initial_energy": float(initial_energy),
+        "current_energy": float(current_energy),
+        "energy_history": [dict(point) for point in history],
+        "tensor_count": len(working),
+        "parameter_count": int(parameter_count),
+    }
+    if extra_metadata:
+        metadata.update(extra_metadata)
+    return save_optimizer_checkpoint(
+        payload.optimizer_checkpoint_path,
+        host_backend_tensors,
+        CheckpointManifest(
+            checkpoint_id=f"{optimizer_name}-ctmrg-{request_sha256[:12]}-iteration-{iteration}",
+            request_sha256=request_sha256,
+            method=method,
+            representation="ipeps-optimizer-state",
+            dtype=payload.dtype,
+            device="cuda" if getattr(xp, "__name__", "") == "cupy" else "cpu",
+            step=int(iteration),
+            created_at=datetime.now(timezone.utc).isoformat(),
+            metadata=metadata,
+        ),
+    )
 
 
 def _operator_on_device(torch: Any, operator: Any, tensor: Any) -> Any:
@@ -458,8 +597,22 @@ def run_autodiff_full_update(
         raise ValueError(
             f"full-update tensor parameter count {parameter_count} exceeds full_update_max_parameters={payload.full_update_max_parameters}"
         )
+    state = _restore_torch_optimizer_state(
+        torch,
+        xp,
+        payload,
+        working,
+        expected_method="ipeps-full-update-autodiff-ctmrg",
+        optimizer_name="autodiff-ctmrg-gradient",
+    )
+    working = state["working"]
+    start_iteration = int(state["start_iteration"])
+    history: list[dict[str, Any]] = [dict(point) for point in state["history"]]
+    initial_energy = state["initial_energy"]
+    current_energy = state["current_energy"]
+    evaluations = int(state["evaluations"])
+    checkpoint_info: dict[str, Any] = state["checkpoint"]
     max_evaluations = int(payload.full_update_max_evaluations)
-    evaluations = 0
 
     def evaluate(candidate: list[Any], *, with_gradient: bool) -> tuple[Any, dict[str, Any]] | None:
         nonlocal evaluations
@@ -472,14 +625,14 @@ def run_autodiff_full_update(
         evaluations += 1
         return energy, diagnostics
 
-    initial = evaluate(working, with_gradient=True)
-    if initial is None:
-        raise ValueError("autodiff CTMRG evaluation budget must allow an initial objective")
-    initial_energy = float(initial[0].detach().cpu())
-    current_energy = initial_energy
-    history: list[dict[str, Any]] = []
+    if initial_energy is None:
+        initial = evaluate(working, with_gradient=True)
+        if initial is None:
+            raise ValueError("autodiff CTMRG evaluation budget must allow an initial objective")
+        initial_energy = float(initial[0].detach().cpu())
+        current_energy = initial_energy
     budget_exhausted = False
-    for iteration in range(1, int(payload.optimization_steps) + 1):
+    for iteration in range(start_iteration + 1, int(payload.optimization_steps) + 1):
         evaluated = evaluate(working, with_gradient=True)
         if evaluated is None:
             budget_exhausted = True
@@ -521,6 +674,22 @@ def run_autodiff_full_update(
             "environment_residual": diagnostics["residual"],
             "evaluation_budget_exhausted": budget_exhausted,
         })
+        checkpoint_info = _save_torch_optimizer_state(
+            torch,
+            xp,
+            payload,
+            working,
+            request_sha256=state["request_sha256"],
+            method="ipeps-full-update-autodiff-ctmrg",
+            optimizer_name="autodiff-ctmrg-gradient",
+            iteration=iteration,
+            evaluations=evaluations,
+            history=history,
+            initial_energy=float(initial_energy),
+            current_energy=float(current_energy),
+            parameter_count=parameter_count,
+            extra_metadata={"last_diagnostics": dict(diagnostics)},
+        ) or checkpoint_info
         if budget_exhausted or improvement <= float(payload.optimization_tolerance) or gradient_norm <= float(payload.optimization_tolerance):
             break
 
@@ -532,6 +701,8 @@ def run_autodiff_full_update(
         "initial_energy": initial_energy,
         "final_energy": current_energy,
         "evaluations": evaluations,
+        "start_iteration": start_iteration,
+        "request_sha256": state["request_sha256"],
         "parameter_count": parameter_count,
         "optimizer": "autodiff-ctmrg-gradient",
         "gradient_backend": "torch-autograd-unrolled-ctmrg",
@@ -541,6 +712,10 @@ def run_autodiff_full_update(
         "materializes_reference_statevector": False,
         "evaluation_budget": max_evaluations,
         "evaluation_budget_exhausted": budget_exhausted,
+        "checkpoint": checkpoint_info or {
+            "resumable": False,
+            "reason": "set optimizer_checkpoint_path to persist and optimizer_resume_from to resume the Torch unrolled update",
+        },
         "converged": bool(
             history
             and not budget_exhausted
@@ -571,8 +746,22 @@ def run_implicit_full_update(
         raise ValueError(
             f"full-update tensor parameter count {parameter_count} exceeds full_update_max_parameters={payload.full_update_max_parameters}"
         )
+    state = _restore_torch_optimizer_state(
+        torch,
+        xp,
+        payload,
+        working,
+        expected_method="ipeps-full-update-implicit-ctmrg",
+        optimizer_name="implicit-ctmrg-gradient",
+    )
+    working = state["working"]
+    start_iteration = int(state["start_iteration"])
+    history: list[dict[str, Any]] = [dict(point) for point in state["history"]]
+    initial_energy = state["initial_energy"]
+    current_energy = state["current_energy"]
+    evaluations = int(state["evaluations"])
+    checkpoint_info: dict[str, Any] = state["checkpoint"]
     max_evaluations = int(payload.full_update_max_evaluations)
-    evaluations = 0
 
     def evaluate(candidate: list[Any]) -> tuple[Any, list[Any], dict[str, Any]] | None:
         nonlocal evaluations
@@ -583,15 +772,23 @@ def run_implicit_full_update(
         evaluations += 1
         return result
 
-    initial = evaluate(working)
-    if initial is None:
-        raise ValueError("implicit CTMRG evaluation budget must allow an initial objective")
-    initial_energy = float(initial[0].detach().cpu())
-    current_energy = initial_energy
-    history: list[dict[str, Any]] = []
+    last_diagnostics = state.get("last_diagnostics")
+    if initial_energy is None:
+        initial = evaluate(working)
+        if initial is None:
+            raise ValueError("implicit CTMRG evaluation budget must allow an initial objective")
+        initial_energy = float(initial[0].detach().cpu())
+        current_energy = initial_energy
+        last_diagnostics = initial[2]
+    if not isinstance(last_diagnostics, dict):
+        last_diagnostics = {
+            "fixed_point_residual": math.inf,
+            "transfer_gap": 0.0,
+            "adjoint_residual": math.inf,
+            "adjoint_iterations": 0,
+        }
     budget_exhausted = False
-    last_diagnostics = initial[2]
-    for iteration in range(1, int(payload.optimization_steps) + 1):
+    for iteration in range(start_iteration + 1, int(payload.optimization_steps) + 1):
         evaluated = evaluate(working)
         if evaluated is None:
             budget_exhausted = True
@@ -640,6 +837,22 @@ def run_implicit_full_update(
             "adjoint_iterations": last_diagnostics["adjoint_iterations"],
             "evaluation_budget_exhausted": budget_exhausted,
         })
+        checkpoint_info = _save_torch_optimizer_state(
+            torch,
+            xp,
+            payload,
+            working,
+            request_sha256=state["request_sha256"],
+            method="ipeps-full-update-implicit-ctmrg",
+            optimizer_name="implicit-ctmrg-gradient",
+            iteration=iteration,
+            evaluations=evaluations,
+            history=history,
+            initial_energy=float(initial_energy),
+            current_energy=float(current_energy),
+            parameter_count=parameter_count,
+            extra_metadata={"last_diagnostics": dict(last_diagnostics)},
+        ) or checkpoint_info
         if budget_exhausted or improvement <= float(payload.optimization_tolerance) or gradient_norm <= float(payload.optimization_tolerance):
             break
 
@@ -651,6 +864,8 @@ def run_implicit_full_update(
         "initial_energy": initial_energy,
         "final_energy": current_energy,
         "evaluations": evaluations,
+        "start_iteration": start_iteration,
+        "request_sha256": state["request_sha256"],
         "parameter_count": parameter_count,
         "optimizer": "implicit-ctmrg-gradient",
         "gradient_backend": "torch-autograd-implicit-fixed-point",
@@ -660,6 +875,10 @@ def run_implicit_full_update(
         "materializes_reference_statevector": False,
         "evaluation_budget": max_evaluations,
         "evaluation_budget_exhausted": budget_exhausted,
+        "checkpoint": checkpoint_info or {
+            "resumable": False,
+            "reason": "set optimizer_checkpoint_path to persist and optimizer_resume_from to resume the implicit CTMRG update",
+        },
         "fixed_point_residual": last_diagnostics["fixed_point_residual"],
         "transfer_gap": last_diagnostics["transfer_gap"],
         "adjoint_residual": last_diagnostics["adjoint_residual"],

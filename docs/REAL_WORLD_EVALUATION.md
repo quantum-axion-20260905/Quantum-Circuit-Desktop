@@ -116,6 +116,15 @@ canonical GHZ D=2 transfer fixed point, the physical residual converges below
 `4e-10` while the raw basis residual remains about `1.0`; both values are now
 reported so basis rotation is not confused with physical divergence.
 
+The Torch unrolled and implicit full-update paths now have an explicit,
+opt-in optimizer checkpoint contract. A CPU resume-vs-fresh regression matches
+the final energy for both paths; checkpoint manifests bind the state to the
+scientific request hash, optimizer method, dtype, tensor shapes, history, and
+evaluation budget. The checkpoint stores the resident tensor cell and scalar
+optimizer history only; CTMRG environments are recomputed on resume, so this
+feature improves campaign/replay reliability without turning an unresolved
+entangled CTMRG result into a production claim.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices

@@ -1,5 +1,7 @@
 import importlib.util
 import math
+import os
+from tempfile import TemporaryDirectory
 import unittest
 
 import numpy as np
@@ -158,6 +160,70 @@ class CTMRGAutodiffTests(unittest.TestCase):
         self.assertGreater(gauge["max_abs_delta"], gauge["tolerance"])
         self.assertTrue(any("virtual-gauge validation" in warning for warning in result["warnings"]))
 
+    def test_unrolled_optimizer_checkpoint_resume_matches_fresh_cpu_run(self):
+        from qc_agent.core.ctmrg import run_ctmrg
+
+        common = _payload().model_copy(update={
+            "dtype": "complex128",
+            "optimization_steps": 2,
+            "full_update_max_evaluations": 64,
+        })
+        with TemporaryDirectory() as directory:
+            checkpoint = os.path.join(directory, "autodiff-state.npz")
+            partial = run_ctmrg(np, common.model_copy(update={
+                "optimization_steps": 1,
+                "optimizer_checkpoint_path": checkpoint,
+            }))
+            resumed = run_ctmrg(np, common.model_copy(update={
+                "optimizer_checkpoint_path": checkpoint,
+                "optimizer_resume_from": checkpoint,
+            }))
+            fresh = run_ctmrg(np, common)
+
+            self.assertTrue(partial["optimization_diagnostics"]["checkpoint"]["resumable"])
+            self.assertEqual(partial["optimization_diagnostics"]["checkpoint"]["step"], 1)
+            self.assertEqual(resumed["optimization_diagnostics"]["start_iteration"], 1)
+            self.assertAlmostEqual(
+                resumed["optimization_diagnostics"]["final_energy"],
+                fresh["optimization_diagnostics"]["final_energy"],
+                places=12,
+            )
+            self.assertAlmostEqual(resumed["energy"], fresh["energy"], places=12)
+
+    def test_implicit_optimizer_checkpoint_resume_matches_fresh_cpu_run(self):
+        from qc_agent.core.ctmrg import run_ctmrg
+
+        common = _payload().model_copy(update={
+            "dtype": "complex128",
+            "full_update_optimizer": "implicit-ctmrg-gradient",
+            "optimization_steps": 2,
+            "iterations": 2,
+            "full_update_implicit_iterations": 8,
+            "full_update_implicit_tolerance": 1e-8,
+            "full_update_max_evaluations": 64,
+        })
+        with TemporaryDirectory() as directory:
+            checkpoint = os.path.join(directory, "implicit-state.npz")
+            partial = run_ctmrg(np, common.model_copy(update={
+                "optimization_steps": 1,
+                "optimizer_checkpoint_path": checkpoint,
+            }))
+            resumed = run_ctmrg(np, common.model_copy(update={
+                "optimizer_checkpoint_path": checkpoint,
+                "optimizer_resume_from": checkpoint,
+            }))
+            fresh = run_ctmrg(np, common)
+
+            self.assertTrue(partial["optimization_diagnostics"]["checkpoint"]["resumable"])
+            self.assertEqual(partial["optimization_diagnostics"]["checkpoint"]["step"], 1)
+            self.assertEqual(resumed["optimization_diagnostics"]["start_iteration"], 1)
+            self.assertAlmostEqual(
+                resumed["optimization_diagnostics"]["final_energy"],
+                fresh["optimization_diagnostics"]["final_energy"],
+                places=10,
+            )
+            self.assertAlmostEqual(resumed["energy"], fresh["energy"], places=10)
+
     @unittest.skipUnless(
         importlib.util.find_spec("cupy") is not None,
         "optional CuPy runtime is not installed",
@@ -214,6 +280,92 @@ class CTMRGAutodiffTests(unittest.TestCase):
             self.assertEqual(diagnostics["gradient_backend"], "torch-autograd-implicit-fixed-point")
             self.assertGreaterEqual(diagnostics["transfer_gap"], 0.0)
             self.assertTrue(math.isfinite(float(diagnostics["adjoint_residual"])))
+        finally:
+            cp.get_default_memory_pool().free_all_blocks()
+            cp.get_default_pinned_memory_pool().free_all_blocks()
+            torch.cuda.empty_cache()
+
+    @unittest.skipUnless(
+        importlib.util.find_spec("cupy") is not None,
+        "optional CuPy runtime is not installed",
+    )
+    def test_gpu_unrolled_optimizer_checkpoint_round_trip(self):
+        import cupy as cp
+        import torch
+
+        if not torch.cuda.is_available():
+            self.skipTest("CUDA is not available to the optional Torch runtime")
+
+        from qc_agent.core.ctmrg import run_ctmrg
+
+        common = _payload().model_copy(update={
+            "optimization_steps": 2,
+            "full_update_max_evaluations": 64,
+        })
+        try:
+            with TemporaryDirectory() as directory:
+                checkpoint = os.path.join(directory, "gpu-autodiff-state.npz")
+                partial = run_ctmrg(cp, common.model_copy(update={
+                    "optimization_steps": 1,
+                    "optimizer_checkpoint_path": checkpoint,
+                }))
+                resumed = run_ctmrg(cp, common.model_copy(update={
+                    "optimizer_checkpoint_path": checkpoint,
+                    "optimizer_resume_from": checkpoint,
+                }))
+                fresh = run_ctmrg(cp, common)
+                self.assertTrue(partial["optimization_diagnostics"]["checkpoint"]["resumable"])
+                self.assertEqual(resumed["optimization_diagnostics"]["start_iteration"], 1)
+                self.assertAlmostEqual(
+                    resumed["optimization_diagnostics"]["final_energy"],
+                    fresh["optimization_diagnostics"]["final_energy"],
+                    places=5,
+                )
+        finally:
+            cp.get_default_memory_pool().free_all_blocks()
+            cp.get_default_pinned_memory_pool().free_all_blocks()
+            torch.cuda.empty_cache()
+
+    @unittest.skipUnless(
+        importlib.util.find_spec("cupy") is not None,
+        "optional CuPy runtime is not installed",
+    )
+    def test_gpu_implicit_optimizer_checkpoint_round_trip(self):
+        import cupy as cp
+        import torch
+
+        if not torch.cuda.is_available():
+            self.skipTest("CUDA is not available to the optional Torch runtime")
+
+        from qc_agent.core.ctmrg import run_ctmrg
+
+        common = _payload().model_copy(update={
+            "full_update_optimizer": "implicit-ctmrg-gradient",
+            "optimization_steps": 2,
+            "iterations": 2,
+            "full_update_implicit_iterations": 8,
+            "full_update_implicit_tolerance": 1e-5,
+            "full_update_max_evaluations": 64,
+        })
+        try:
+            with TemporaryDirectory() as directory:
+                checkpoint = os.path.join(directory, "gpu-implicit-state.npz")
+                partial = run_ctmrg(cp, common.model_copy(update={
+                    "optimization_steps": 1,
+                    "optimizer_checkpoint_path": checkpoint,
+                }))
+                resumed = run_ctmrg(cp, common.model_copy(update={
+                    "optimizer_checkpoint_path": checkpoint,
+                    "optimizer_resume_from": checkpoint,
+                }))
+                fresh = run_ctmrg(cp, common)
+                self.assertTrue(partial["optimization_diagnostics"]["checkpoint"]["resumable"])
+                self.assertEqual(resumed["optimization_diagnostics"]["start_iteration"], 1)
+                self.assertAlmostEqual(
+                    resumed["optimization_diagnostics"]["final_energy"],
+                    fresh["optimization_diagnostics"]["final_energy"],
+                    places=5,
+                )
         finally:
             cp.get_default_memory_pool().free_all_blocks()
             cp.get_default_pinned_memory_pool().free_all_blocks()

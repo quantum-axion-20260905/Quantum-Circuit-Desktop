@@ -289,6 +289,8 @@ class CTMRGPayload(BaseModel):
                 "finite-difference-gradient",
                 "finite-torus-gradient",
                 "spsa-gradient",
+                "autodiff-ctmrg-gradient",
+                "implicit-ctmrg-gradient",
             }
         ):
             raise ValueError(

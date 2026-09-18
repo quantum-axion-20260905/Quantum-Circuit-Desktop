@@ -372,10 +372,14 @@ The next implementation packet is Phase 4 variational research-grade convergence
 - carry energy/variance/reference error and the new point-to-point observable
   deltas through the shared study/provenance and export APIs;
 - extend optimizer-state checkpointing from the finite-reference and bounded
-  feedback paths to the eventual infinite-CTMRG AD/implicit-gradient
-  full-update solver; the current Torch path stays non-resumable until its
-  optimizer state and fixed-point/environment compatibility contract are
-  defined;
+  feedback paths to the infinite-CTMRG AD/implicit-gradient full-update
+  solver. The stateless Torch line-search state is now resumable with strict
+  request/dtype/shape/method/history checks; the CTMRG fixed-point environment
+  is deliberately recomputed on resume rather than serialized as optimizer
+  state, so the resumed result still has to pass the same gap and gauge gates;
+- add a bounded PEPS gauge-preconditioning contract, with explicit
+  canonicalization diagnostics and independent finite-reference checks before
+  any gauge transform is allowed to alter the optimization path;
 - compare CTMRG local contractions against finite PEPS/reference product
   states across more than the current nearest-neighbor product gate, including
   small Ising/Heisenberg reference observables;

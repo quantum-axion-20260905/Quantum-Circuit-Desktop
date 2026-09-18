@@ -297,6 +297,11 @@ Current implementation status (unreleased Phase 4 work):
 - bounded one-site through 2x2 CTMRG, χ studies, checkpoints, independent
   finite-PEPS references, resident-tensor Torch/CUDA autograd, and a bounded
   implicit adjoint path are implemented;
+- the unrolled and implicit Torch full-update line-search states are now
+  opt-in checkpoint/resume capable. Resume validates the scientific request
+  hash, optimizer method, dtype, tensor shapes, iteration history, and
+  evaluation budget; environments are recomputed deterministically from the
+  restored tensors;
 - an opt-in paired virtual-gauge probe compares energy and observables after an
   exact virtual gauge transformation;
 - convergence uses a gauge-invariant boundary singular-spectrum residual while
