@@ -150,7 +150,7 @@ still reports an approximately `1.0` energy/observable drift, so this is a
 validated reference/projector slice, not production entangled CTMRG.
 
 The next isolated packet adds an opt-in `pairwise-polar-balance` preconditioner
-for a 1x1 periodic cell. On the gauged GHZ tensor it reduces the vertical and
+for bounded 1x1–2x2 periodic cells. On the gauged GHZ tensor it reduces the vertical and
 horizontal virtual-leg Gram mismatch from about `0.4803` to `0.0247`, lowers
 the reported condition estimate from about `2.16` to `1.73`, and preserves the
 independent finite-torus reference energy. It does not yet restore the CTMRG

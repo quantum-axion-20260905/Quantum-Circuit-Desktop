@@ -108,20 +108,98 @@ class CTMRGTests(unittest.TestCase):
             places=10,
         )
 
-    def test_pairwise_preconditioner_is_restricted_to_one_site_contraction(self):
-        with self.assertRaisesRegex(ValueError, "requires unit_cell=\[1, 1\]"):
-            CTMRGPayload(
-                unit_cell=[2, 1],
-                gauge_preconditioner="pairwise-polar-balance",
-                interactions=[IPEPSInteraction(
+    def test_bond_aware_preconditioner_preserves_2x1_finite_reference(self):
+        from qc_agent.core.ctmrg_gauge import pairwise_virtual_gauge_preconditioner
+
+        rng = np.random.default_rng(29)
+        tensors = [
+            (rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2)))
+            for _ in range(2)
+        ]
+        tensors = [tensor / np.linalg.norm(tensor) for tensor in tensors]
+        payload = CTMRGPayload(
+            unit_cell=[2, 1],
+            virtual_bond_dim=2,
+            dtype="complex128",
+            gauge_preconditioner="pairwise-polar-balance",
+            interactions=[
+                IPEPSInteraction(
                     left_site=0,
                     right_site=1,
                     displacement=[1, 0],
                     left_pauli="Z",
                     right_pauli="Z",
-                    coefficient=1.0,
-                )],
-            )
+                    coefficient=0.7,
+                ),
+                IPEPSInteraction(
+                    left_site=1,
+                    right_site=0,
+                    displacement=[1, 0],
+                    left_pauli="X",
+                    right_pauli="X",
+                    coefficient=-0.2,
+                ),
+            ],
+        )
+        preconditioned, report = pairwise_virtual_gauge_preconditioner(
+            np, tensors, unit_cell=(2, 1), iterations=2
+        )
+        self.assertTrue(report["performed"])
+        self.assertEqual(len(report["bond_metrics"]), 4)
+        original_reference = finite_periodic_peps_reference(
+            payload, tensors, [], [0.0, 0.0], 0.0, tolerance=1e-8
+        )
+        preconditioned_reference = finite_periodic_peps_reference(
+            payload, preconditioned, [], [0.0, 0.0], 0.0, tolerance=1e-8
+        )
+        self.assertTrue(original_reference["performed"])
+        self.assertTrue(preconditioned_reference["performed"])
+        self.assertAlmostEqual(
+            original_reference["reference_energy"],
+            preconditioned_reference["reference_energy"],
+            places=8,
+        )
+
+    def test_bond_aware_preconditioner_preserves_2x2_finite_reference(self):
+        from qc_agent.core.ctmrg_gauge import pairwise_virtual_gauge_preconditioner
+
+        rng = np.random.default_rng(41)
+        tensors = [
+            (rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2)))
+            for _ in range(4)
+        ]
+        tensors = [tensor / np.linalg.norm(tensor) for tensor in tensors]
+        interactions = [
+            IPEPSInteraction(left_site=0, right_site=1, displacement=[1, 0], left_pauli="Z", right_pauli="Z", coefficient=0.4),
+            IPEPSInteraction(left_site=0, right_site=2, displacement=[0, 1], left_pauli="X", right_pauli="X", coefficient=-0.3),
+            IPEPSInteraction(left_site=1, right_site=0, displacement=[1, 0], left_pauli="Y", right_pauli="Y", coefficient=0.2),
+            IPEPSInteraction(left_site=2, right_site=0, displacement=[0, 1], left_pauli="Z", right_pauli="Z", coefficient=0.1),
+        ]
+        payload = CTMRGPayload(
+            unit_cell=[2, 2],
+            virtual_bond_dim=2,
+            dtype="complex128",
+            gauge_preconditioner="pairwise-polar-balance",
+            interactions=interactions,
+        )
+        preconditioned, report = pairwise_virtual_gauge_preconditioner(
+            np, tensors, unit_cell=(2, 2), iterations=2
+        )
+        self.assertTrue(report["performed"])
+        self.assertEqual(len(report["bond_metrics"]), 8)
+        original_reference = finite_periodic_peps_reference(
+            payload, tensors, [], [0.0] * 4, 0.0, tolerance=1e-8
+        )
+        preconditioned_reference = finite_periodic_peps_reference(
+            payload, preconditioned, [], [0.0] * 4, 0.0, tolerance=1e-8
+        )
+        self.assertTrue(original_reference["performed"])
+        self.assertTrue(preconditioned_reference["performed"])
+        self.assertAlmostEqual(
+            original_reference["reference_energy"],
+            preconditioned_reference["reference_energy"],
+            places=8,
+        )
 
     def test_full_svd_projector_rejects_unbounded_virtual_bond(self):
         with self.assertRaisesRegex(ValueError, "full-svd CTMRG projectors"):

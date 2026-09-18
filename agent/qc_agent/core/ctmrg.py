@@ -1119,6 +1119,7 @@ def run_ctmrg(
         tensors, gauge_preconditioning = pairwise_virtual_gauge_preconditioner(
             xp,
             tensors,
+            unit_cell=(int(unit_cell[0]), int(unit_cell[1])),
             iterations=int(payload.gauge_preconditioner_iterations),
         )
     layers = [_double_layer(xp, tensor) for tensor in tensors]
@@ -1395,7 +1396,7 @@ def run_ctmrg(
         warnings.append("complex64 entangled iPEPS runs may lose transfer-sector precision; use complex128 for reference-quality observables")
     if payload.gauge_preconditioner != "none":
         warnings.append(
-            "pairwise-polar-balance is an opt-in 1x1 gauge diagnostic; it preserves the finite periodic pairing but is not admitted into optimization or production paths"
+            "pairwise-polar-balance is an opt-in 1x1-2x2 gauge diagnostic; it preserves finite periodic bond pairing but is not admitted into optimization or production paths"
         )
     if gauge_conditioning.get("performed") and not gauge_conditioning.get("well_conditioned", False):
         warnings.append("one or more virtual-leg Gram spectra are rank-deficient or ill-conditioned; gauge preconditioning remains diagnostic-only")

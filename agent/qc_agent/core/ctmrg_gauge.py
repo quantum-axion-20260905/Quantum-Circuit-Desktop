@@ -168,94 +168,146 @@ def _pair_metric(xp: Any, tensor: Any, lower_axis: int, upper_axis: int) -> tupl
     return float(delta / scale), float(condition)
 
 
+def _apply_leg_transform(xp: Any, tensor: Any, axis: int, matrix: Any) -> Any:
+    transformed = xp.tensordot(matrix, tensor, axes=([1], [axis]))
+    return _moveaxis(xp, transformed, 0, axis)
+
+
 def pairwise_virtual_gauge_preconditioner(
     xp: Any,
     tensors: list[Any],
     *,
+    unit_cell: tuple[int, int] = (1, 1),
     iterations: int = 4,
     eigenvalue_floor: float = 1e-10,
 ) -> tuple[list[Any], dict[str, Any]]:
-    """Apply an isolated 1x1 paired polar-balance candidate.
+    """Apply a bounded bond-aware paired polar-balance candidate.
 
-    A one-site periodic cell can receive ``X`` on its down/right legs and the
-    exact inverse-transpose on its up/left legs, so the finite PEPS contraction
-    is unchanged.  Multi-site cells require bond-aware transforms and are
-    deliberately rejected here rather than silently breaking their bonds.
+    Every periodic right/left and down/up bond receives ``X`` on one endpoint
+    and the exact inverse-transpose on the other.  This preserves the exact
+    finite PEPS contraction for 1x1 through 2x2 cells.  It is still a bounded
+    local conditioning candidate, not a PEPS canonical-form theorem.
     """
 
-    if len(tensors) != 1:
+    nx, ny = (int(value) for value in unit_cell)
+    if (nx, ny) not in ((1, 1), (2, 1), (1, 2), (2, 2)):
         return list(tensors), {
             "performed": False,
             "method": "pairwise-polar-balance",
-            "reason": "the bounded candidate supports only a 1x1 periodic cell",
+            "reason": "the bounded candidate supports only 1x1 through 2x2 periodic cells",
+            "mutated_tensors": False,
+        }
+    if len(tensors) != nx * ny:
+        return list(tensors), {
+            "performed": False,
+            "method": "pairwise-polar-balance",
+            "reason": "tensor count does not match the declared periodic unit cell",
             "mutated_tensors": False,
         }
     if int(iterations) < 1:
         raise ValueError("pairwise virtual-gauge preconditioner iterations must be positive")
-    tensor = tensors[0]
+
+    def site_index(x: int, y: int) -> int:
+        return (x % nx) + nx * (y % ny)
+
+    bonds: list[tuple[str, int, int, int, int]] = []
+    for y in range(ny):
+        for x in range(nx):
+            source = site_index(x, y)
+            bonds.append(("horizontal", source, site_index(x + 1, y), 4, 3))
+            bonds.append(("vertical", source, site_index(x, y + 1), 2, 1))
+
+    working = list(tensors)
     mutated = False
-    before_vertical = _pair_metric(xp, tensor, 2, 1)
-    before_horizontal = _pair_metric(xp, tensor, 4, 3)
+
+    def bond_metric(
+        source_tensor: Any,
+        target_tensor: Any,
+        source_axis: int,
+        target_axis: int,
+    ) -> tuple[float, float]:
+        source_gram = _leg_gram(xp, source_tensor, source_axis)
+        target_gram = _leg_gram(xp, target_tensor, target_axis)
+        delta = _host_array(xp.linalg.norm(source_gram - target_gram))
+        scale = max(
+            _host_array(xp.linalg.norm(source_gram)),
+            _host_array(xp.linalg.norm(target_gram)),
+            1e-30,
+        )
+        values = []
+        for gram in (source_gram, target_gram):
+            values.extend(
+                float(value.real if hasattr(value, "real") else value)
+                for value in _host_array(xp.linalg.eigvalsh(gram))
+            )
+        positive = [max(value, 0.0) for value in values]
+        condition = max(positive) / max(min(positive), 1e-30) if positive else math.inf
+        return float(delta / scale), float(condition)
+
+    def metrics(current: list[Any]) -> list[tuple[float, float]]:
+        return [
+            bond_metric(current[source], current[target], source_axis, target_axis)
+            for _, source, target, source_axis, target_axis in bonds
+        ]
+
+    before_metrics = metrics(working)
+
     for _ in range(int(iterations)):
-        vertical_metric = _pair_metric(xp, tensor, 2, 1)
-        if vertical_metric[0] > 1e-12:
-            vertical = _pair_balance_transform(
+        for _, source, target, source_axis, target_axis in bonds:
+            current_metric = bond_metric(
+                working[source], working[target], source_axis, target_axis
+            )
+            if current_metric[0] <= 1e-12:
+                continue
+            transform = _pair_balance_transform(
                 xp,
-                _leg_gram(xp, tensor, 2),
-                _leg_gram(xp, tensor, 1),
+                _leg_gram(xp, working[source], source_axis),
+                _leg_gram(xp, working[target], target_axis),
                 eigenvalue_floor=eigenvalue_floor,
             )
-            tensor = _moveaxis(
+            working[source] = _apply_leg_transform(xp, working[source], source_axis, transform)
+            working[target] = _apply_leg_transform(
                 xp,
-                xp.tensordot(vertical, tensor, axes=([1], [2])),
-                0,
-                2,
+                working[target],
+                target_axis,
+                xp.linalg.inv(transform).T,
             )
             mutated = True
-            tensor = _moveaxis(
-                xp,
-                xp.tensordot(xp.linalg.inv(vertical).T, tensor, axes=([1], [1])),
-                0,
-                1,
-            )
-        horizontal_metric = _pair_metric(xp, tensor, 4, 3)
-        if horizontal_metric[0] > 1e-12:
-            horizontal = _pair_balance_transform(
-                xp,
-                _leg_gram(xp, tensor, 4),
-                _leg_gram(xp, tensor, 3),
-                eigenvalue_floor=eigenvalue_floor,
-            )
-            tensor = _moveaxis(
-                xp,
-                xp.tensordot(horizontal, tensor, axes=([1], [4])),
-                0,
-                4,
-            )
-            mutated = True
-            tensor = _moveaxis(
-                xp,
-                xp.tensordot(xp.linalg.inv(horizontal).T, tensor, axes=([1], [3])),
-                0,
-                3,
-            )
-    after_vertical = _pair_metric(xp, tensor, 2, 1)
-    after_horizontal = _pair_metric(xp, tensor, 4, 3)
-    return [tensor], {
+    after_metrics = metrics(working)
+    vertical_before = [metric for bond, metric in zip(bonds, before_metrics) if bond[0] == "vertical"]
+    vertical_after = [metric for bond, metric in zip(bonds, after_metrics) if bond[0] == "vertical"]
+    horizontal_before = [metric for bond, metric in zip(bonds, before_metrics) if bond[0] == "horizontal"]
+    horizontal_after = [metric for bond, metric in zip(bonds, after_metrics) if bond[0] == "horizontal"]
+    return working, {
         "performed": True,
         "method": "pairwise-polar-balance",
         "iterations": int(iterations),
         "eigenvalue_floor": float(eigenvalue_floor),
-        "vertical_pair_delta_before": before_vertical[0],
-        "vertical_pair_delta_after": after_vertical[0],
-        "horizontal_pair_delta_before": before_horizontal[0],
-        "horizontal_pair_delta_after": after_horizontal[0],
-        "condition_number_before": max(before_vertical[1], before_horizontal[1]),
-        "condition_number_after": max(after_vertical[1], after_horizontal[1]),
+        "vertical_pair_delta_before": max((metric[0] for metric in vertical_before), default=0.0),
+        "vertical_pair_delta_after": max((metric[0] for metric in vertical_after), default=0.0),
+        "horizontal_pair_delta_before": max((metric[0] for metric in horizontal_before), default=0.0),
+        "horizontal_pair_delta_after": max((metric[0] for metric in horizontal_after), default=0.0),
+        "condition_number_before": max((metric[1] for metric in before_metrics), default=0.0),
+        "condition_number_after": max((metric[1] for metric in after_metrics), default=0.0),
+        "bond_metrics": [
+            {
+                "orientation": orientation,
+                "source_site": int(source),
+                "target_site": int(target),
+                "source_axis": int(source_axis),
+                "target_axis": int(target_axis),
+                "delta_before": float(before[0]),
+                "delta_after": float(after[0]),
+                "condition_before": float(before[1]),
+                "condition_after": float(after[1]),
+            }
+            for (orientation, source, target, source_axis, target_axis), before, after
+            in zip(bonds, before_metrics, after_metrics)
+        ],
         "mutated_tensors": mutated,
         "exact_periodic_pairing": True,
         "limitations": [
-            "bounded 1x1 candidate only; it is not a general PEPS canonical form",
+            "bounded 1x1 through 2x2 candidate; it is not a general PEPS canonical form",
             "independent finite-PEPS/reference and paired-gauge gates remain mandatory",
             "not admitted into optimization paths until those gates pass",
         ],

@@ -284,8 +284,6 @@ class CTMRGPayload(BaseModel):
         cell_sites = math.prod(self.unit_cell)
         if self.ctmrg_projector == "full-svd" and self.virtual_bond_dim > 2:
             raise ValueError("full-svd CTMRG projectors currently require virtual_bond_dim<=2")
-        if self.gauge_preconditioner != "none" and self.unit_cell != [1, 1]:
-            raise ValueError("the bounded virtual-gauge preconditioner currently requires unit_cell=[1, 1]")
         if self.gauge_preconditioner != "none" and self.optimization != "none":
             raise ValueError("virtual-gauge preconditioning is diagnostic-only and cannot alter an optimization path yet")
         if self.optimization != "none" and (self.checkpoint_path is not None or self.resume_from is not None):
@@ -451,8 +449,6 @@ class CTMRGSpinModelPayload(LatticeHamiltonianPayload):
             raise ValueError("CTMRG spin models require a 2D unit-cell dimensions=[nx, ny]")
         if any(int(size) > 2 for size in self.dimensions):
             raise ValueError("CTMRG spin model unit-cell dimensions are limited to 2x2")
-        if self.gauge_preconditioner != "none" and self.dimensions != [1, 1]:
-            raise ValueError("the bounded virtual-gauge preconditioner currently requires dimensions=[1, 1]")
         return self
 
 
