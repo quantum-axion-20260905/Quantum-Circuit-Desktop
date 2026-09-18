@@ -161,6 +161,22 @@ The same opt-in path also completed a bounded Torch CUDA `complex64` smoke
 with `E=1.00000003` and `<ZZ>=1.0`; CUDA execution does not change its
 diagnostic-only admission status.
 
+To address the GHZ transfer degeneracy directly, the opt-in
+`symmetry-ensemble` policy now contracts two deterministic boundary fixed
+points and averages them while reporting their spread. The canonical GHZ gate
+then reaches `E=1`, `<Z>=0`, `<ZZ>=1`, and paired-gauge delta `2.54e-5` on CPU
+`complex128`; the same CUDA `complex128` run reaches delta `1.0e-15`. The
+sector observable spread is intentionally visible (`Δ<Z>=2.0`), and the
+CUDA `complex64` version remains `needs_review` with delta `6.06e-2`. This is
+a useful degenerate-sector diagnostic, not yet a generic entangled production
+solver.
+
+The broader bounded campaign keeps that distinction honest: a random D=2
+1x1 cell still has paired-gauge drift about `1.09` and remains `needs_review`,
+while a random 2x2 cell at `χ=2` is not yet converged and has gauge drift about
+`0.247`. The ensemble is therefore a targeted fixed-point strategy for
+degenerate sectors, not a universal replacement for χ-converged CTMRG.
+
 The Torch unrolled and implicit full-update paths now have an explicit,
 opt-in optimizer checkpoint contract. A CPU resume-vs-fresh regression matches
 the final energy for both paths; checkpoint manifests bind the state to the

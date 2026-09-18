@@ -230,6 +230,7 @@ class CTMRGPayload(BaseModel):
     tensor_data: list[list[float]] | None = Field(default=None, max_length=32768)
     environment_bond_dim: int = Field(default=16, ge=1, le=128)
     ctmrg_projector: Literal["half-density", "full-svd"] = "half-density"
+    environment_sector_policy: Literal["single", "symmetry-ensemble"] = "single"
     gauge_preconditioner: Literal["none", "pairwise-polar-balance"] = "none"
     gauge_preconditioner_iterations: int = Field(default=4, ge=1, le=16)
     iterations: int = Field(default=20, ge=1, le=200)
@@ -286,6 +287,20 @@ class CTMRGPayload(BaseModel):
             raise ValueError("full-svd CTMRG projectors currently require virtual_bond_dim<=2")
         if self.gauge_preconditioner != "none" and self.optimization != "none":
             raise ValueError("virtual-gauge preconditioning is diagnostic-only and cannot alter an optimization path yet")
+        if self.environment_sector_policy != "single" and self.optimization != "none":
+            raise ValueError("symmetry-sector ensemble is contraction-only and cannot alter an optimization path yet")
+        if self.environment_sector_policy != "single" and any(
+            value is not None
+            for value in (
+                self.checkpoint_path,
+                self.resume_from,
+                self.optimizer_checkpoint_path,
+                self.optimizer_resume_from,
+            )
+        ):
+            raise ValueError("symmetry-sector ensemble does not support checkpoint or optimizer resume yet")
+        if self.environment_sector_policy != "single" and self.gauge_preconditioner != "none":
+            raise ValueError("symmetry-sector ensemble and virtual-gauge preconditioning are separate experimental policies")
         if self.optimization != "none" and (self.checkpoint_path is not None or self.resume_from is not None):
             raise ValueError(
                 "CTMRG optimizer checkpoint/resume is not supported yet; checkpointing currently covers contraction-only runs"
@@ -442,6 +457,7 @@ class CTMRGSpinModelPayload(LatticeHamiltonianPayload):
     gauge_validation_tolerance: float = Field(default=1e-4, gt=0, le=1.0)
     gauge_preconditioner: Literal["none", "pairwise-polar-balance"] = "none"
     gauge_preconditioner_iterations: int = Field(default=4, ge=1, le=16)
+    environment_sector_policy: Literal["single", "symmetry-ensemble"] = "single"
 
     @model_validator(mode="after")
     def validate_ctmrg_geometry(self):

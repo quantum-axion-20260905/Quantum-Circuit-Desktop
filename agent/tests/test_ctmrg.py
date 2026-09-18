@@ -69,6 +69,47 @@ class CTMRGTests(unittest.TestCase):
         self.assertFalse(result["research_gate"]["production_ready"])
         self.assertEqual(result["research_gate"]["status"], "needs_review")
 
+    def test_symmetry_sector_ensemble_restores_ghz_gauge_gate(self):
+        tensor_data: list[list[float]] = []
+        for physical in range(2):
+            for up in range(2):
+                for down in range(2):
+                    for left in range(2):
+                        for right in range(2):
+                            tensor_data.append([
+                                float(physical == up == down == left == right),
+                                0.0,
+                            ])
+        result = run_ctmrg(np, CTMRGPayload(
+            ctmrg_projector="full-svd",
+            environment_sector_policy="symmetry-ensemble",
+            virtual_bond_dim=2,
+            dtype="complex128",
+            tensor_data=tensor_data,
+            environment_bond_dim=2,
+            iterations=8,
+            gauge_validation=True,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+        ))
+        self.assertAlmostEqual(result["energy"], 1.0, places=5)
+        self.assertAlmostEqual(result["observables"][0]["value"], 0.0, places=5)
+        self.assertAlmostEqual(result["interactions"][0]["value"], 1.0, places=5)
+        self.assertEqual(result["environment_sector_policy"], "symmetry-ensemble")
+        self.assertEqual(result["environment_sector_count"], 2)
+        self.assertTrue(result["reference_validation"]["passed"])
+        self.assertTrue(result["gauge_validation"]["passed"])
+        self.assertTrue(result["research_gate"]["gates"]["virtual_gauge"]["passed"])
+        self.assertFalse(result["research_gate"]["production_ready"])
+        self.assertGreater(result["environment_sector_spread"]["observable_max_abs_range"], 1.0)
+
     def test_pairwise_preconditioner_preserves_finite_reference_and_reports_candidate(self):
         from qc_agent.core.ctmrg_gauge import paired_virtual_gauge, pairwise_virtual_gauge_preconditioner
 

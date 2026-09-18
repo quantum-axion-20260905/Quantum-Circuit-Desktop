@@ -27,12 +27,19 @@ features.
 - Current useful capability: bounded product-state CTMRG and the canonical
   D=2 GHZ transfer-fixed-point reference both have declared gates; generic
   entangled `D>1` results remain `needs_review`.
-- Current scientific blocker: the paired virtual-gauge energy drift is still
-  nonzero on the entangled gate. The source-ordered one-site full-SVD path now
-  preserves the D=1 product limit and passes the D=2 GHZ independent-reference
-  gate, but it is still experimental and not production-ready until the
-  gauge-invariance gate passes. This is an environment/gauge-stability
-  problem, not something to hide with looser tolerances or UI wording.
+- Current scientific blocker: the paired virtual-gauge energy drift remains
+  nonzero for the generic single-boundary entangled path. The source-ordered
+  one-site full-SVD path now preserves the D=1 product limit and passes the
+  D=2 GHZ independent-reference gate, but it is still experimental and not
+  production-ready until broader gauge-invariance and χ-convergence gates
+  pass. This is an environment/gauge-stability problem, not something to hide
+  with looser tolerances or UI wording.
+- A new opt-in `symmetry-ensemble` policy now averages two deterministic
+  boundary fixed points. It restores the narrow canonical GHZ gate on CPU
+  `complex128` (`Δgauge≈2.54e-5`) and CUDA `complex128` (`Δgauge≈1e-15`), but
+  the sector spread is intentionally reported (`Δ<Z>=2.0`) and CUDA
+  `complex64` remains `needs_review`. The generic D=2/random and 2x2 gates are
+  still incomplete, so this does not promote entangled CTMRG to production.
 - The next isolated candidate is now explicit: a bounded 1x1–2x2
   `pairwise-polar-balance` preconditioner reduces the GHZ virtual-leg Gram
   mismatch from about `0.4803` to `0.0247` and keeps the exact finite-torus
@@ -493,9 +500,9 @@ The next implementation packet is Phase 4 variational research-grade convergence
   gate as a permanent regression; the canonical GHZ reference now passes, but
   the policy remains out of optimizer/desktop production controls until the
   paired-gauge and broader entangled gates pass;
-- investigate a covariant environment initialization/preconditioner that
-  preserves the GHZ reference under the paired virtual gauge, then rerun
-  reference, gauge, chi/iteration, and finite-periodic gates;
+- validate the new covariant/symmetry-sector environment ensemble on random
+  D=2 and 2x2 cells, including sector spread, χ/iteration convergence, and
+  finite-periodic references; keep the policy opt-in until those gates pass;
 - strengthen the implicit fixed-point/adjoint path with the same truncation
   policy, transfer-spectrum gap checks, and a reproducible backward-error
   budget before calling the optimizer research-grade; the current adjoint

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import math
 import time
+from copy import deepcopy
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Any, Iterable
@@ -212,7 +213,13 @@ def _double_layer(xp: Any, tensor: Any, operator: Any | None = None) -> Any:
     return raw.reshape((d2, d2, d2, d2))
 
 
-def _initialize_environment(xp: Any, double_layer: Any, chi: int) -> CTMEnvironment:
+def _initialize_environment(
+    xp: Any,
+    double_layer: Any,
+    chi: int,
+    *,
+    sector_seed: int | None = None,
+) -> CTMEnvironment:
     """Create a deterministic, full-support CTM boundary.
 
     A diagonal-only boundary is sufficient for product tensors, but it can
@@ -231,9 +238,48 @@ def _initialize_environment(xp: Any, double_layer: Any, chi: int) -> CTMEnvironm
         corner = xp.zeros((chi, chi), dtype=dtype)
         edge = xp.zeros((chi, d2, chi), dtype=dtype)
     diagonal = min(chi, d2)
-    corner[xp.arange(diagonal), xp.arange(diagonal)] = 1
-    for index in range(min(chi, d2)):
-        edge[index, :, index] = 1
+    if sector_seed is None:
+        corner[xp.arange(diagonal), xp.arange(diagonal)] = 1
+        for index in range(min(chi, d2)):
+            edge[index, :, index] = 1
+    else:
+        # Two deterministic, full-support boundary probes are used by the
+        # opt-in symmetry-sector ensemble.  They bias different dominant
+        # transfer sectors without importing a backend RNG or mutating global
+        # random state.  The ensemble averages the resulting fixed points;
+        # this is useful for degenerate GHZ-like transfer spectra but remains
+        # experimental until generic symmetry gates pass.
+        def arange(count: int) -> Any:
+            return (
+                xp.arange(count, device=double_layer.device)
+                if getattr(xp, "__name__", "") == "torch" else
+                xp.arange(count)
+            )
+
+        boundary_index = arange(chi)
+        edge_index = arange(d2)
+        seed = int(sector_seed)
+        weights = xp.exp(
+            0.8 * xp.sin((boundary_index + 1) * (seed + 1) * 1.17)
+            + 0.25 * xp.cos((boundary_index + 1) * (seed + 2))
+        )
+        if getattr(xp, "__name__", "") == "torch":
+            weights = weights.to(dtype=dtype)
+        else:
+            weights = xp.asarray(weights, dtype=dtype)
+        corner_indices = arange(diagonal)
+        corner[corner_indices, corner_indices] = weights[:diagonal]
+        for index in range(min(chi, d2)):
+            edge_values = (
+                1.0
+                + 0.35 * xp.sin((edge_index + 1) * (index + 1 + seed) * 0.91)
+                + 0.1 * xp.cos(edge_index + seed + 1)
+            )
+            if getattr(xp, "__name__", "") == "torch":
+                edge_values = edge_values.to(dtype=dtype)
+            else:
+                edge_values = xp.asarray(edge_values, dtype=dtype)
+            edge[index, :, index] = edge_values
     # Keep a deterministic non-zero overlap with every boundary sector.  The
     # floor is deliberately shared by complex64 and complex128: a much
     # smaller complex128 perturbation lets degenerate SVD sectors choose a
@@ -241,7 +287,8 @@ def _initialize_environment(xp: Any, double_layer: Any, chi: int) -> CTMEnvironm
     # canonical D=2 GHZ fixed point into a false symmetry-broken result.
     regularizer = 1e-6
     corner = corner + regularizer * xp.ones_like(corner)
-    edge = edge + regularizer * xp.ones_like(edge)
+    if sector_seed is None:
+        edge = edge + regularizer * xp.ones_like(edge)
     return CTMEnvironment(corner, _copy(corner), _copy(corner), _copy(corner), edge, _copy(edge), _copy(edge), _copy(edge))
 
 
@@ -791,7 +838,9 @@ def _environment_diagnostics(xp: Any, environments: list[CTMEnvironment]) -> dic
         spectra.append([value / scale for value in singular_host])
     finite_lengths = [value for value in correlation_lengths if value is not None and math.isfinite(value)]
     return {
-        "correlation_length": max(finite_lengths) if finite_lengths else None,
+        "correlation_length": None if any(value is None for value in correlation_lengths) else (
+            max(finite_lengths) if finite_lengths else None
+        ),
         "correlation_lengths_by_site": correlation_lengths,
         "environment_spectrum": spectra,
     }
@@ -1054,6 +1103,192 @@ def _environments_from_arrays(arrays: dict[str, Any], count: int) -> list[CTMEnv
     return environments
 
 
+def _mean_float(values: Iterable[Any]) -> float | None:
+    normalized = [float(value) for value in values if value is not None]
+    return sum(normalized) / len(normalized) if normalized else None
+
+
+def _reference_for_sector_average(
+    payload: CTMRGPayload,
+    tensors: list[Any],
+    energy: float,
+    onsite_values: list[float],
+    interaction_values: list[float | None],
+) -> dict[str, Any]:
+    tolerance = max(float(payload.tolerance) * 10.0, 1e-6)
+    reference = finite_product_reference(
+        payload,
+        tensors,
+        onsite_values,
+        interaction_values,
+        energy,
+        tolerance=tolerance,
+    )
+    if not reference["performed"]:
+        reference = analytic_ghz_reference(
+            payload,
+            tensors,
+            onsite_values,
+            interaction_values,
+            energy,
+            tolerance=tolerance,
+        )
+    if not reference["performed"]:
+        reference = finite_periodic_peps_reference(
+            payload,
+            tensors,
+            onsite_values,
+            interaction_values,
+            energy,
+            tolerance=tolerance,
+        )
+    return reference
+
+
+def _aggregate_sector_results(
+    xp: Any,
+    payload: CTMRGPayload,
+    sector_results: list[dict[str, Any]],
+    tensors: list[Any],
+    *,
+    started: float,
+) -> dict[str, Any]:
+    """Average bounded sector fixed points without hiding their spread."""
+
+    if not sector_results:
+        raise ValueError("symmetry-sector ensemble requires at least one sector result")
+    result = deepcopy(sector_results[0])
+    energy = _mean_float(item.get("energy") for item in sector_results) or 0.0
+    observables = deepcopy(sector_results[0].get("observables", []))
+    for index, observable in enumerate(observables):
+        values = [item.get("observables", [])[index].get("value") for item in sector_results]
+        observable["value"] = _mean_float(values)
+    interactions = deepcopy(sector_results[0].get("interactions", []))
+    for index, interaction in enumerate(interactions):
+        values = [item.get("interactions", [])[index].get("value") for item in sector_results]
+        interaction["value"] = _mean_float(values)
+    def value_range(values: Iterable[Any]) -> float:
+        normalized = [float(value) for value in values if value is not None]
+        return max(normalized) - min(normalized) if normalized else 0.0
+
+    sector_spread = {
+        "energy_abs_range": value_range(item.get("energy") for item in sector_results),
+        "observable_max_abs_range": max(
+            (
+                value_range(item.get("observables", [])[index].get("value") for item in sector_results)
+                for index in range(len(observables))
+            ),
+            default=0.0,
+        ),
+        "interaction_max_abs_range": max(
+            (
+                value_range(item.get("interactions", [])[index].get("value") for item in sector_results)
+                for index in range(len(interactions))
+            ),
+            default=0.0,
+        ),
+    }
+    onsite_values = [float(item["value"]) for item in observables]
+    interaction_values = [item.get("value") for item in interactions]
+    reference_validation = _reference_for_sector_average(
+        payload,
+        tensors,
+        energy,
+        onsite_values,
+        interaction_values,
+    )
+    converged = all(bool(item.get("converged")) for item in sector_results)
+    residual = max(float(item.get("residual", math.inf)) for item in sector_results)
+    raw_residual = max(float(item.get("raw_boundary_basis_residual", math.inf)) for item in sector_results)
+    correlation_lengths = [item.get("correlation_length") for item in sector_results]
+    finite_lengths = [float(value) for value in correlation_lengths if value is not None]
+    warnings: list[str] = []
+    for item in sector_results:
+        for warning in item.get("warnings", []):
+            if warning not in warnings:
+                warnings.append(warning)
+    ensemble_warning = (
+        "symmetry-sector ensemble averages two deterministic boundary fixed points; "
+        "sector spread remains diagnostic and does not prove thermodynamic convergence"
+    )
+    if ensemble_warning not in warnings:
+        warnings.append(ensemble_warning)
+    spread_warning = (
+        "symmetry-sector ensemble fixed-point spread is "
+        f"energy={sector_spread['energy_abs_range']:.3e}, "
+        f"observables={sector_spread['observable_max_abs_range']:.3e}, "
+        f"interactions={sector_spread['interaction_max_abs_range']:.3e}"
+    )
+    warnings.append(spread_warning)
+    gauge_validation = {"performed": False, "reason": "disabled by request"}
+    gauge_conditioning = deepcopy(sector_results[0].get("gauge_conditioning", {}))
+    gauge_preconditioning = deepcopy(sector_results[0].get("gauge_preconditioning", {}))
+    research_gate = ctmrg_research_gate(
+        payload,
+        converged=converged,
+        reference_validation=reference_validation,
+        gauge_validation=gauge_validation,
+        optimization_info=None,
+    )
+    result.update({
+        "environment_sector_policy": "symmetry-ensemble",
+        "environment_sector_count": len(sector_results),
+        "environment_sector_spread": sector_spread,
+        "energy": float(energy),
+        "observables": observables,
+        "interactions": interactions,
+        "converged": converged,
+        "residual": float(residual),
+        "raw_boundary_basis_residual": float(raw_residual),
+        "reference_validation": reference_validation,
+        "gauge_validation": gauge_validation,
+        "gauge_conditioning": gauge_conditioning,
+        "gauge_preconditioning": gauge_preconditioning,
+        "research_gate": research_gate,
+        "correlation_length": None if any(value is None for value in correlation_lengths) else (
+            max(finite_lengths) if finite_lengths else None
+        ),
+        "correlation_lengths_by_site": sector_results[0].get("correlation_lengths_by_site", []),
+        "warnings": warnings,
+        "resource_estimate": {
+            **dict(result.get("resource_estimate", {})),
+            "sector_ensemble": {
+                "sector_count": len(sector_results),
+                "sector_time_ms": [float(item.get("time_ms", 0.0)) for item in sector_results],
+            },
+        },
+        "time_ms": round((time.perf_counter() - started) * 1000, 3),
+    })
+    research_result = deepcopy(result.get("research_result", {}))
+    metrics = dict(research_result.get("metrics", {}))
+    metrics.update({
+        "energy": float(energy),
+        "residual": float(residual),
+        "raw_boundary_basis_residual": float(raw_residual),
+        "gauge_validation_max_abs_delta": None,
+        "reference_energy_error": reference_validation.get("energy_error"),
+        "energy_variance": reference_validation.get("energy_variance"),
+        "environment_sector_spread": sector_spread,
+    })
+    research_result["metrics"] = metrics
+    research_result["warnings"] = list(warnings)
+    research_result.setdefault("convergence", {})["converged"] = converged
+    research_result["convergence"]["warnings"] = list(warnings)
+    research_result.setdefault("details", {}).update({
+        "environment_sector_policy": "symmetry-ensemble",
+        "environment_sector_count": len(sector_results),
+        "environment_sector_spread": sector_spread,
+        "reference_validation": reference_validation,
+        "gauge_validation": gauge_validation,
+        "gauge_conditioning": gauge_conditioning,
+        "gauge_preconditioning": gauge_preconditioning,
+        "research_gate": research_gate,
+    })
+    result["research_result"] = research_result
+    result.setdefault("research_result", {})
+    return result
+
+
 def run_ctmrg(
     xp: Any,
     payload: CTMRGPayload,
@@ -1061,6 +1296,7 @@ def run_ctmrg(
     progress_cb: Any = None,
     cancel_cb: Any = None,
     tensors: list[Any] | None = None,
+    _environment_seed: int | None = None,
 ) -> dict[str, Any]:
     """Run bounded one-site or two-site checkerboard CTMRG contraction.
 
@@ -1076,6 +1312,85 @@ def run_ctmrg(
         raise ValueError("the current CTMRG solver supports unit_cell dimensions no larger than 2x2")
 
     started = time.perf_counter()
+    if payload.environment_sector_policy == "symmetry-ensemble" and _environment_seed is None:
+        ensemble_tensors = _build_tensors(xp, payload) if tensors is None else list(tensors)
+        single_payload = payload.model_copy(update={
+            "environment_sector_policy": "single",
+            "gauge_validation": False,
+        })
+        sector_results = [
+            run_ctmrg(
+                xp,
+                single_payload,
+                progress_cb=progress_cb,
+                cancel_cb=cancel_cb,
+                tensors=ensemble_tensors,
+                _environment_seed=seed,
+            )
+            for seed in (0, 1)
+        ]
+        ensemble_result = _aggregate_sector_results(
+            xp,
+            payload,
+            sector_results,
+            ensemble_tensors,
+            started=started,
+        )
+        if payload.gauge_validation:
+            from .ctmrg_gauge import gauge_validation_result, paired_virtual_gauge
+
+            gauged_tensors = paired_virtual_gauge(xp, ensemble_tensors)
+            gauged_sector_results = [
+                run_ctmrg(
+                    xp,
+                    single_payload,
+                    progress_cb=progress_cb,
+                    cancel_cb=cancel_cb,
+                    tensors=gauged_tensors,
+                    _environment_seed=seed,
+                )
+                for seed in (0, 1)
+            ]
+            gauged_ensemble = _aggregate_sector_results(
+                xp,
+                payload,
+                gauged_sector_results,
+                gauged_tensors,
+                started=started,
+            )
+            gauge_validation = gauge_validation_result(
+                {
+                    "energy": ensemble_result["energy"],
+                    "observables": ensemble_result["observables"],
+                    "interactions": ensemble_result["interactions"],
+                },
+                {
+                    "energy": gauged_ensemble["energy"],
+                    "observables": gauged_ensemble["observables"],
+                    "interactions": gauged_ensemble["interactions"],
+                },
+                tolerance=float(payload.gauge_validation_tolerance),
+                virtual_bond_dim=int(payload.virtual_bond_dim),
+            )
+            ensemble_result["gauge_validation"] = gauge_validation
+            if not gauge_validation["passed"]:
+                ensemble_result["warnings"].append(
+                    f"virtual-gauge validation exceeded tolerance: max observable/energy delta {gauge_validation['max_abs_delta']:.3e}"
+                )
+            ensemble_result["research_gate"] = ctmrg_research_gate(
+                payload,
+                converged=bool(ensemble_result["converged"]),
+                reference_validation=ensemble_result["reference_validation"],
+                gauge_validation=gauge_validation,
+                optimization_info=None,
+            )
+            ensemble_result["research_result"]["metrics"]["gauge_validation_max_abs_delta"] = gauge_validation.get("max_abs_delta")
+            ensemble_result["research_result"]["warnings"] = list(ensemble_result["warnings"])
+            ensemble_result["research_result"]["convergence"]["warnings"] = list(ensemble_result["warnings"])
+            ensemble_result["research_result"]["details"]["gauge_validation"] = gauge_validation
+            ensemble_result["research_result"]["details"]["research_gate"] = ensemble_result["research_gate"]
+        ensemble_result["time_ms"] = round((time.perf_counter() - started) * 1000, 3)
+        return ensemble_result
     if tensors is None:
         tensors = _build_tensors(xp, payload)
     else:
@@ -1124,7 +1439,7 @@ def run_ctmrg(
         )
     layers = [_double_layer(xp, tensor) for tensor in tensors]
     chi = int(payload.environment_bond_dim)
-    environments = [_initialize_environment(xp, layer, chi) for layer in layers]
+    environments = [_initialize_environment(xp, layer, chi, sector_seed=_environment_seed) for layer in layers]
     problem_sha256 = _problem_sha256(payload)
     points: list[ConvergencePoint] = []
     discarded_total = 0.0
@@ -1515,6 +1830,7 @@ def run_ctmrg(
         details={
             "initial_state": payload.initial_state,
             "ctmrg_projector": payload.ctmrg_projector,
+            "environment_sector_policy": payload.environment_sector_policy,
             "environment_shapes": [[list(item.shape) for item in env.tensors()] for env in environments],
             "optimization": (
                 {key: value for key, value in optimization_info.items() if key not in {"states", "tensors"}}
@@ -1536,6 +1852,7 @@ def run_ctmrg(
         "method": result_method,
         "representation": "ipeps",
         "ctmrg_projector": payload.ctmrg_projector,
+        "environment_sector_policy": payload.environment_sector_policy,
         "unit_cell": unit_cell,
         "unit_cell_sites": len(tensors),
         "tensor_source": (
