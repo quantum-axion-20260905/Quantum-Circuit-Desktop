@@ -586,7 +586,7 @@ def jobs_peps(payload: PEPSPayload) -> dict[str, Any]:
 @app.post("/jobs/ctmrg")
 @_sync_gpu_guard
 def jobs_ctmrg(payload: CTMRGPayload) -> dict[str, Any]:
-    """Run the bounded one-site iPEPS CTMRG contraction path."""
+    """Run the bounded iPEPS CTMRG contraction path."""
 
     resolved = _resolve_or_http(payload.backend, "ctmrg")
     require_gpu(cp)

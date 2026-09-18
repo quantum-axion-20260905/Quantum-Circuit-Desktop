@@ -1,13 +1,13 @@
-"""Bounded one-site iPEPS corner-transfer-matrix contraction.
+"""Bounded iPEPS corner-transfer-matrix contraction.
 
 This module deliberately owns only the numerical representation.  Admission,
 HTTP lifecycle, provenance, and domain builders stay outside the module so a
 future two-site/2x2 unit-cell implementation can reuse the same result seam.
 
-The first supported solver is a one-site, environment-only CTMRG contraction.
-It does not optimize the iPEPS tensor and therefore reports ``needs_review``;
-that distinction is important for research use and prevents a product-state
-ansatz from being presented as a variational ground state.
+The solver supports one-site and two-site checkerboard environments. It does
+not optimize the iPEPS tensor and therefore reports ``needs_review``; that
+distinction is important for research use and prevents a product-state ansatz
+from being presented as a variational ground state.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from .observables import structured_observables
 
 @dataclass(frozen=True)
 class CTMEnvironment:
-    """Four corners and four edge tensors around a one-site unit cell.
+    """Four corners and four edge tensors around one unit-cell tensor.
 
     Corner tensors have shape ``(chi, chi)`` and edge tensors have shape
     ``(chi, D2, chi)``, where ``D2`` is the double-layer virtual dimension.
@@ -447,7 +447,7 @@ def _interaction_expectation(
     left_pauli: str,
     right_pauli: str,
 ) -> float | None:
-    """Evaluate a nearest-neighbor two-site Pauli expectation from the CTM.
+    """Evaluate a nearest-neighbor two-site Pauli expectation from one CTM.
 
     A two-site density matrix is only defined here for nearest horizontal or
     vertical neighbors of a one-site translational cell.  Unsupported
