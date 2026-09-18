@@ -35,6 +35,7 @@ from .plugins.models import (
     GroundStatePayload,
     ObservableCrossValidatePayload,
     PEPSPayload,
+    CTMRGPayload,
     TEBDPayload,
 )
 from .plugins.registry import catalog as plugin_catalog
@@ -43,6 +44,7 @@ from .core.mps_runtime import MPSRuntime
 from .core.ground_state import exact_ground_state
 from .core.dmrg import run_dmrg
 from .core.peps import run_peps
+from .core.ctmrg import run_ctmrg
 from .plugins.tebd import run_tebd
 from .provenance import with_provenance
 from .backends.registry import catalog, method_catalog, resolve_run_backend
@@ -77,6 +79,7 @@ from .backends.preflight import estimate as preflight_estimate
 from .backends.preflight import estimate_ground_state as preflight_ground_state
 from .backends.preflight import estimate_dmrg as preflight_dmrg
 from .backends.preflight import estimate_peps as preflight_peps
+from .backends.preflight import estimate_ctmrg as preflight_ctmrg
 from .backends.preflight import estimate_tebd as preflight_tebd
 from .api.plugins import router as plugin_router
 from .api.contracts import AsyncBudget, AsyncKind, AsyncSubmission
@@ -195,7 +198,7 @@ def _sync_gpu_guard(handler):
     return guarded
 
 
-def _resolve_or_http(requested: str, operation: Literal["samples", "selected_amplitudes", "estimate", "simulate", "expectation", "evolve", "ground_state", "dmrg", "peps"]) -> str:
+def _resolve_or_http(requested: str, operation: Literal["samples", "selected_amplitudes", "estimate", "simulate", "expectation", "evolve", "ground_state", "dmrg", "peps", "ctmrg"]) -> str:
     try:
         snapshot = _hardware_snapshot()
         return resolve_run_backend(
@@ -351,6 +354,7 @@ def capabilities() -> dict[str, Any]:
             "tebd": bool(gpu.get("available")),
             "dmrg": bool(gpu.get("available")),
             "peps": bool(gpu.get("available")),
+            "ctmrg": bool(gpu.get("available")),
             "tdvp": any(item.method == "tdvp" and item.available for item in methods),
             "vumps": any(item.method == "vumps" and item.available for item in methods),
             "lattice_dimensions": 3,
@@ -358,7 +362,7 @@ def capabilities() -> dict[str, Any]:
             "unified_async_jobs": True,
             "async_job_kinds": [
                 "run", "sample", "simulate", "bench_matmul", "expectation", "tebd", "ground_state",
-                "dmrg", "peps", "tn_estimate", "tn_amplitudes", "sweep", "cross_validate",
+                "dmrg", "peps", "ctmrg", "tn_estimate", "tn_amplitudes", "sweep", "cross_validate",
             ],
         },
         "agent_version": app.version,
@@ -571,6 +575,35 @@ def jobs_peps(payload: PEPSPayload) -> dict[str, Any]:
     started_at = time.perf_counter()
     try:
         result = run_peps(cp, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    result["preflight"] = report
+    return _with_run_provenance(
+        result, payload, requested_backend=payload.backend, resolved_backend=resolved, started_at=started_at,
+    )
+
+
+@app.post("/jobs/ctmrg")
+@_sync_gpu_guard
+def jobs_ctmrg(payload: CTMRGPayload) -> dict[str, Any]:
+    """Run the bounded one-site iPEPS CTMRG contraction path."""
+
+    resolved = _resolve_or_http(payload.backend, "ctmrg")
+    require_gpu(cp)
+    report = preflight_ctmrg(payload, gpu_free_mb=_gpu_free_mb(_hardware_snapshot()))
+    if not report.get("feasible", False):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "CTMRG request rejected by preflight budget",
+                "warnings": report.get("warnings", []),
+                "estimated_peak_memory_mb": report.get("estimated_peak_memory_mb"),
+                "estimated_time_ms": report.get("estimated_time_ms"),
+            },
+        )
+    started_at = time.perf_counter()
+    try:
+        result = run_ctmrg(cp, payload)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     result["preflight"] = report
@@ -924,6 +957,7 @@ def _async_parse(kind: AsyncKind, raw: dict[str, Any]) -> Any:
         "ground_state": GroundStatePayload,
         "dmrg": DMRGPayload,
         "peps": PEPSPayload,
+        "ctmrg": CTMRGPayload,
         "tn_estimate": TNPayload,
         "tn_amplitudes": TNPayload,
         "sweep": SweepPayload,
@@ -959,6 +993,8 @@ def _async_backend(kind: AsyncKind, payload: Any) -> tuple[str, str]:
     if kind == "peps":
         # PEPS has the same fixed backend contract as TEBD.
         return _resolve_or_http(getattr(payload, "backend", "tensor-network"), "peps"), "peps"
+    if kind == "ctmrg":
+        return _resolve_or_http(getattr(payload, "backend", "tensor-network"), "ctmrg"), "ctmrg"
     if kind == "ground_state":
         return _resolve_or_http(payload.backend, "ground_state"), "ground_state"
     if kind == "expectation":
@@ -1031,6 +1067,8 @@ def _async_preflight(kind: AsyncKind, payload: Any, resolved: str, budget: dict[
         report = preflight_dmrg(bounded_payload, gpu_free_mb=free_mb)
     elif kind == "peps":
         report = preflight_peps(bounded_payload, gpu_free_mb=free_mb)
+    elif kind == "ctmrg":
+        report = preflight_ctmrg(bounded_payload, gpu_free_mb=free_mb)
     elif kind == "tebd":
         report = preflight_tebd(bounded_payload, gpu_free_mb=free_mb)
     elif resolved == "reference":
@@ -1186,6 +1224,8 @@ def _async_compute(kind: AsyncKind, payload: Any, resolved: str, job: Any) -> di
         result = run_dmrg(cp, payload, progress_cb=progress, cancel_cb=canceled)
     elif kind == "peps":
         result = run_peps(cp, payload, progress_cb=progress, cancel_cb=canceled)
+    elif kind == "ctmrg":
+        result = run_ctmrg(cp, payload, progress_cb=progress, cancel_cb=canceled)
     elif kind == "ground_state":
         result = exact_ground_state(cp, payload)
     else:

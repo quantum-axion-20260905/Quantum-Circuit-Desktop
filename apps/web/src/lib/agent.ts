@@ -8,7 +8,7 @@ export type AgentMethodCapability = {
   method: "dmrg" | "tebd" | "tdvp" | "vumps" | "ctmrg";
   backend: string;
   representation: string;
-  operation: "ground_state" | "evolve";
+  operation: "ground_state" | "evolve" | "ctmrg";
   available: boolean;
   status: "available" | "unavailable" | "planned";
   description: string;
@@ -89,6 +89,7 @@ export type AsyncKind =
   | "ground_state"
   | "dmrg"
   | "peps"
+  | "ctmrg"
   | "tn_estimate"
   | "tn_amplitudes"
   | "sweep"

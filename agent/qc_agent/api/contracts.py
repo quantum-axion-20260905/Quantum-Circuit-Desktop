@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 AsyncKind = Literal[
     "run", "sample", "simulate", "bench_matmul", "expectation", "tebd", "ground_state",
-    "dmrg", "peps", "tn_estimate", "tn_amplitudes", "sweep", "cross_validate",
+    "dmrg", "peps", "ctmrg", "tn_estimate", "tn_amplitudes", "sweep", "cross_validate",
 ]
 
 

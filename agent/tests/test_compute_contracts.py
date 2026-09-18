@@ -71,11 +71,11 @@ class ComputeContractTests(unittest.TestCase):
 
     def test_ctmrg_contract_keeps_infinite_geometry_explicit(self):
         payload = CTMRGPayload(
-            unit_cell=[2, 1],
+            unit_cell=[1, 1],
             interactions=[
                 {
                     "left_site": 0,
-                    "right_site": 1,
+                    "right_site": 0,
                     "displacement": [1, 0],
                     "left_pauli": "Z",
                     "right_pauli": "Z",
@@ -87,6 +87,8 @@ class ComputeContractTests(unittest.TestCase):
         self.assertTrue(report["feasible"])
         self.assertEqual(report["representation"], "ipeps")
         self.assertFalse(report["materializes_statevector"])
+        unsupported = estimate_ctmrg(payload.model_copy(update={"unit_cell": [2, 1]}), gpu_free_mb=4096)
+        self.assertFalse(unsupported["feasible"])
         with self.assertRaises(ValueError):
             CTMRGPayload(
                 unit_cell=[2, 2],

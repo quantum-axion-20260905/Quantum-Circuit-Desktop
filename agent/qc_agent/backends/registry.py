@@ -6,9 +6,9 @@ from typing import Literal
 from ..core.contracts import CapabilityError
 
 
-Operation = Literal["samples", "selected_amplitudes", "estimate", "simulate", "expectation", "evolve", "ground_state", "dmrg", "peps"]
+Operation = Literal["samples", "selected_amplitudes", "estimate", "simulate", "expectation", "evolve", "ground_state", "dmrg", "peps", "ctmrg"]
 MPSMethod = Literal["dmrg", "tebd", "tdvp", "vumps", "ctmrg"]
-MethodOperation = Literal["ground_state", "evolve"]
+MethodOperation = Literal["ground_state", "evolve", "ctmrg"]
 MethodStatus = Literal["available", "unavailable", "planned"]
 
 
@@ -59,7 +59,7 @@ def catalog(*, gpu_available: bool, tensor_network_available: bool) -> list[Back
             name="tensor-network",
             device="CUDA",
             available=gpu_available and tensor_network_available,
-            operations=("samples", "selected_amplitudes", "estimate", "expectation", "evolve", "dmrg", "peps"),
+            operations=("samples", "selected_amplitudes", "estimate", "expectation", "evolve", "dmrg", "peps", "ctmrg"),
             performance_comparable=True,
             description="GPU MPS simulator with bounded bond dimension; exact contraction remains available as an opt-in method.",
         ),
@@ -129,11 +129,11 @@ def method_catalog(*, gpu_available: bool, tensor_network_available: bool) -> li
             method="ctmrg",
             backend="tensor-network",
             representation="ipeps",
-            operation="ground_state",
-            available=False,
-            status="planned",
-            description="Infinite-2D iPEPS CTMRG with explicit corner/edge environment convergence.",
-            limitations=("solver implementation is not available", "no fallback to finite boundary-MPS"),
+            operation="ctmrg",
+            available=tensor_network_ready,
+            status=runtime_status,
+            description="Bounded one-site infinite-2D iPEPS CTMRG contraction with explicit corner/edge environment convergence.",
+            limitations=("one-site unit cell only", "product-state ansatz; no variational tensor optimization", "no fallback to finite boundary-MPS"),
         ),
     ]
 
@@ -192,6 +192,8 @@ def resolve_run_backend(
         if operation == "dmrg":
             return "tensor-network"
         if operation == "peps":
+            return "tensor-network"
+        if operation == "ctmrg":
             return "tensor-network"
 
     if requested == "reference":

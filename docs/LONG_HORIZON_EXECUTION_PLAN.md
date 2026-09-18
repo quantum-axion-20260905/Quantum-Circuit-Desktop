@@ -186,7 +186,8 @@ before being exposed in the UI.
 
 ## Phase 4 progress
 
-The first Phase 4 foundation packet is implemented but not released:
+The first Phase 4 foundation and numerical contraction packet is implemented
+but not released:
 
 - iPEPS unit-cell and translational interaction request validation exists;
 - CTMRG resource preflight prices double-layer tensors and corner/edge
@@ -195,21 +196,31 @@ The first Phase 4 foundation packet is implemented but not released:
   substitution;
 - contract and preflight tests cover unit-cell bounds, site validation, and
   statevector-free estimates.
+- a bounded one-site CTMRG core now performs corner/edge growth, Hermitian
+  projector truncation, normalization, residual tracking, and local Pauli
+  contraction on CPU/reference arrays and the same ``xp`` seam used by CUDA;
+- the synchronous and unified async lifecycle now exposes ``ctmrg`` with
+  explicit preflight admission and no fallback to finite boundary-MPS;
+- the first numerical reference tests verify product-state Z/X expectations,
+  interaction energy, finite residuals, and statevector-free resources.
 
-The CTMRG numerical solver, environment checkpoint, reference calculations,
-and frontend controls are still incomplete. They must land and pass their own
-gate before Phase 4 can be called complete or tagged as a release.
+The CTMRG solver is intentionally limited to a one-site product-state ansatz:
+multi-site cells, arbitrary tensor import, environment checkpoint/resume,
+variational updates, stronger reference calculations, and frontend controls
+are still incomplete. They must land and pass their own gate before Phase 4
+can be called complete or tagged as a release.
 
 ## Current next packet
 
-The next implementation packet is Phase 4 contract design:
+The next implementation packet is Phase 4 research-grade convergence:
 
-- iPEPS/CTMRG request and result schema;
-- environment checkpoint format;
-- small reference problem set;
-- preflight variables and hard limits;
-- a minimal corner/edge environment implementation with no frontend controls
-  until its reference tests pass.
+- add arbitrary one-site tensor import with explicit complex serialization;
+- add a checkpoint manifest and bounded environment save/resume;
+- compare CTMRG local contractions against finite PEPS/reference product
+  states and environment-dimension convergence;
+- add a variational/simple-update packet only after the contraction gate stays
+  stable;
+- keep frontend controls hidden until these numerical acceptance tests pass.
 
 This plan is the source of truth for long-running work. The codebase, release
 notes, and frontend should be updated to match it after every accepted phase.
