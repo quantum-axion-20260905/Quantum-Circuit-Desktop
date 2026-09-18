@@ -14,11 +14,14 @@ from __future__ import annotations
 
 import math
 import time
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Any, Iterable
 
 from ..plugins.models import CTMRGPayload, PauliTerm
-from .contracts import ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
+from ..provenance import sha256_json
+from .checkpoints import load_ctm_checkpoint, save_ctm_checkpoint
+from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
 from .observables import structured_observables
 
 
@@ -60,20 +63,24 @@ def _max_abs(xp: Any, value: Any) -> float:
     return float(_host(xp.max(xp.abs(value))))
 
 
-def _build_product_tensor(xp: Any, payload: CTMRGPayload) -> Any:
+def _build_tensor(xp: Any, payload: CTMRGPayload) -> Any:
     """Create a deterministic normalized product iPEPS ansatz.
 
-    Arbitrary user-supplied tensors and variational updates are intentionally
-    not inferred from a Hamiltonian.  They will be added as a separate tensor
-    import/optimization contract in the next Phase 4 packet.
+    If ``tensor_data`` is supplied it is interpreted as row-major complex
+    pairs in the explicit shape ``(physical, up, down, left, right)``.
+    Otherwise a deterministic product-state ansatz is built for compatibility
+    and the result is marked as non-variational by the caller.
     """
 
     physical = int(payload.physical_bond_dim)
     if physical != 2:
         raise ValueError("the first CTMRG solver supports physical_bond_dim=2 only")
     dtype = xp.complex64 if payload.dtype == "complex64" else xp.complex128
-    virtual = max(1, min(2, int(payload.environment_bond_dim)))
+    virtual = int(payload.virtual_bond_dim)
     tensor = xp.zeros((physical, virtual, virtual, virtual, virtual), dtype=dtype)
+    if payload.tensor_data is not None:
+        values = [complex(float(real), float(imaginary)) for real, imaginary in payload.tensor_data]
+        return xp.asarray(values, dtype=dtype).reshape(tensor.shape)
     if payload.initial_state == "plus":
         amplitudes = [1.0 / math.sqrt(2.0), 1.0 / math.sqrt(2.0)]
     else:
@@ -232,18 +239,78 @@ def _term_expectation(xp: Any, env: CTMEnvironment, tensor: Any, term: PauliTerm
     return _real(numerator / (denominator + 1e-30))
 
 
-def _single_site_pauli(xp: Any, tensor: Any, pauli: str) -> float:
+def _horizontal_two_site_contraction(xp: Any, env: CTMEnvironment, left: Any, right: Any) -> Any:
+    """Contract two neighboring sites in the horizontal direction."""
+
+    return xp.einsum(
+        "ab,buc,cve,ef,fqm,mi,hyi,gwh,gh,azg,uwzx,vyxq->",
+        env.C1,
+        env.T1,
+        env.T1,
+        env.C2,
+        env.T2,
+        env.C3,
+        env.T3,
+        env.T3,
+        env.C4,
+        env.T4,
+        left,
+        right,
+    )
+
+
+def _vertical_two_site_contraction(xp: Any, env: CTMEnvironment, top: Any, bottom: Any) -> Any:
+    """Contract two neighboring sites in the vertical direction."""
+
+    return xp.einsum(
+        "ab,buc,ce,erm,mqn,ni,hyi,gh,alg,gkh,uxlr,xykq->",
+        env.C1,
+        env.T1,
+        env.C2,
+        env.T2,
+        env.T2,
+        env.C3,
+        env.T3,
+        env.C4,
+        env.T4,
+        env.T4,
+        top,
+        bottom,
+    )
+
+
+def _interaction_expectation(
+    xp: Any,
+    env: CTMEnvironment,
+    tensor: Any,
+    displacement: list[int],
+    left_pauli: str,
+    right_pauli: str,
+) -> float | None:
+    """Evaluate a nearest-neighbor two-site Pauli expectation from the CTM.
+
+    A two-site density matrix is only defined here for nearest horizontal or
+    vertical neighbors of a one-site translational cell.  Unsupported
+    displacements return ``None`` so callers cannot mistake a product of local
+    averages for a connected two-site observable.
+    """
+
+    dx, dy = (int(value) for value in displacement)
+    if (abs(dx), abs(dy)) not in ((1, 0), (0, 1)):
+        return None
     dtype = tensor.dtype
-    op = _pauli_matrix(xp, dtype, pauli)
-    # This is only used for the generated product ansatz's interaction energy;
-    # it remains exact and avoids pretending a two-site RDM is available yet.
-    state = tensor[:, 0, 0, 0, 0]
-    value = xp.conj(state) @ op @ state
-    return _real(value)
-
-
-def _interaction_expectation(xp: Any, tensor: Any, left: str, right: str) -> float:
-    return _single_site_pauli(xp, tensor, left) * _single_site_pauli(xp, tensor, right)
+    left_operator = _pauli_matrix(xp, dtype, left_pauli)
+    right_operator = _pauli_matrix(xp, dtype, right_pauli)
+    left = _double_layer(xp, tensor, left_operator)
+    right = _double_layer(xp, tensor, right_operator)
+    identity = _double_layer(xp, tensor)
+    if abs(dx) == 1:
+        numerator = _horizontal_two_site_contraction(xp, env, left, right)
+        denominator = _horizontal_two_site_contraction(xp, env, identity, identity)
+    else:
+        numerator = _vertical_two_site_contraction(xp, env, left, right)
+        denominator = _vertical_two_site_contraction(xp, env, identity, identity)
+    return _real(numerator / (denominator + 1e-30))
 
 
 def _resource_summary(xp: Any, env: CTMEnvironment, tensor: Any, iterations: int) -> dict[str, Any]:
@@ -252,6 +319,8 @@ def _resource_summary(xp: Any, env: CTMEnvironment, tensor: Any, iterations: int
     return {
         "representation": "ipeps",
         "unit_cell": [1, 1],
+        "physical_bond_dim": int(tensor.shape[0]),
+        "virtual_bond_dim": int(tensor.shape[1]),
         "environment_bond_dim_used": int(env.C1.shape[0]),
         "double_layer_virtual_dim": int(env.T1.shape[1]),
         "tensor_values": values,
@@ -260,6 +329,20 @@ def _resource_summary(xp: Any, env: CTMEnvironment, tensor: Any, iterations: int
         "materializes_statevector": False,
         "device": "cuda" if hasattr(xp, "cuda") else "cpu",
     }
+
+
+def _problem_sha256(payload: CTMRGPayload) -> str:
+    """Fingerprint the scientific tensor problem, excluding run controls."""
+
+    data = payload.model_dump(
+        mode="json",
+        exclude={"iterations", "tolerance", "max_time_ms", "max_mem_mb", "checkpoint_path", "resume_from"},
+    )
+    return sha256_json(data)
+
+
+def _environment_from_arrays(arrays: dict[str, Any]) -> CTMEnvironment:
+    return CTMEnvironment(*(arrays[name] for name in ("C1", "C2", "C3", "C4", "T1", "T2", "T3", "T4")))
 
 
 def run_ctmrg(
@@ -274,14 +357,72 @@ def run_ctmrg(
     if list(payload.unit_cell) != [1, 1]:
         raise ValueError("the first CTMRG solver supports unit_cell=[1, 1]; multi-site cells are not silently approximated")
     started = time.perf_counter()
-    tensor = _build_product_tensor(xp, payload)
+    tensor = _build_tensor(xp, payload)
     double_layer = _double_layer(xp, tensor)
     chi = int(payload.environment_bond_dim)
     env = _initialize_environment(xp, double_layer, chi)
+    problem_sha256 = _problem_sha256(payload)
     points: list[ConvergencePoint] = []
     discarded_total = 0.0
     residual = math.inf
-    for iteration in range(1, int(payload.iterations) + 1):
+    start_iteration = 0
+    checkpoint_info: dict[str, Any] = {}
+    if payload.resume_from:
+        manifest, arrays = load_ctm_checkpoint(payload.resume_from, xp)
+        if manifest.get("request_sha256") != problem_sha256:
+            raise ValueError("CTMRG checkpoint does not match the scientific tensor problem")
+        if manifest.get("dtype") != payload.dtype:
+            raise ValueError("CTMRG checkpoint dtype does not match the requested dtype")
+        metadata = manifest.get("metadata", {})
+        if int(metadata.get("physical_bond_dim", -1)) != int(payload.physical_bond_dim):
+            raise ValueError("CTMRG checkpoint physical bond dimension does not match the request")
+        if int(metadata.get("virtual_bond_dim", -1)) != int(payload.virtual_bond_dim):
+            raise ValueError("CTMRG checkpoint virtual bond dimension does not match the request")
+        if int(metadata.get("environment_bond_dim", -1)) != int(payload.environment_bond_dim):
+            raise ValueError("CTMRG checkpoint environment bond dimension does not match the request")
+        start_iteration = int(manifest.get("step", 0))
+        if start_iteration > int(payload.iterations):
+            raise ValueError(
+                f"checkpoint already contains {start_iteration} iterations, but the requested run only allows {payload.iterations}"
+            )
+        raw_points = metadata.get("convergence_points", [])
+        if not isinstance(raw_points, list):
+            raise ValueError("CTMRG checkpoint convergence history is invalid")
+        points = [ConvergencePoint(**dict(point)) for point in raw_points]
+        discarded_total = float(metadata.get("discarded_weight_total", 0.0))
+        residual = float(metadata.get("residual", math.inf))
+        env = _environment_from_arrays(arrays)
+        checkpoint_info = manifest
+
+    def save_iteration_checkpoint(iteration: int) -> None:
+        nonlocal checkpoint_info
+        if not payload.checkpoint_path:
+            return
+        checkpoint_info = save_ctm_checkpoint(
+            payload.checkpoint_path,
+            env,
+            CheckpointManifest(
+                checkpoint_id=f"ctmrg-{problem_sha256[:12]}-iteration-{iteration}",
+                request_sha256=problem_sha256,
+                method="ipeps-ctmrg-contraction",
+                representation="ipeps",
+                dtype=payload.dtype,
+                device="cuda" if hasattr(xp, "cuda") else "cpu",
+                step=iteration,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                metadata={
+                    "completed_iterations": iteration,
+                    "residual": float(residual),
+                    "discarded_weight_total": float(discarded_total),
+                    "convergence_points": [point.__dict__ for point in points],
+                    "physical_bond_dim": int(payload.physical_bond_dim),
+                    "virtual_bond_dim": int(payload.virtual_bond_dim),
+                    "environment_bond_dim": int(payload.environment_bond_dim),
+                },
+            ),
+        )
+
+    for iteration in range(start_iteration + 1, int(payload.iterations) + 1):
         if cancel_cb and cancel_cb():
             raise RuntimeError("job canceled")
         before = env
@@ -296,6 +437,7 @@ def run_ctmrg(
         env = _renormalize(xp, env)
         residual = _environment_residual(xp, before, env)
         points.append(ConvergencePoint(iteration=iteration, residual=residual, environment_dim=int(env.C1.shape[0]), discarded_weight=discarded))
+        save_iteration_checkpoint(iteration)
         if progress_cb:
             progress_cb(iteration / max(1, int(payload.iterations)), "ctmrg-sweep")
         if residual <= float(payload.tolerance):
@@ -305,17 +447,40 @@ def run_ctmrg(
     onsite_values: list[float] = []
     for term in payload.terms:
         onsite_values.append(_term_expectation(xp, env, tensor, term))
-    interaction_values: list[float] = []
+    interaction_values: list[float | None] = []
     for interaction in payload.interactions:
-        interaction_values.append(_interaction_expectation(xp, tensor, interaction.left_pauli, interaction.right_pauli))
+        interaction_values.append(
+            _interaction_expectation(
+                xp,
+                env,
+                tensor,
+                interaction.displacement,
+                interaction.left_pauli,
+                interaction.right_pauli,
+            )
+        )
+    interaction_values_available = all(value is not None for value in interaction_values)
     energy = sum(float(term.coefficient) * value for term, value in zip(payload.terms, onsite_values))
-    energy += sum(float(term.coefficient) * value for term, value in zip(payload.interactions, interaction_values))
+    energy += sum(
+        float(term.coefficient) * float(value)
+        for term, value in zip(payload.interactions, interaction_values)
+        if value is not None
+    )
     converged = bool(residual <= float(payload.tolerance))
     warnings = [
         "CTMRG contraction is implemented for a one-site iPEPS environment; unit-cell extensions require a separate acceptance test",
-        "the tensor is a deterministic product-state ansatz; no variational ground-state optimization was performed",
         "compare environment_bond_dim and iteration convergence before using values as scientific conclusions",
     ]
+    if payload.tensor_data is None:
+        warnings.append("the tensor is a deterministic product-state ansatz; no variational ground-state optimization was performed")
+    else:
+        warnings.append("the imported tensor was contracted without variational ground-state optimization")
+    if not interaction_values_available:
+        warnings.append("one or more interaction displacements are outside the supported nearest-neighbor two-site CTM contraction")
+    checkpoint_result = checkpoint_info or {
+        "resumable": False,
+        "reason": "set checkpoint_path to persist and resume the CTMRG environment",
+    }
     research_result = ResearchResult(
         status="needs_review",
         method="ipeps-ctmrg-contraction",
@@ -323,7 +488,7 @@ def run_ctmrg(
         metrics={"norm": norm, "energy": float(energy), "residual": float(residual)},
         truncation=TruncationReport(
             discarded_weight=float(discarded_total),
-            max_bond_dim=int(payload.physical_bond_dim),
+            max_bond_dim=int(payload.virtual_bond_dim),
             max_environment_dim=int(payload.environment_bond_dim),
         ),
         convergence=ConvergenceReport(
@@ -333,12 +498,12 @@ def run_ctmrg(
             warnings=list(warnings),
         ),
         resources=_resource_summary(xp, env, tensor, len(points)),
-        checkpoint={"resumable": False, "reason": "checkpoint contract is reserved for the next CTMRG packet"},
+        checkpoint=checkpoint_result,
         warnings=list(warnings),
         limitations=[
             "only one-site unit cell is numerically enabled",
             "no variational tensor update or full ground-state optimization",
-            "two-site interaction values use the generated product ansatz",
+            "non-nearest interaction displacements are not yet supported by the one-site two-site-RDM contraction",
         ],
         details={"initial_state": payload.initial_state, "environment_shapes": [list(item.shape) for item in env.tensors()]},
     ).to_dict()
@@ -348,6 +513,9 @@ def run_ctmrg(
         "method": "ipeps-ctmrg-contraction",
         "representation": "ipeps",
         "unit_cell": [1, 1],
+        "tensor_source": "imported" if payload.tensor_data is not None else "generated-product-ansatz",
+        "physical_bond_dim": int(payload.physical_bond_dim),
+        "virtual_bond_dim": int(payload.virtual_bond_dim),
         "environment_bond_dim_requested": int(payload.environment_bond_dim),
         "environment_bond_dim_used": int(env.C1.shape[0]),
         "iterations": len(points),
@@ -361,13 +529,14 @@ def run_ctmrg(
                 "index": index,
                 "label": interaction.label or f"{interaction.left_pauli}{interaction.left_site}-{interaction.right_pauli}{interaction.right_site}",
                 "coefficient": float(interaction.coefficient),
-                "value": float(value),
+                "value": float(value) if value is not None else None,
                 "displacement": list(interaction.displacement),
             }
             for index, (interaction, value) in enumerate(zip(payload.interactions, interaction_values))
         ],
         "resource_estimate": _resource_summary(xp, env, tensor, len(points)),
         "research_result": research_result,
+        "checkpoint": checkpoint_result,
         "warnings": warnings,
         "time_ms": round((time.perf_counter() - started) * 1000, 3),
     }

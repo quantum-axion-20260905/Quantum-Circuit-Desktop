@@ -21,6 +21,7 @@ from .contracts import CHECKPOINT_SCHEMA, CheckpointManifest
 
 _TENSOR_NAME = re.compile(r"tensor_(\d+)$")
 _BOUNDARY_TENSOR_NAME = re.compile(r"boundary_tensor_(\d+)$")
+_CTM_NAMES = ("C1", "C2", "C3", "C4", "T1", "T2", "T3", "T4")
 
 
 def _to_host(value: Any) -> np.ndarray:
@@ -207,3 +208,98 @@ def load_boundary_mps_checkpoint(
         _validate_boundary_tensors(host_tensors)
         tensors = [xp.asarray(tensor) for tensor in host_tensors]
     return manifest, tensors
+
+
+def _validate_ctm_environment(environment: Any) -> None:
+    """Validate the shape contract before serializing a CTM environment."""
+
+    tensors = [getattr(environment, name, None) for name in _CTM_NAMES]
+    if any(tensor is None for tensor in tensors):
+        raise ValueError("CTMRG checkpoint requires C1/C2/C3/C4 and T1/T2/T3/T4 tensors")
+    corners = tensors[:4]
+    edges = tensors[4:]
+    if any(getattr(corner, "ndim", None) != 2 for corner in corners):
+        raise ValueError("CTMRG corners must be rank-2 tensors")
+    chi = int(corners[0].shape[0])
+    if any(tuple(int(size) for size in corner.shape) != (chi, chi) for corner in corners):
+        raise ValueError("CTMRG corners must all have shape (chi, chi)")
+    if any(getattr(edge, "ndim", None) != 3 for edge in edges):
+        raise ValueError("CTMRG edges must be rank-3 tensors")
+    d2 = int(edges[0].shape[1])
+    if any(tuple(int(size) for size in edge.shape) != (chi, d2, chi) for edge in edges):
+        raise ValueError("CTMRG edges must all have shape (chi, double_layer_dim, chi)")
+
+
+def save_ctm_checkpoint(
+    path: str | os.PathLike[str],
+    environment: Any,
+    manifest: CheckpointManifest,
+) -> dict[str, Any]:
+    """Atomically persist a CTMRG environment and its resumability manifest."""
+
+    _validate_ctm_environment(environment)
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    manifest_dict = manifest.to_dict()
+    metadata = dict(manifest_dict.get("metadata", {}))
+    metadata.setdefault("environment_shapes", {
+        name: list(getattr(environment, name).shape) for name in _CTM_NAMES
+    })
+    metadata.setdefault("representation", "ipeps")
+    manifest_dict["metadata"] = metadata
+    arrays = {name: _to_host(getattr(environment, name)) for name in _CTM_NAMES}
+
+    temporary_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", dir=target.parent, prefix=f".{target.name}.", suffix=".tmp", delete=False
+        ) as handle:
+            temporary_path = handle.name
+            np.savez_compressed(
+                handle,
+                manifest=np.asarray(json.dumps(manifest_dict, sort_keys=True)),
+                **arrays,
+            )
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, target)
+    except Exception:
+        if temporary_path:
+            try:
+                os.unlink(temporary_path)
+            except FileNotFoundError:
+                pass
+        raise
+    return manifest_dict
+
+
+def load_ctm_checkpoint(
+    path: str | os.PathLike[str],
+    xp: Any = np,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Load and validate a CTMRG environment checkpoint."""
+
+    source = Path(path)
+    with np.load(source, allow_pickle=False) as archive:
+        if "manifest" not in archive.files:
+            raise ValueError("CTMRG checkpoint is missing its manifest")
+        raw_manifest = archive["manifest"].item()
+        manifest = json.loads(str(raw_manifest))
+        if manifest.get("schema") != CHECKPOINT_SCHEMA:
+            raise ValueError("unsupported checkpoint schema")
+        if manifest.get("method") != "ipeps-ctmrg-contraction":
+            raise ValueError("checkpoint method is not ipeps-ctmrg-contraction")
+        if manifest.get("representation") != "ipeps":
+            raise ValueError("checkpoint representation is not ipeps")
+        if not manifest.get("resumable", False):
+            raise ValueError("checkpoint is marked non-resumable")
+        if any(name not in archive.files for name in _CTM_NAMES):
+            raise ValueError("CTMRG checkpoint is missing one or more environment tensors")
+        arrays = {name: xp.asarray(archive[name]) for name in _CTM_NAMES}
+    class _LoadedEnvironment:
+        pass
+    environment = _LoadedEnvironment()
+    for name, value in arrays.items():
+        setattr(environment, name, value)
+    _validate_ctm_environment(environment)
+    return manifest, arrays

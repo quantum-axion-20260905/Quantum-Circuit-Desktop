@@ -203,6 +203,14 @@ but not released:
   explicit preflight admission and no fallback to finite boundary-MPS;
 - the first numerical reference tests verify product-state Z/X expectations,
   interaction energy, finite residuals, and statevector-free resources.
+- arbitrary complex one-site tensors can now be imported with an explicit
+  ``(physical, up, down, left, right)`` shape contract and virtual bond
+  dimension;
+- CTMRG environments can be persisted atomically and resumed with a hashed
+  scientific-problem manifest, dtype/shape checks, and convergence history;
+- nearest-neighbor horizontal and vertical two-site Pauli expectations now
+  use an explicit two-site CTM contraction; unsupported longer displacements
+  remain visible as withheld values rather than product-of-averages guesses.
 
 The CTMRG solver is intentionally limited to a one-site product-state ansatz:
 multi-site cells, arbitrary tensor import, environment checkpoint/resume,
@@ -214,8 +222,8 @@ can be called complete or tagged as a release.
 
 The next implementation packet is Phase 4 research-grade convergence:
 
-- add arbitrary one-site tensor import with explicit complex serialization;
-- add a checkpoint manifest and bounded environment save/resume;
+- add a two-site/2x2 unit-cell environment and extend the explicit two-site
+  RDM contraction beyond the one-site translational environment;
 - compare CTMRG local contractions against finite PEPS/reference product
   states and environment-dimension convergence;
 - add a variational/simple-update packet only after the contraction gate stays

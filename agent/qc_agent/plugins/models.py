@@ -226,10 +226,14 @@ class CTMRGPayload(BaseModel):
     dtype: Literal["complex64", "complex128"] = "complex64"
     backend: Literal["auto", "tensor-network"] = "auto"
     physical_bond_dim: int = Field(default=2, ge=1, le=8)
+    virtual_bond_dim: int = Field(default=1, ge=1, le=8)
+    tensor_data: list[list[float]] | None = Field(default=None, max_length=32768)
     environment_bond_dim: int = Field(default=16, ge=1, le=128)
     iterations: int = Field(default=20, ge=1, le=200)
     tolerance: float = Field(default=1e-8, gt=0, le=1.0)
     initial_state: Literal["up", "down", "plus", "neel"] = "up"
+    checkpoint_path: str | None = Field(default=None, min_length=1, max_length=4096)
+    resume_from: str | None = Field(default=None, min_length=1, max_length=4096)
     max_time_ms: int = Field(default=120000, ge=100, le=3600000)
     max_mem_mb: float = Field(default=4096, gt=0, le=1048576)
 
@@ -242,9 +246,27 @@ class CTMRGPayload(BaseModel):
             raise ValueError("CTMRG currently supports at most a 2x2 unit cell")
         return [int(size) for size in value]
 
+    @field_validator("tensor_data")
+    @classmethod
+    def validate_tensor_data(cls, value: list[list[float]] | None) -> list[list[float]] | None:
+        if value is None:
+            return None
+        for index, pair in enumerate(value):
+            if len(pair) != 2:
+                raise ValueError(f"iPEPS tensor_data[{index}] must be a [real, imaginary] pair")
+            if not all(math.isfinite(float(component)) for component in pair):
+                raise ValueError(f"iPEPS tensor_data[{index}] must contain finite numbers")
+        return [[float(pair[0]), float(pair[1])] for pair in value]
+
     @model_validator(mode="after")
     def validate_payload(self):
         cell_sites = math.prod(self.unit_cell)
+        expected_tensor_values = int(self.physical_bond_dim) * int(self.virtual_bond_dim) ** 4
+        if self.tensor_data is not None and len(self.tensor_data) != expected_tensor_values:
+            raise ValueError(
+                "iPEPS tensor_data length must equal physical_bond_dim * virtual_bond_dim**4 "
+                f"({expected_tensor_values})"
+            )
         for term in self.terms:
             if any(index >= cell_sites for index in term.paulis):
                 raise ValueError("iPEPS onsite term index exceeds the unit-cell site count")

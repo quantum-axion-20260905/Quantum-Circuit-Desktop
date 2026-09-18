@@ -245,13 +245,15 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
     """
     cell_sites = math.prod(payload.unit_cell)
     physical_bond_dim = int(payload.physical_bond_dim)
+    virtual_bond_dim = int(getattr(payload, "virtual_bond_dim", 1))
     environment_bond_dim = int(payload.environment_bond_dim)
-    double_layer_dim = physical_bond_dim ** 2
+    double_layer_dim = virtual_bond_dim ** 2
     bytes_per_value = 8 if payload.dtype == "complex64" else 16
-    tensor_values = cell_sites * 4 * max(1, double_layer_dim ** 4)
+    tensor_values = cell_sites * physical_bond_dim * max(1, virtual_bond_dim ** 4)
+    double_layer_values = cell_sites * max(1, double_layer_dim ** 4)
     corner_values = 4 * environment_bond_dim * environment_bond_dim
     edge_values = 4 * environment_bond_dim * double_layer_dim * environment_bond_dim
-    iteration_values = tensor_values + corner_values + edge_values
+    iteration_values = tensor_values + double_layer_values + corner_values + edge_values
     peak_mb = iteration_values * bytes_per_value * 3.0 / (1024 * 1024)
     work = max(1, int(payload.iterations)) * max(1, cell_sites) * max(1, environment_bond_dim) ** 3 * max(1, double_layer_dim)
     estimated_ms = int(1 + work / 25_000)
@@ -278,10 +280,12 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         "unit_cell": list(payload.unit_cell),
         "unit_cell_sites": cell_sites,
         "physical_bond_dim": physical_bond_dim,
+        "virtual_bond_dim": virtual_bond_dim,
         "double_layer_dim": double_layer_dim,
         "environment_bond_dim": environment_bond_dim,
         "iterations": int(payload.iterations),
         "tensor_values": tensor_values,
+        "double_layer_values": double_layer_values,
         "corner_values": corner_values,
         "edge_values": edge_values,
         "materializes_statevector": False,
