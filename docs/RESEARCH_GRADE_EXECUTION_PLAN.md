@@ -306,6 +306,9 @@ Current implementation status (unreleased Phase 4 work):
   exact virtual gauge transformation;
 - convergence uses a gauge-invariant boundary singular-spectrum residual while
   retaining raw basis drift as a diagnostic;
+- result envelopes now expose a separate CTMRG research-gate verdict for
+  convergence, independent reference, virtual gauge, truncation policy,
+  transfer gap, and adjoint residual; execution success is not admission;
 - D=1 finite-difference/adjoint and CUDA endpoint gates pass, but generic D=2
   cells can still fail transfer-gap, gauge-sensitivity, or adjoint-residual
   gates and remain `needs_review`;

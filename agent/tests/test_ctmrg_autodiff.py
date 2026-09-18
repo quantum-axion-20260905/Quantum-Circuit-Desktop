@@ -181,6 +181,9 @@ class CTMRGAutodiffTests(unittest.TestCase):
         self.assertFalse(gauge["passed"])
         self.assertGreater(gauge["max_abs_delta"], gauge["tolerance"])
         self.assertTrue(any("virtual-gauge validation" in warning for warning in result["warnings"]))
+        self.assertEqual(result["research_gate"]["status"], "needs_review")
+        self.assertFalse(result["research_gate"]["production_ready"])
+        self.assertFalse(result["research_gate"]["gates"]["virtual_gauge"]["passed"])
         self.assertTrue(result["gauge_conditioning"]["performed"])
         self.assertEqual(len(result["gauge_conditioning"]["legs"]), 4)
 

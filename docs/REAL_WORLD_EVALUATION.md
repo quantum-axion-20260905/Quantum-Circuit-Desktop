@@ -120,6 +120,12 @@ stable; its replayable evidence is
 This separates the truncation-derivative problem from the remaining
 gauge-sensitive environment problem, not from host-RAM pressure.
 
+The result contract now makes this distinction machine-readable through
+research_gate. The bounded D=1 product contract can pass its declared gates,
+while entangled D=2 output remains needs_review unless the virtual-gauge gate
+passes; the numerical result is never silently replaced by the finite
+reference.
+
 An opt-in paired virtual-gauge probe was added to the CTMRG request contract.
 On a deterministic random D=2 cell (`χ=2`, four iterations), the exact finite
 PEPS reference stayed invariant while the truncated CTMRG energy/observable

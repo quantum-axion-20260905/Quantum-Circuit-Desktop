@@ -338,6 +338,10 @@ but not released:
   gauge evidence for both complex64 and complex128. Both cases currently
   remain needs_review, so the frozen-projector gradient is not promoted by
   a small residual alone.
+- CTMRG results now carry a separate research-gate verdict: convergence,
+  independent reference, virtual-gauge, truncation-gradient, transfer-gap,
+  and adjoint-residual gates are individually reported; a completed job is no
+  longer confused with production admission.
 - an explicit differentiable-eigh truncation mode now exists behind the Torch
   unrolled/implicit optimizer contract. It is opt-in, fails on non-finite
   gradients instead of falling back silently, and is still experimental until

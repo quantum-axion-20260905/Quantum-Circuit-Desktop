@@ -43,6 +43,8 @@ class CTMRGTests(unittest.TestCase):
         self.assertAlmostEqual(result["energy_variance"], 0.0, places=8)
         self.assertFalse(result["resource_estimate"]["materializes_statevector"])
         self.assertEqual(result["research_result"]["status"], "needs_review")
+        self.assertEqual(result["research_gate"]["status"], "passed")
+        self.assertTrue(result["research_gate"]["production_ready"])
 
     def test_plus_state_has_unit_x_expectation(self):
         payload = CTMRGPayload(
@@ -103,6 +105,9 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(result["reference_validation"]["performed"])
         self.assertTrue(result["reference_validation"]["passed"])
         self.assertEqual(result["reference_validation"]["reference"], "analytic-ghz-transfer-fixed-point")
+        self.assertEqual(result["research_gate"]["status"], "needs_review")
+        self.assertFalse(result["research_gate"]["production_ready"])
+        self.assertFalse(result["research_gate"]["gates"]["virtual_gauge"]["passed"])
 
     def test_generic_virtual_two_tensor_gets_finite_periodic_reference(self):
         tensor = np.zeros((2, 2, 2, 2, 2), dtype=np.complex128)

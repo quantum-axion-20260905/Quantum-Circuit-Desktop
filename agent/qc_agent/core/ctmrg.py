@@ -25,6 +25,7 @@ from ..plugins.models import CTMRGPayload, PauliTerm
 from ..provenance import sha256_json
 from .checkpoints import load_ctm_checkpoint, save_ctm_checkpoint
 from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
+from .ctmrg_admission import ctmrg_research_gate
 from .ctmrg_reference import analytic_ghz_reference, finite_periodic_peps_reference, finite_product_reference
 from .ctmrg_gauge import virtual_leg_conditioning_report
 from .ipeps_optimizer import optimize_product_states, run_full_update, run_simple_update
@@ -1132,6 +1133,13 @@ def run_ctmrg(
                 warnings.append(
                     f"virtual-gauge validation exceeded tolerance: max observable/energy delta {gauge_validation['max_abs_delta']:.3e}"
                 )
+    research_gate = ctmrg_research_gate(
+        payload,
+        converged=converged,
+        reference_validation=reference_validation,
+        gauge_validation=gauge_validation,
+        optimization_info=optimization_info,
+    )
     checkpoint_result = checkpoint_info or {
         "resumable": False,
         "reason": (
@@ -1208,6 +1216,7 @@ def run_ctmrg(
             "reference_validation": reference_validation,
             "gauge_validation": gauge_validation,
             "gauge_conditioning": gauge_conditioning,
+            "research_gate": research_gate,
         },
     ).to_dict()
     return {
@@ -1243,6 +1252,7 @@ def run_ctmrg(
         "reference_validation": reference_validation,
         "gauge_validation": gauge_validation,
         "gauge_conditioning": gauge_conditioning,
+        "research_gate": research_gate,
         "correlation_length": environment_diagnostics["correlation_length"],
         "correlation_lengths_by_site": environment_diagnostics["correlation_lengths_by_site"],
         "environment_spectrum": environment_diagnostics["environment_spectrum"],
