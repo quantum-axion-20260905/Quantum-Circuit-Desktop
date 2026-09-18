@@ -254,15 +254,22 @@ but not released:
 - the spin-lattice plugin exposes that builder as a first-class `build_ctmrg`
   domain action, keeping future material/chemistry builders on the same
   plugin seam instead of adding model branches to the solver.
+- the desktop/frontend lattice workflow now exposes a deliberately bounded
+  CTMRG panel for periodic 1x1–2x2 spin cells, with explicit initial state,
+  environment-chi, iteration controls, cancellation, energy/variance/
+  correlation-length/reference diagnostics, and a replayable chi study;
+  larger geometries remain visibly disabled rather than being presented as
+  production infinite-2D support.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
 The current optimizers are a D=1 mean-field baseline, a bounded simple update,
 and a bounded CTMRG-feedback coordinate baseline. The latter is not yet a
 scalable automatic-differentiation/full ground-state solver. Stronger
-reference calculations and frontend controls are still incomplete. They must
-land and pass their own gate before Phase 4 can be called complete or tagged
-as a release.
+reference calculations and broader frontend coverage are still incomplete.
+They must land and pass their own gate before Phase 4 can be called complete or tagged
+as a release. The current frontend panel is an admitted experimental path,
+not evidence that the full variational solver is complete.
 
 ## Current next packet
 
@@ -279,7 +286,9 @@ The next implementation packet is Phase 4 variational research-grade convergence
   small Ising/Heisenberg reference observables;
 - add a variational/simple-update packet only after the contraction gate stays
   stable;
-- keep frontend controls hidden until these numerical acceptance tests pass.
+- keep the frontend surface limited to the admitted 1x1–2x2 contract until
+  the stronger numerical acceptance tests pass; expand it only with matching
+  preflight, diagnostics, replay, and reference evidence.
 
 This plan is the source of truth for long-running work. The codebase, release
 notes, and frontend should be updated to match it after every accepted phase.

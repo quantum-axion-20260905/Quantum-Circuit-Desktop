@@ -4,6 +4,8 @@ import {
   runGroundState,
   runJob,
   runPEPS,
+  runCTMRG,
+  runCTMRGConvergence,
   runSweep,
   runTEBD,
   type AgentProvenance,
@@ -15,7 +17,7 @@ import {
 export type ReplayRequest =
   | { source: "circuit"; kind: "simulation"; circuit: JsonObject; config: JsonObject; circuitQasm?: string }
   | { source: "circuit"; kind: "sweep"; payload: JsonObject; circuitQasm?: string }
-  | { source: "physics"; kind: "expectation" | "ground_state" | "dmrg" | "tebd" | "peps"; payload: JsonObject };
+  | { source: "physics"; kind: "expectation" | "ground_state" | "dmrg" | "tebd" | "peps" | "ctmrg" | "ctmrg_convergence"; payload: JsonObject };
 
 export type ExperimentRecord = {
   id: string;
@@ -48,7 +50,7 @@ function isReplayRequest(value: unknown): value is ReplayRequest {
       ? isObject(value.circuit) && isObject(value.config)
       : value.kind === "sweep" && isObject(value.payload);
   }
-  return ["expectation", "ground_state", "dmrg", "tebd", "peps"].includes(value.kind) && isObject(value.payload);
+  return ["expectation", "ground_state", "dmrg", "tebd", "peps", "ctmrg", "ctmrg_convergence"].includes(value.kind) && isObject(value.payload);
 }
 
 function isExperimentRecord(value: unknown): value is ExperimentRecord {
@@ -104,5 +106,7 @@ export async function replayExperiment(request: ReplayRequest, onUpdate?: AsyncJ
     case "dmrg": return runDMRG(request.payload, onUpdate);
     case "tebd": return runTEBD(request.payload, onUpdate);
     case "peps": return runPEPS(request.payload, onUpdate);
+    case "ctmrg": return runCTMRG(request.payload, onUpdate);
+    case "ctmrg_convergence": return runCTMRGConvergence(request.payload, onUpdate);
   }
 }

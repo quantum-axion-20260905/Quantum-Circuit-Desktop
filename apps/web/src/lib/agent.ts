@@ -90,6 +90,7 @@ export type AsyncKind =
   | "dmrg"
   | "peps"
   | "ctmrg"
+  | "ctmrg_convergence"
   | "tn_estimate"
   | "tn_amplitudes"
   | "sweep"
@@ -252,6 +253,19 @@ export async function runDMRG(payload: JsonObject, onUpdate?: AsyncJobUpdate): P
 
 export async function runPEPS(payload: JsonObject, onUpdate?: AsyncJobUpdate): Promise<AgentResult> {
   return runAsyncAndWait("peps", payload, onUpdate);
+}
+
+export async function buildCTMRG(pluginId: string, payload: JsonObject): Promise<JsonObject> {
+  if (isDesktop()) return desktopAgentPost<JsonObject>(`/plugins/${pluginId}/ctmrg`, payload);
+  return agentFetch<JsonObject>(`/plugins/${pluginId}/ctmrg`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+}
+
+export async function runCTMRG(payload: JsonObject, onUpdate?: AsyncJobUpdate): Promise<AgentResult> {
+  return runAsyncAndWait("ctmrg", payload, onUpdate);
+}
+
+export async function runCTMRGConvergence(payload: JsonObject, onUpdate?: AsyncJobUpdate): Promise<AgentResult> {
+  return runAsyncAndWait("ctmrg_convergence", payload, onUpdate);
 }
 
 export async function benchMatmul(payload: { size?: number; iters?: number; dtype?: "fp16" | "fp32" }): Promise<AgentResult> {

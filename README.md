@@ -160,11 +160,18 @@ Physics Lab endpoints:
 - `POST /jobs/peps` runs native finite 2D/3D PEPS simple-update evolution for
   one- and two-site lattice terms with bounded opt_einsum boundary contraction
   (and an explicit virtual-bond enumeration fallback).
+- `POST /plugins/spin-lattice/ctmrg` builds a bounded periodic 1x1–2x2 iPEPS
+  problem for Ising, Heisenberg, or XXZ spin cells.
+- `POST /jobs/ctmrg` contracts the admitted CTMRG environment and reports
+  residual, correlation length, variance, and independent reference status.
+- `POST /jobs/ctmrg/convergence` runs a bounded environment-chi study from the
+  same tensor ansatz; `ctmrg` and `ctmrg_convergence` are also available through
+  the unified async job route and frontend replay history.
 
 For UI and service integrations, prefer `POST /async/jobs` with `kind` set to
-`run`, `expectation`, `tebd`, `ground_state`, `dmrg`, `peps`, `sweep`, `bench_matmul`, or one of
-the tensor-network operations, then poll the returned job id. The synchronous
-routes remain compatibility endpoints.
+`run`, `expectation`, `tebd`, `ground_state`, `dmrg`, `peps`, `ctmrg`,
+`ctmrg_convergence`, `sweep`, or `bench_matmul`, then poll the returned job
+id. The synchronous routes remain compatibility endpoints.
 
 The 2D/3D MPS path remains useful for larger low-entanglement calculations.
 Native PEPS is available for small bounded contractions, while DMRG provides
