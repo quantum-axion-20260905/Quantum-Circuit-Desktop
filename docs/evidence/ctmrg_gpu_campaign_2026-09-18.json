@@ -1,0 +1,2249 @@
+{
+  "case_count": 5,
+  "cases": [
+    {
+      "elapsed_ms": 266.129,
+      "gpu_after": {
+        "device_id": 0,
+        "free_bytes": 11757682688,
+        "free_mb": 11213.0,
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_bytes": 12884377600,
+        "total_mb": 12287.5
+      },
+      "gpu_before": {
+        "device_id": 0,
+        "free_bytes": 11789139968,
+        "free_mb": 11243.0,
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_bytes": 12884377600,
+        "total_mb": 12287.5
+      },
+      "name": "product-1x1",
+      "peak_memory_pool_used_bytes": 13312,
+      "request": {
+        "backend": "auto",
+        "checkpoint_path": null,
+        "dtype": "complex128",
+        "environment_bond_dim": 4,
+        "full_update_gradient_epsilon": 0.001,
+        "full_update_max_evaluations": 1024,
+        "full_update_max_parameters": 32,
+        "full_update_optimizer": "coordinate",
+        "full_update_spsa_directions": 4,
+        "full_update_step": 0.05,
+        "initial_state": "up",
+        "interactions": [
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              1,
+              0
+            ],
+            "label": "zz-x-0-0",
+            "left_pauli": "Z",
+            "left_site": 0,
+            "right_pauli": "Z",
+            "right_site": 0
+          },
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              0,
+              1
+            ],
+            "label": "zz-y-0-0",
+            "left_pauli": "Z",
+            "left_site": 0,
+            "right_pauli": "Z",
+            "right_site": 0
+          }
+        ],
+        "iterations": 4,
+        "max_mem_mb": 4096.0,
+        "max_time_ms": 120000,
+        "optimization": "none",
+        "optimization_dt": 0.01,
+        "optimization_steps": 32,
+        "optimization_tolerance": 1e-07,
+        "physical_bond_dim": 2,
+        "resume_from": null,
+        "tensor_data": null,
+        "terms": [],
+        "tolerance": 1e-08,
+        "unit_cell": [
+          1,
+          1
+        ],
+        "virtual_bond_dim": 1
+      },
+      "request_sha256": "c61f84b0d994b1c6376f9cab7bb4e792c25271182c77748bfa341be46aae5dec",
+      "result_sha256": "8826190b9f722fb7fa8f75ae03048209a625ba4af42873cde046a898c8b6fa6b",
+      "status": "done",
+      "study": {
+        "materializes_statevector": false,
+        "method": "ipeps-ctmrg-environment-convergence-study",
+        "optimization": "none",
+        "points": [
+          {
+            "converged": true,
+            "correlation_length": 0.0,
+            "correlation_lengths_by_site": [
+              0.0
+            ],
+            "energy": -2.0,
+            "energy_abs_delta": null,
+            "energy_complete": true,
+            "energy_delta": null,
+            "energy_second_moment": 4.0,
+            "energy_variance": 0.0,
+            "environment_bond_dim": 1,
+            "environment_bond_dim_used": 1,
+            "environment_spectrum": [
+              [
+                1.0
+              ]
+            ],
+            "interaction_max_abs_delta": null,
+            "observable_max_abs_delta": null,
+            "reference_max_abs_error": 0.0,
+            "reference_name": "finite-product-supercell",
+            "reference_passed": true,
+            "reference_validation": {
+              "energy_complete": true,
+              "energy_error": 0.0,
+              "energy_second_moment": 4.0,
+              "energy_variance": 0.0,
+              "interaction_max_abs_error": 0.0,
+              "limitations": [
+                "variance is for the declared finite product supercell, not an infinite-lattice variance",
+                "translated same-site interactions use a copied unit cell in the reference"
+              ],
+              "max_abs_error": 0.0,
+              "observable_max_abs_error": 0.0,
+              "passed": true,
+              "performed": true,
+              "reference": "finite-product-supercell",
+              "reference_energy": -2.0,
+              "reference_sites": 2,
+              "tolerance": 1e-05
+            },
+            "residual": 1.000000082640371e-10,
+            "resource_estimate": {
+              "device": "cuda",
+              "double_layer_virtual_dim": 1,
+              "environment_bond_dim_used": 1,
+              "iterations": 1,
+              "materializes_statevector": false,
+              "peak_bytes_estimate": 480,
+              "physical_bond_dim": 2,
+              "representation": "ipeps",
+              "tensor_values": 10,
+              "unit_cell": [
+                1,
+                1
+              ],
+              "unit_cell_sites": 1,
+              "virtual_bond_dim": 1
+            }
+          },
+          {
+            "converged": true,
+            "correlation_length": 0.043429448189947956,
+            "correlation_lengths_by_site": [
+              0.043429448189947956
+            ],
+            "energy": -2.0,
+            "energy_abs_delta": 0.0,
+            "energy_complete": true,
+            "energy_delta": 0.0,
+            "energy_second_moment": 4.0,
+            "energy_variance": 0.0,
+            "environment_bond_dim": 2,
+            "environment_bond_dim_used": 2,
+            "environment_spectrum": [
+              [
+                1.0,
+                9.999999998e-11
+              ]
+            ],
+            "interaction_max_abs_delta": 0.0,
+            "observable_max_abs_delta": 0.0,
+            "reference_max_abs_error": 0.0,
+            "reference_name": "finite-product-supercell",
+            "reference_passed": true,
+            "reference_validation": {
+              "energy_complete": true,
+              "energy_error": 0.0,
+              "energy_second_moment": 4.0,
+              "energy_variance": 0.0,
+              "interaction_max_abs_error": 0.0,
+              "limitations": [
+                "variance is for the declared finite product supercell, not an infinite-lattice variance",
+                "translated same-site interactions use a copied unit cell in the reference"
+              ],
+              "max_abs_error": 0.0,
+              "observable_max_abs_error": 0.0,
+              "passed": true,
+              "performed": true,
+              "reference": "finite-product-supercell",
+              "reference_energy": -2.0,
+              "reference_sites": 2,
+              "tolerance": 1e-05
+            },
+            "residual": 1.49999999985e-10,
+            "resource_estimate": {
+              "device": "cuda",
+              "double_layer_virtual_dim": 1,
+              "environment_bond_dim_used": 2,
+              "iterations": 1,
+              "materializes_statevector": false,
+              "peak_bytes_estimate": 1632,
+              "physical_bond_dim": 2,
+              "representation": "ipeps",
+              "tensor_values": 34,
+              "unit_cell": [
+                1,
+                1
+              ],
+              "unit_cell_sites": 1,
+              "virtual_bond_dim": 1
+            }
+          },
+          {
+            "converged": true,
+            "correlation_length": 0.04560537769259454,
+            "correlation_lengths_by_site": [
+              0.04560537769259454
+            ],
+            "energy": -2.0,
+            "energy_abs_delta": 0.0,
+            "energy_complete": true,
+            "energy_delta": 0.0,
+            "energy_second_moment": 4.0,
+            "energy_variance": 0.0,
+            "environment_bond_dim": 4,
+            "environment_bond_dim_used": 4,
+            "environment_spectrum": [
+              [
+                1.0,
+                2.999999999400002e-10,
+                5.206925577176814e-43,
+                1.4602865854856856e-44
+              ]
+            ],
+            "interaction_max_abs_delta": 0.0,
+            "observable_max_abs_delta": 0.0,
+            "reference_max_abs_error": 0.0,
+            "reference_name": "finite-product-supercell",
+            "reference_passed": true,
+            "reference_validation": {
+              "energy_complete": true,
+              "energy_error": 0.0,
+              "energy_second_moment": 4.0,
+              "energy_variance": 0.0,
+              "interaction_max_abs_error": 0.0,
+              "limitations": [
+                "variance is for the declared finite product supercell, not an infinite-lattice variance",
+                "translated same-site interactions use a copied unit cell in the reference"
+              ],
+              "max_abs_error": 0.0,
+              "observable_max_abs_error": 0.0,
+              "passed": true,
+              "performed": true,
+              "reference": "finite-product-supercell",
+              "reference_energy": -2.0,
+              "reference_sites": 2,
+              "tolerance": 1e-05
+            },
+            "residual": 1.9999999992750016e-10,
+            "resource_estimate": {
+              "device": "cuda",
+              "double_layer_virtual_dim": 1,
+              "environment_bond_dim_used": 4,
+              "iterations": 1,
+              "materializes_statevector": false,
+              "peak_bytes_estimate": 6240,
+              "physical_bond_dim": 2,
+              "representation": "ipeps",
+              "tensor_values": 130,
+              "unit_cell": [
+                1,
+                1
+              ],
+              "unit_cell_sites": 1,
+              "virtual_bond_dim": 1
+            }
+          }
+        ],
+        "provenance": {
+          "git_revision": "26244533abdfea1d4cba34d5f40fa6c9070bfdfc",
+          "request_sha256": "c61f84b0d994b1c6376f9cab7bb4e792c25271182c77748bfa341be46aae5dec",
+          "result_sha256": "8826190b9f722fb7fa8f75ae03048209a625ba4af42873cde046a898c8b6fa6b"
+        },
+        "reference_summary": {
+          "consistent_reference": "finite-product-supercell",
+          "max_abs_error": 0.0,
+          "passed_points": 3,
+          "performed_points": 3,
+          "reference_names": [
+            "finite-product-supercell"
+          ]
+        },
+        "status": "done",
+        "unit_cell": [
+          1,
+          1
+        ],
+        "unit_cell_sites": 1,
+        "warnings": [
+          "points are independent bounded CTMRG contractions from the same tensor ansatz",
+          "compare energy, residual, correlation length, and local observables together before drawing physical conclusions"
+        ]
+      }
+    },
+    {
+      "elapsed_ms": 76.106,
+      "gpu_after": {
+        "device_id": 0,
+        "free_bytes": 11757682688,
+        "free_mb": 11213.0,
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_bytes": 12884377600,
+        "total_mb": 12287.5
+      },
+      "gpu_before": {
+        "device_id": 0,
+        "free_bytes": 11757682688,
+        "free_mb": 11213.0,
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_bytes": 12884377600,
+        "total_mb": 12287.5
+      },
+      "name": "product-2x1",
+      "peak_memory_pool_used_bytes": 18432,
+      "request": {
+        "backend": "auto",
+        "checkpoint_path": null,
+        "dtype": "complex128",
+        "environment_bond_dim": 4,
+        "full_update_gradient_epsilon": 0.001,
+        "full_update_max_evaluations": 1024,
+        "full_update_max_parameters": 32,
+        "full_update_optimizer": "coordinate",
+        "full_update_spsa_directions": 4,
+        "full_update_step": 0.05,
+        "initial_state": "up",
+        "interactions": [
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              1,
+              0
+            ],
+            "label": "zz-x-0-0",
+            "left_pauli": "Z",
+            "left_site": 0,
+            "right_pauli": "Z",
+            "right_site": 1
+          },
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              1,
+              0
+            ],
+            "label": "zz-x-1-0",
+            "left_pauli": "Z",
+            "left_site": 1,
+            "right_pauli": "Z",
+            "right_site": 0
+          },
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              0,
+              1
+            ],
+            "label": "zz-y-0-0",
+            "left_pauli": "Z",
+            "left_site": 0,
+            "right_pauli": "Z",
+            "right_site": 0
+          },
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              0,
+              1
+            ],
+            "label": "zz-y-1-0",
+            "left_pauli": "Z",
+            "left_site": 1,
+            "right_pauli": "Z",
+            "right_site": 1
+          }
+        ],
+        "iterations": 4,
+        "max_mem_mb": 4096.0,
+        "max_time_ms": 120000,
+        "optimization": "none",
+        "optimization_dt": 0.01,
+        "optimization_steps": 32,
+        "optimization_tolerance": 1e-07,
+        "physical_bond_dim": 2,
+        "resume_from": null,
+        "tensor_data": null,
+        "terms": [],
+        "tolerance": 1e-08,
+        "unit_cell": [
+          2,
+          1
+        ],
+        "virtual_bond_dim": 1
+      },
+      "request_sha256": "f20f8b4f2b9187819088bfc25e95d92363c61dad1a1177f47c95351c1ad59876",
+      "result_sha256": "15ac5e02cbd2a7d717bc5078568d47806e124e1bd88af931e2027db4366a37b5",
+      "status": "done",
+      "study": {
+        "materializes_statevector": false,
+        "method": "ipeps-ctmrg-environment-convergence-study",
+        "optimization": "none",
+        "points": [
+          {
+            "converged": true,
+            "correlation_length": 0.0,
+            "correlation_lengths_by_site": [
+              0.0,
+              0.0
+            ],
+            "energy": -4.0,
+            "energy_abs_delta": null,
+            "energy_complete": true,
+            "energy_delta": null,
+            "energy_second_moment": 16.0,
+            "energy_variance": 0.0,
+            "environment_bond_dim": 1,
+            "environment_bond_dim_used": 1,
+            "environment_spectrum": [
+              [
+                1.0
+              ],
+              [
+                1.0
+              ]
+            ],
+            "interaction_max_abs_delta": null,
+            "observable_max_abs_delta": null,
+            "reference_max_abs_error": 0.0,
+            "reference_name": "finite-product-supercell",
+            "reference_passed": true,
+            "reference_validation": {
+              "energy_complete": true,
+              "energy_error": 0.0,
+              "energy_second_moment": 16.0,
+              "energy_variance": 0.0,
+              "interaction_max_abs_error": 0.0,
+              "limitations": [
+                "variance is for the declared finite product supercell, not an infinite-lattice variance",
+                "translated same-site interactions use a copied unit cell in the reference"
+              ],
+              "max_abs_error": 0.0,
+              "observable_max_abs_error": 0.0,
+              "passed": true,
+              "performed": true,
+              "reference": "finite-product-supercell",
+              "reference_energy": -4.0,
+              "reference_sites": 4,
+              "tolerance": 1e-05
+            },
+            "residual": 1.000000082640371e-10,
+            "resource_estimate": {
+              "device": "cuda",
+              "double_layer_virtual_dim": 1,
+              "environment_bond_dim_used": 1,
+              "iterations": 1,
+              "materializes_statevector": false,
+              "peak_bytes_estimate": 960,
+              "physical_bond_dim": 2,
+              "representation": "ipeps",
+              "tensor_values": 20,
+              "unit_cell": [
+                2,
+                1
+              ],
+              "unit_cell_sites": 2,
+              "virtual_bond_dim": 1
+            }
+          },
+          {
+            "converged": true,
+            "correlation_length": 0.043429448189947956,
+            "correlation_lengths_by_site": [
+              0.043429448189947956,
+              0.043429448189947956
+            ],
+            "energy": -4.0,
+            "energy_abs_delta": 0.0,
+            "energy_complete": true,
+            "energy_delta": 0.0,
+            "energy_second_moment": 16.0,
+            "energy_variance": 0.0,
+            "environment_bond_dim": 2,
+            "environment_bond_dim_used": 2,
+            "environment_spectrum": [
+              [
+                1.0,
+                9.999999998e-11
+              ],
+              [
+                1.0,
+                9.999999998e-11
+              ]
+            ],
+            "interaction_max_abs_delta": 0.0,
+            "observable_max_abs_delta": 0.0,
+            "reference_max_abs_error": 0.0,
+            "reference_name": "finite-product-supercell",
+            "reference_passed": true,
+            "reference_validation": {
+              "energy_complete": true,
+              "energy_error": 0.0,
+              "energy_second_moment": 16.0,
+              "energy_variance": 0.0,
+              "interaction_max_abs_error": 0.0,
+              "limitations": [
+                "variance is for the declared finite product supercell, not an infinite-lattice variance",
+                "translated same-site interactions use a copied unit cell in the reference"
+              ],
+              "max_abs_error": 0.0,
+              "observable_max_abs_error": 0.0,
+              "passed": true,
+              "performed": true,
+              "reference": "finite-product-supercell",
+              "reference_energy": -4.0,
+              "reference_sites": 4,
+              "tolerance": 1e-05
+            },
+            "residual": 1.49999999985e-10,
+            "resource_estimate": {
+              "device": "cuda",
+              "double_layer_virtual_dim": 1,
+              "environment_bond_dim_used": 2,
+              "iterations": 1,
+              "materializes_statevector": false,
+              "peak_bytes_estimate": 3264,
+              "physical_bond_dim": 2,
+              "representation": "ipeps",
+              "tensor_values": 68,
+              "unit_cell": [
+                2,
+                1
+              ],
+              "unit_cell_sites": 2,
+              "virtual_bond_dim": 1
+            }
+          },
+          {
+            "converged": true,
+            "correlation_length": 0.04560537769259454,
+            "correlation_lengths_by_site": [
+              0.04560537769259454,
+              0.04560537769259454
+            ],
+            "energy": -4.0,
+            "energy_abs_delta": 0.0,
+            "energy_complete": true,
+            "energy_delta": 0.0,
+            "energy_second_moment": 16.0,
+            "energy_variance": 0.0,
+            "environment_bond_dim": 4,
+            "environment_bond_dim_used": 4,
+            "environment_spectrum": [
+              [
+                1.0,
+                2.999999999400002e-10,
+                5.206925577176814e-43,
+                1.4602865854856856e-44
+              ],
+              [
+                1.0,
+                2.999999999400002e-10,
+                5.206925577176814e-43,
+                1.4602865854856856e-44
+              ]
+            ],
+            "interaction_max_abs_delta": 0.0,
+            "observable_max_abs_delta": 0.0,
+            "reference_max_abs_error": 0.0,
+            "reference_name": "finite-product-supercell",
+            "reference_passed": true,
+            "reference_validation": {
+              "energy_complete": true,
+              "energy_error": 0.0,
+              "energy_second_moment": 16.0,
+              "energy_variance": 0.0,
+              "interaction_max_abs_error": 0.0,
+              "limitations": [
+                "variance is for the declared finite product supercell, not an infinite-lattice variance",
+                "translated same-site interactions use a copied unit cell in the reference"
+              ],
+              "max_abs_error": 0.0,
+              "observable_max_abs_error": 0.0,
+              "passed": true,
+              "performed": true,
+              "reference": "finite-product-supercell",
+              "reference_energy": -4.0,
+              "reference_sites": 4,
+              "tolerance": 1e-05
+            },
+            "residual": 1.9999999992750016e-10,
+            "resource_estimate": {
+              "device": "cuda",
+              "double_layer_virtual_dim": 1,
+              "environment_bond_dim_used": 4,
+              "iterations": 1,
+              "materializes_statevector": false,
+              "peak_bytes_estimate": 12480,
+              "physical_bond_dim": 2,
+              "representation": "ipeps",
+              "tensor_values": 260,
+              "unit_cell": [
+                2,
+                1
+              ],
+              "unit_cell_sites": 2,
+              "virtual_bond_dim": 1
+            }
+          }
+        ],
+        "provenance": {
+          "git_revision": "26244533abdfea1d4cba34d5f40fa6c9070bfdfc",
+          "request_sha256": "f20f8b4f2b9187819088bfc25e95d92363c61dad1a1177f47c95351c1ad59876",
+          "result_sha256": "15ac5e02cbd2a7d717bc5078568d47806e124e1bd88af931e2027db4366a37b5"
+        },
+        "reference_summary": {
+          "consistent_reference": "finite-product-supercell",
+          "max_abs_error": 0.0,
+          "passed_points": 3,
+          "performed_points": 3,
+          "reference_names": [
+            "finite-product-supercell"
+          ]
+        },
+        "status": "done",
+        "unit_cell": [
+          2,
+          1
+        ],
+        "unit_cell_sites": 2,
+        "warnings": [
+          "points are independent bounded CTMRG contractions from the same tensor ansatz",
+          "compare energy, residual, correlation length, and local observables together before drawing physical conclusions"
+        ]
+      }
+    },
+    {
+      "elapsed_ms": 74.778,
+      "gpu_after": {
+        "device_id": 0,
+        "free_bytes": 11757682688,
+        "free_mb": 11213.0,
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_bytes": 12884377600,
+        "total_mb": 12287.5
+      },
+      "gpu_before": {
+        "device_id": 0,
+        "free_bytes": 11757682688,
+        "free_mb": 11213.0,
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_bytes": 12884377600,
+        "total_mb": 12287.5
+      },
+      "name": "product-1x2",
+      "peak_memory_pool_used_bytes": 18432,
+      "request": {
+        "backend": "auto",
+        "checkpoint_path": null,
+        "dtype": "complex128",
+        "environment_bond_dim": 4,
+        "full_update_gradient_epsilon": 0.001,
+        "full_update_max_evaluations": 1024,
+        "full_update_max_parameters": 32,
+        "full_update_optimizer": "coordinate",
+        "full_update_spsa_directions": 4,
+        "full_update_step": 0.05,
+        "initial_state": "up",
+        "interactions": [
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              1,
+              0
+            ],
+            "label": "zz-x-0-0",
+            "left_pauli": "Z",
+            "left_site": 0,
+            "right_pauli": "Z",
+            "right_site": 0
+          },
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              1,
+              0
+            ],
+            "label": "zz-x-0-1",
+            "left_pauli": "Z",
+            "left_site": 1,
+            "right_pauli": "Z",
+            "right_site": 1
+          },
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              0,
+              1
+            ],
+            "label": "zz-y-0-0",
+            "left_pauli": "Z",
+            "left_site": 0,
+            "right_pauli": "Z",
+            "right_site": 1
+          },
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              0,
+              1
+            ],
+            "label": "zz-y-0-1",
+            "left_pauli": "Z",
+            "left_site": 1,
+            "right_pauli": "Z",
+            "right_site": 0
+          }
+        ],
+        "iterations": 4,
+        "max_mem_mb": 4096.0,
+        "max_time_ms": 120000,
+        "optimization": "none",
+        "optimization_dt": 0.01,
+        "optimization_steps": 32,
+        "optimization_tolerance": 1e-07,
+        "physical_bond_dim": 2,
+        "resume_from": null,
+        "tensor_data": null,
+        "terms": [],
+        "tolerance": 1e-08,
+        "unit_cell": [
+          1,
+          2
+        ],
+        "virtual_bond_dim": 1
+      },
+      "request_sha256": "7eaa5fc515fab4baa841c526fd84db990a3f281fc778abd835b65260d94dda4e",
+      "result_sha256": "59a54c66f202d0b3dc626aa5d86ef4fbbb6fc458f2831fa9d907774279d77ef7",
+      "status": "done",
+      "study": {
+        "materializes_statevector": false,
+        "method": "ipeps-ctmrg-environment-convergence-study",
+        "optimization": "none",
+        "points": [
+          {
+            "converged": true,
+            "correlation_length": 0.0,
+            "correlation_lengths_by_site": [
+              0.0,
+              0.0
+            ],
+            "energy": -4.0,
+            "energy_abs_delta": null,
+            "energy_complete": true,
+            "energy_delta": null,
+            "energy_second_moment": 16.0,
+            "energy_variance": 0.0,
+            "environment_bond_dim": 1,
+            "environment_bond_dim_used": 1,
+            "environment_spectrum": [
+              [
+                1.0
+              ],
+              [
+                1.0
+              ]
+            ],
+            "interaction_max_abs_delta": null,
+            "observable_max_abs_delta": null,
+            "reference_max_abs_error": 0.0,
+            "reference_name": "finite-product-supercell",
+            "reference_passed": true,
+            "reference_validation": {
+              "energy_complete": true,
+              "energy_error": 0.0,
+              "energy_second_moment": 16.0,
+              "energy_variance": 0.0,
+              "interaction_max_abs_error": 0.0,
+              "limitations": [
+                "variance is for the declared finite product supercell, not an infinite-lattice variance",
+                "translated same-site interactions use a copied unit cell in the reference"
+              ],
+              "max_abs_error": 0.0,
+              "observable_max_abs_error": 0.0,
+              "passed": true,
+              "performed": true,
+              "reference": "finite-product-supercell",
+              "reference_energy": -4.0,
+              "reference_sites": 4,
+              "tolerance": 1e-05
+            },
+            "residual": 1.000000082640371e-10,
+            "resource_estimate": {
+              "device": "cuda",
+              "double_layer_virtual_dim": 1,
+              "environment_bond_dim_used": 1,
+              "iterations": 1,
+              "materializes_statevector": false,
+              "peak_bytes_estimate": 960,
+              "physical_bond_dim": 2,
+              "representation": "ipeps",
+              "tensor_values": 20,
+              "unit_cell": [
+                1,
+                2
+              ],
+              "unit_cell_sites": 2,
+              "virtual_bond_dim": 1
+            }
+          },
+          {
+            "converged": true,
+            "correlation_length": 0.043429448189947956,
+            "correlation_lengths_by_site": [
+              0.043429448189947956,
+              0.043429448189947956
+            ],
+            "energy": -4.0,
+            "energy_abs_delta": 0.0,
+            "energy_complete": true,
+            "energy_delta": 0.0,
+            "energy_second_moment": 16.0,
+            "energy_variance": 0.0,
+            "environment_bond_dim": 2,
+            "environment_bond_dim_used": 2,
+            "environment_spectrum": [
+              [
+                1.0,
+                9.999999998e-11
+              ],
+              [
+                1.0,
+                9.999999998e-11
+              ]
+            ],
+            "interaction_max_abs_delta": 0.0,
+            "observable_max_abs_delta": 0.0,
+            "reference_max_abs_error": 0.0,
+            "reference_name": "finite-product-supercell",
+            "reference_passed": true,
+            "reference_validation": {
+              "energy_complete": true,
+              "energy_error": 0.0,
+              "energy_second_moment": 16.0,
+              "energy_variance": 0.0,
+              "interaction_max_abs_error": 0.0,
+              "limitations": [
+                "variance is for the declared finite product supercell, not an infinite-lattice variance",
+                "translated same-site interactions use a copied unit cell in the reference"
+              ],
+              "max_abs_error": 0.0,
+              "observable_max_abs_error": 0.0,
+              "passed": true,
+              "performed": true,
+              "reference": "finite-product-supercell",
+              "reference_energy": -4.0,
+              "reference_sites": 4,
+              "tolerance": 1e-05
+            },
+            "residual": 1.49999999985e-10,
+            "resource_estimate": {
+              "device": "cuda",
+              "double_layer_virtual_dim": 1,
+              "environment_bond_dim_used": 2,
+              "iterations": 1,
+              "materializes_statevector": false,
+              "peak_bytes_estimate": 3264,
+              "physical_bond_dim": 2,
+              "representation": "ipeps",
+              "tensor_values": 68,
+              "unit_cell": [
+                1,
+                2
+              ],
+              "unit_cell_sites": 2,
+              "virtual_bond_dim": 1
+            }
+          },
+          {
+            "converged": true,
+            "correlation_length": 0.04560537769259454,
+            "correlation_lengths_by_site": [
+              0.04560537769259454,
+              0.04560537769259454
+            ],
+            "energy": -4.0,
+            "energy_abs_delta": 0.0,
+            "energy_complete": true,
+            "energy_delta": 0.0,
+            "energy_second_moment": 16.0,
+            "energy_variance": 0.0,
+            "environment_bond_dim": 4,
+            "environment_bond_dim_used": 4,
+            "environment_spectrum": [
+              [
+                1.0,
+                2.999999999400002e-10,
+                5.206925577176814e-43,
+                1.4602865854856856e-44
+              ],
+              [
+                1.0,
+                2.999999999400002e-10,
+                5.206925577176814e-43,
+                1.4602865854856856e-44
+              ]
+            ],
+            "interaction_max_abs_delta": 0.0,
+            "observable_max_abs_delta": 0.0,
+            "reference_max_abs_error": 0.0,
+            "reference_name": "finite-product-supercell",
+            "reference_passed": true,
+            "reference_validation": {
+              "energy_complete": true,
+              "energy_error": 0.0,
+              "energy_second_moment": 16.0,
+              "energy_variance": 0.0,
+              "interaction_max_abs_error": 0.0,
+              "limitations": [
+                "variance is for the declared finite product supercell, not an infinite-lattice variance",
+                "translated same-site interactions use a copied unit cell in the reference"
+              ],
+              "max_abs_error": 0.0,
+              "observable_max_abs_error": 0.0,
+              "passed": true,
+              "performed": true,
+              "reference": "finite-product-supercell",
+              "reference_energy": -4.0,
+              "reference_sites": 4,
+              "tolerance": 1e-05
+            },
+            "residual": 1.9999999992750016e-10,
+            "resource_estimate": {
+              "device": "cuda",
+              "double_layer_virtual_dim": 1,
+              "environment_bond_dim_used": 4,
+              "iterations": 1,
+              "materializes_statevector": false,
+              "peak_bytes_estimate": 12480,
+              "physical_bond_dim": 2,
+              "representation": "ipeps",
+              "tensor_values": 260,
+              "unit_cell": [
+                1,
+                2
+              ],
+              "unit_cell_sites": 2,
+              "virtual_bond_dim": 1
+            }
+          }
+        ],
+        "provenance": {
+          "git_revision": "26244533abdfea1d4cba34d5f40fa6c9070bfdfc",
+          "request_sha256": "7eaa5fc515fab4baa841c526fd84db990a3f281fc778abd835b65260d94dda4e",
+          "result_sha256": "59a54c66f202d0b3dc626aa5d86ef4fbbb6fc458f2831fa9d907774279d77ef7"
+        },
+        "reference_summary": {
+          "consistent_reference": "finite-product-supercell",
+          "max_abs_error": 0.0,
+          "passed_points": 3,
+          "performed_points": 3,
+          "reference_names": [
+            "finite-product-supercell"
+          ]
+        },
+        "status": "done",
+        "unit_cell": [
+          1,
+          2
+        ],
+        "unit_cell_sites": 2,
+        "warnings": [
+          "points are independent bounded CTMRG contractions from the same tensor ansatz",
+          "compare energy, residual, correlation length, and local observables together before drawing physical conclusions"
+        ]
+      }
+    },
+    {
+      "elapsed_ms": 149.187,
+      "gpu_after": {
+        "device_id": 0,
+        "free_bytes": 11757682688,
+        "free_mb": 11213.0,
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_bytes": 12884377600,
+        "total_mb": 12287.5
+      },
+      "gpu_before": {
+        "device_id": 0,
+        "free_bytes": 11757682688,
+        "free_mb": 11213.0,
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_bytes": 12884377600,
+        "total_mb": 12287.5
+      },
+      "name": "product-2x2",
+      "peak_memory_pool_used_bytes": 36864,
+      "request": {
+        "backend": "auto",
+        "checkpoint_path": null,
+        "dtype": "complex128",
+        "environment_bond_dim": 4,
+        "full_update_gradient_epsilon": 0.001,
+        "full_update_max_evaluations": 1024,
+        "full_update_max_parameters": 32,
+        "full_update_optimizer": "coordinate",
+        "full_update_spsa_directions": 4,
+        "full_update_step": 0.05,
+        "initial_state": "up",
+        "interactions": [
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              1,
+              0
+            ],
+            "label": "zz-x-0-0",
+            "left_pauli": "Z",
+            "left_site": 0,
+            "right_pauli": "Z",
+            "right_site": 1
+          },
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              1,
+              0
+            ],
+            "label": "zz-x-1-0",
+            "left_pauli": "Z",
+            "left_site": 1,
+            "right_pauli": "Z",
+            "right_site": 0
+          },
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              1,
+              0
+            ],
+            "label": "zz-x-0-1",
+            "left_pauli": "Z",
+            "left_site": 2,
+            "right_pauli": "Z",
+            "right_site": 3
+          },
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              1,
+              0
+            ],
+            "label": "zz-x-1-1",
+            "left_pauli": "Z",
+            "left_site": 3,
+            "right_pauli": "Z",
+            "right_site": 2
+          },
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              0,
+              1
+            ],
+            "label": "zz-y-0-0",
+            "left_pauli": "Z",
+            "left_site": 0,
+            "right_pauli": "Z",
+            "right_site": 2
+          },
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              0,
+              1
+            ],
+            "label": "zz-y-1-0",
+            "left_pauli": "Z",
+            "left_site": 1,
+            "right_pauli": "Z",
+            "right_site": 3
+          },
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              0,
+              1
+            ],
+            "label": "zz-y-0-1",
+            "left_pauli": "Z",
+            "left_site": 2,
+            "right_pauli": "Z",
+            "right_site": 0
+          },
+          {
+            "coefficient": -1.0,
+            "displacement": [
+              0,
+              1
+            ],
+            "label": "zz-y-1-1",
+            "left_pauli": "Z",
+            "left_site": 3,
+            "right_pauli": "Z",
+            "right_site": 1
+          }
+        ],
+        "iterations": 4,
+        "max_mem_mb": 4096.0,
+        "max_time_ms": 120000,
+        "optimization": "none",
+        "optimization_dt": 0.01,
+        "optimization_steps": 32,
+        "optimization_tolerance": 1e-07,
+        "physical_bond_dim": 2,
+        "resume_from": null,
+        "tensor_data": null,
+        "terms": [],
+        "tolerance": 1e-08,
+        "unit_cell": [
+          2,
+          2
+        ],
+        "virtual_bond_dim": 1
+      },
+      "request_sha256": "1b744c60f6c8173ac213d69a5688a5be9fab2b1acd5f8548c1b97b2d27ae8b0a",
+      "result_sha256": "ef65065029d2857d959ba925c918f34aa54b019b727b11fc1fc3db9c1f20691d",
+      "status": "done",
+      "study": {
+        "materializes_statevector": false,
+        "method": "ipeps-ctmrg-environment-convergence-study",
+        "optimization": "none",
+        "points": [
+          {
+            "converged": true,
+            "correlation_length": 0.0,
+            "correlation_lengths_by_site": [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "energy": -8.0,
+            "energy_abs_delta": null,
+            "energy_complete": true,
+            "energy_delta": null,
+            "energy_second_moment": 64.0,
+            "energy_variance": 0.0,
+            "environment_bond_dim": 1,
+            "environment_bond_dim_used": 1,
+            "environment_spectrum": [
+              [
+                1.0
+              ],
+              [
+                1.0
+              ],
+              [
+                1.0
+              ],
+              [
+                1.0
+              ]
+            ],
+            "interaction_max_abs_delta": null,
+            "observable_max_abs_delta": null,
+            "reference_max_abs_error": 0.0,
+            "reference_name": "finite-product-supercell",
+            "reference_passed": true,
+            "reference_validation": {
+              "energy_complete": true,
+              "energy_error": 0.0,
+              "energy_second_moment": 64.0,
+              "energy_variance": 0.0,
+              "interaction_max_abs_error": 0.0,
+              "limitations": [
+                "variance is for the declared finite product supercell, not an infinite-lattice variance",
+                "translated same-site interactions use a copied unit cell in the reference"
+              ],
+              "max_abs_error": 0.0,
+              "observable_max_abs_error": 0.0,
+              "passed": true,
+              "performed": true,
+              "reference": "finite-product-supercell",
+              "reference_energy": -8.0,
+              "reference_sites": 4,
+              "tolerance": 1e-05
+            },
+            "residual": 1.000000082640371e-10,
+            "resource_estimate": {
+              "device": "cuda",
+              "double_layer_virtual_dim": 1,
+              "environment_bond_dim_used": 1,
+              "iterations": 1,
+              "materializes_statevector": false,
+              "peak_bytes_estimate": 1920,
+              "physical_bond_dim": 2,
+              "representation": "ipeps",
+              "tensor_values": 40,
+              "unit_cell": [
+                2,
+                2
+              ],
+              "unit_cell_sites": 4,
+              "virtual_bond_dim": 1
+            }
+          },
+          {
+            "converged": true,
+            "correlation_length": 0.043429448189947956,
+            "correlation_lengths_by_site": [
+              0.043429448189947956,
+              0.043429448189947956,
+              0.043429448189947956,
+              0.043429448189947956
+            ],
+            "energy": -8.0,
+            "energy_abs_delta": 0.0,
+            "energy_complete": true,
+            "energy_delta": 0.0,
+            "energy_second_moment": 64.0,
+            "energy_variance": 0.0,
+            "environment_bond_dim": 2,
+            "environment_bond_dim_used": 2,
+            "environment_spectrum": [
+              [
+                1.0,
+                9.999999998e-11
+              ],
+              [
+                1.0,
+                9.999999998e-11
+              ],
+              [
+                1.0,
+                9.999999998e-11
+              ],
+              [
+                1.0,
+                9.999999998e-11
+              ]
+            ],
+            "interaction_max_abs_delta": 0.0,
+            "observable_max_abs_delta": 0.0,
+            "reference_max_abs_error": 0.0,
+            "reference_name": "finite-product-supercell",
+            "reference_passed": true,
+            "reference_validation": {
+              "energy_complete": true,
+              "energy_error": 0.0,
+              "energy_second_moment": 64.0,
+              "energy_variance": 0.0,
+              "interaction_max_abs_error": 0.0,
+              "limitations": [
+                "variance is for the declared finite product supercell, not an infinite-lattice variance",
+                "translated same-site interactions use a copied unit cell in the reference"
+              ],
+              "max_abs_error": 0.0,
+              "observable_max_abs_error": 0.0,
+              "passed": true,
+              "performed": true,
+              "reference": "finite-product-supercell",
+              "reference_energy": -8.0,
+              "reference_sites": 4,
+              "tolerance": 1e-05
+            },
+            "residual": 1.49999999985e-10,
+            "resource_estimate": {
+              "device": "cuda",
+              "double_layer_virtual_dim": 1,
+              "environment_bond_dim_used": 2,
+              "iterations": 1,
+              "materializes_statevector": false,
+              "peak_bytes_estimate": 6528,
+              "physical_bond_dim": 2,
+              "representation": "ipeps",
+              "tensor_values": 136,
+              "unit_cell": [
+                2,
+                2
+              ],
+              "unit_cell_sites": 4,
+              "virtual_bond_dim": 1
+            }
+          },
+          {
+            "converged": true,
+            "correlation_length": 0.04560537769259454,
+            "correlation_lengths_by_site": [
+              0.04560537769259454,
+              0.04560537769259454,
+              0.04560537769259454,
+              0.04560537769259454
+            ],
+            "energy": -8.0,
+            "energy_abs_delta": 0.0,
+            "energy_complete": true,
+            "energy_delta": 0.0,
+            "energy_second_moment": 64.0,
+            "energy_variance": 0.0,
+            "environment_bond_dim": 4,
+            "environment_bond_dim_used": 4,
+            "environment_spectrum": [
+              [
+                1.0,
+                2.999999999400002e-10,
+                5.206925577176814e-43,
+                1.4602865854856856e-44
+              ],
+              [
+                1.0,
+                2.999999999400002e-10,
+                5.206925577176814e-43,
+                1.4602865854856856e-44
+              ],
+              [
+                1.0,
+                2.999999999400002e-10,
+                5.206925577176814e-43,
+                1.4602865854856856e-44
+              ],
+              [
+                1.0,
+                2.999999999400002e-10,
+                5.206925577176814e-43,
+                1.4602865854856856e-44
+              ]
+            ],
+            "interaction_max_abs_delta": 0.0,
+            "observable_max_abs_delta": 0.0,
+            "reference_max_abs_error": 0.0,
+            "reference_name": "finite-product-supercell",
+            "reference_passed": true,
+            "reference_validation": {
+              "energy_complete": true,
+              "energy_error": 0.0,
+              "energy_second_moment": 64.0,
+              "energy_variance": 0.0,
+              "interaction_max_abs_error": 0.0,
+              "limitations": [
+                "variance is for the declared finite product supercell, not an infinite-lattice variance",
+                "translated same-site interactions use a copied unit cell in the reference"
+              ],
+              "max_abs_error": 0.0,
+              "observable_max_abs_error": 0.0,
+              "passed": true,
+              "performed": true,
+              "reference": "finite-product-supercell",
+              "reference_energy": -8.0,
+              "reference_sites": 4,
+              "tolerance": 1e-05
+            },
+            "residual": 1.9999999992750016e-10,
+            "resource_estimate": {
+              "device": "cuda",
+              "double_layer_virtual_dim": 1,
+              "environment_bond_dim_used": 4,
+              "iterations": 1,
+              "materializes_statevector": false,
+              "peak_bytes_estimate": 24960,
+              "physical_bond_dim": 2,
+              "representation": "ipeps",
+              "tensor_values": 520,
+              "unit_cell": [
+                2,
+                2
+              ],
+              "unit_cell_sites": 4,
+              "virtual_bond_dim": 1
+            }
+          }
+        ],
+        "provenance": {
+          "git_revision": "26244533abdfea1d4cba34d5f40fa6c9070bfdfc",
+          "request_sha256": "1b744c60f6c8173ac213d69a5688a5be9fab2b1acd5f8548c1b97b2d27ae8b0a",
+          "result_sha256": "ef65065029d2857d959ba925c918f34aa54b019b727b11fc1fc3db9c1f20691d"
+        },
+        "reference_summary": {
+          "consistent_reference": "finite-product-supercell",
+          "max_abs_error": 0.0,
+          "passed_points": 3,
+          "performed_points": 3,
+          "reference_names": [
+            "finite-product-supercell"
+          ]
+        },
+        "status": "done",
+        "unit_cell": [
+          2,
+          2
+        ],
+        "unit_cell_sites": 4,
+        "warnings": [
+          "points are independent bounded CTMRG contractions from the same tensor ansatz",
+          "compare energy, residual, correlation length, and local observables together before drawing physical conclusions"
+        ]
+      }
+    },
+    {
+      "elapsed_ms": 357.598,
+      "gpu_after": {
+        "device_id": 0,
+        "free_bytes": 11753488384,
+        "free_mb": 11209.0,
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_bytes": 12884377600,
+        "total_mb": 12287.5
+      },
+      "gpu_before": {
+        "device_id": 0,
+        "free_bytes": 11757682688,
+        "free_mb": 11213.0,
+        "name": "NVIDIA GeForce RTX 3060",
+        "total_bytes": 12884377600,
+        "total_mb": 12287.5
+      },
+      "name": "generic-entangled-2x2",
+      "peak_memory_pool_used_bytes": 51200,
+      "request": {
+        "backend": "auto",
+        "checkpoint_path": null,
+        "dtype": "complex128",
+        "environment_bond_dim": 4,
+        "full_update_gradient_epsilon": 0.001,
+        "full_update_max_evaluations": 1024,
+        "full_update_max_parameters": 32,
+        "full_update_optimizer": "coordinate",
+        "full_update_spsa_directions": 4,
+        "full_update_step": 0.05,
+        "initial_state": "up",
+        "interactions": [
+          {
+            "coefficient": 0.2,
+            "displacement": [
+              1,
+              0
+            ],
+            "label": "zz-horizontal",
+            "left_pauli": "Z",
+            "left_site": 0,
+            "right_pauli": "Z",
+            "right_site": 1
+          },
+          {
+            "coefficient": -0.1,
+            "displacement": [
+              0,
+              1
+            ],
+            "label": "xx-vertical",
+            "left_pauli": "X",
+            "left_site": 0,
+            "right_pauli": "X",
+            "right_site": 2
+          }
+        ],
+        "iterations": 3,
+        "max_mem_mb": 4096.0,
+        "max_time_ms": 120000,
+        "optimization": "none",
+        "optimization_dt": 0.01,
+        "optimization_steps": 32,
+        "optimization_tolerance": 1e-07,
+        "physical_bond_dim": 2,
+        "resume_from": null,
+        "tensor_data": [
+          [
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.1,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.2,
+            0.0
+          ],
+          [
+            1.0,
+            0.05
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.1,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.2,
+            0.03
+          ],
+          [
+            1.0,
+            0.1
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.1,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.2,
+            0.06
+          ],
+          [
+            1.0,
+            0.15000000000000002
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.1,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.2,
+            0.09
+          ]
+        ],
+        "terms": [
+          {
+            "coefficient": 0.1,
+            "label": "z3",
+            "paulis": {
+              "3": "Z"
+            }
+          }
+        ],
+        "tolerance": 1e-08,
+        "unit_cell": [
+          2,
+          2
+        ],
+        "virtual_bond_dim": 2
+      },
+      "request_sha256": "afb287ae3067a27d0c644ae8c7544fa04ffebfb683694b686ec16a39289c23de",
+      "result_sha256": "6cff3582af70fd3dff4039dda55e39f8122495deaafc6539ec09f4d1e539bc86",
+      "status": "done",
+      "study": {
+        "materializes_statevector": false,
+        "method": "ipeps-ctmrg-environment-convergence-study",
+        "optimization": "none",
+        "points": [
+          {
+            "converged": false,
+            "correlation_length": 0.0,
+            "correlation_lengths_by_site": [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "energy": 0.30000000000000004,
+            "energy_abs_delta": null,
+            "energy_complete": true,
+            "energy_delta": null,
+            "energy_second_moment": 0.09837011979480627,
+            "energy_variance": 0.0019024890284986135,
+            "environment_bond_dim": 1,
+            "environment_bond_dim_used": 1,
+            "environment_spectrum": [
+              [
+                1.0
+              ],
+              [
+                1.0
+              ],
+              [
+                1.0
+              ],
+              [
+                1.0
+              ]
+            ],
+            "interaction_max_abs_delta": null,
+            "observable_max_abs_delta": null,
+            "reference_max_abs_error": 0.03531024345375977,
+            "reference_name": "finite-periodic-peps-2x2",
+            "reference_passed": false,
+            "reference_validation": {
+              "energy_complete": true,
+              "energy_error": 0.01059238684537589,
+              "energy_second_moment": 0.09837011979480627,
+              "energy_variance": 0.0019024890284986135,
+              "interaction_max_abs_error": 0.03531024345375977,
+              "limitations": [
+                "this is an exact finite torus, not a thermodynamic-limit reference",
+                "the declared unit-cell tensor pattern is repeated on the finite torus",
+                "compare multiple torus sizes and environment chi before drawing infinite-lattice conclusions"
+              ],
+              "max_abs_error": 0.03531024345375977,
+              "observable_max_abs_error": 0.0353033815462398,
+              "passed": false,
+              "performed": true,
+              "reference": "finite-periodic-peps-2x2",
+              "reference_energy": 0.31059238684537593,
+              "reference_lattice": [
+                2,
+                2
+              ],
+              "reference_sites": 4,
+              "reference_unit_cell": [
+                2,
+                2
+              ],
+              "tolerance": 1e-05
+            },
+            "residual": 0.00020231493319101208,
+            "resource_estimate": {
+              "device": "cuda",
+              "double_layer_virtual_dim": 4,
+              "environment_bond_dim_used": 1,
+              "iterations": 3,
+              "materializes_statevector": false,
+              "peak_bytes_estimate": 9984,
+              "physical_bond_dim": 2,
+              "representation": "ipeps",
+              "tensor_values": 208,
+              "unit_cell": [
+                2,
+                2
+              ],
+              "unit_cell_sites": 4,
+              "virtual_bond_dim": 2
+            }
+          },
+          {
+            "converged": false,
+            "correlation_length": null,
+            "correlation_lengths_by_site": [
+              null,
+              null,
+              null,
+              null
+            ],
+            "energy": 0.3,
+            "energy_abs_delta": 5.551115123125783e-17,
+            "energy_complete": true,
+            "energy_delta": -5.551115123125783e-17,
+            "energy_second_moment": 0.09837011979480627,
+            "energy_variance": 0.0019024890284986135,
+            "environment_bond_dim": 2,
+            "environment_bond_dim_used": 2,
+            "environment_spectrum": [
+              [
+                1.0,
+                0.9999999997931336
+              ],
+              [
+                1.0,
+                0.99999999979314
+              ],
+              [
+                1.0,
+                0.9999999997931427
+              ],
+              [
+                1.0,
+                0.9999999997931428
+              ]
+            ],
+            "interaction_max_abs_delta": 0.0,
+            "observable_max_abs_delta": 1.1102230246251565e-16,
+            "reference_max_abs_error": 0.03531024345375977,
+            "reference_name": "finite-periodic-peps-2x2",
+            "reference_passed": false,
+            "reference_validation": {
+              "energy_complete": true,
+              "energy_error": 0.010592386845375945,
+              "energy_second_moment": 0.09837011979480627,
+              "energy_variance": 0.0019024890284986135,
+              "interaction_max_abs_error": 0.03531024345375977,
+              "limitations": [
+                "this is an exact finite torus, not a thermodynamic-limit reference",
+                "the declared unit-cell tensor pattern is repeated on the finite torus",
+                "compare multiple torus sizes and environment chi before drawing infinite-lattice conclusions"
+              ],
+              "max_abs_error": 0.03531024345375977,
+              "observable_max_abs_error": 0.03530338154623991,
+              "passed": false,
+              "performed": true,
+              "reference": "finite-periodic-peps-2x2",
+              "reference_energy": 0.31059238684537593,
+              "reference_lattice": [
+                2,
+                2
+              ],
+              "reference_sites": 4,
+              "reference_unit_cell": [
+                2,
+                2
+              ],
+              "tolerance": 1e-05
+            },
+            "residual": 1.9999999985474564,
+            "resource_estimate": {
+              "device": "cuda",
+              "double_layer_virtual_dim": 4,
+              "environment_bond_dim_used": 2,
+              "iterations": 3,
+              "materializes_statevector": false,
+              "peak_bytes_estimate": 21504,
+              "physical_bond_dim": 2,
+              "representation": "ipeps",
+              "tensor_values": 448,
+              "unit_cell": [
+                2,
+                2
+              ],
+              "unit_cell_sites": 4,
+              "virtual_bond_dim": 2
+            }
+          }
+        ],
+        "provenance": {
+          "git_revision": "26244533abdfea1d4cba34d5f40fa6c9070bfdfc",
+          "request_sha256": "afb287ae3067a27d0c644ae8c7544fa04ffebfb683694b686ec16a39289c23de",
+          "result_sha256": "6cff3582af70fd3dff4039dda55e39f8122495deaafc6539ec09f4d1e539bc86"
+        },
+        "reference_summary": {
+          "consistent_reference": "finite-periodic-peps-2x2",
+          "max_abs_error": 0.03531024345375977,
+          "passed_points": 0,
+          "performed_points": 2,
+          "reference_names": [
+            "finite-periodic-peps-2x2"
+          ]
+        },
+        "status": "done",
+        "unit_cell": [
+          2,
+          2
+        ],
+        "unit_cell_sites": 4,
+        "warnings": [
+          "points are independent bounded CTMRG contractions from the same tensor ansatz",
+          "compare energy, residual, correlation length, and local observables together before drawing physical conclusions"
+        ]
+      }
+    }
+  ],
+  "cell_shapes": [
+    [
+      1,
+      1
+    ],
+    [
+      2,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      2
+    ]
+  ],
+  "created_at": "2026-09-18T05:35:44.605910+00:00",
+  "elapsed_ms": 1150.002,
+  "environment_bond_dims": [
+    1,
+    2,
+    4
+  ],
+  "git_revision": "26244533abdfea1d4cba34d5f40fa6c9070bfdfc",
+  "limitations": [
+    "campaign is bounded acceptance evidence, not a thermodynamic-limit benchmark",
+    "product cases validate the admitted product reference; the generic entangled case is expected to remain review-only until variational full-update is validated",
+    "environment chi and iteration values are intentionally small to protect host RAM and GPU headroom"
+  ],
+  "platform": "Windows-10-10.0.26200-SP0",
+  "product_cases_passed": 4,
+  "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+  "randomized": false,
+  "schema": "quantum-circuit/ctmrg-gpu-campaign-v1",
+  "seed": 0,
+  "status": "done"
+}
