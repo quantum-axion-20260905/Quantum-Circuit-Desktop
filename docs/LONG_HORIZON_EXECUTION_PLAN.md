@@ -334,6 +334,10 @@ but not released:
   rank estimates, and conditioning diagnostics. This is the admission seam
   for future paired PEPS preconditioning, not a claim that local whitening is
   already a valid canonicalization.
+- a dedicated CUDA D=2 gradient gate now records central-difference and paired
+  gauge evidence for both complex64 and complex128. Both cases currently
+  remain needs_review, so the frozen-projector gradient is not promoted by
+  a small residual alone.
 - CTMRG convergence now uses a boundary-basis-invariant singular-spectrum
   residual, while retaining the raw corner/edge entry residual as a separate
   diagnostic; this prevents harmless retained-basis rotations from being
@@ -362,26 +366,22 @@ research claims.
 
 The next implementation packet is Phase 4 variational research-grade convergence:
 
-- run recorded GPU χ/iteration campaigns for each admitted 1x1–2x2 cell shape,
-  using the new finite-torus references and checkpoint/resume evidence rather
-  than relying only on isolated smoke tests;
-- validate the Torch unrolled gradient against finite differences, gauge
-  transformations, χ/iteration changes, and independent finite references on
-  small entangled cells; retain the finite path as a permanent
-  regression/reference gate;
-- then replace or augment unrolling with an implicit fixed-point/adjoint
-  gradient contract, including transfer-spectrum gap checks and a reproducible
-  backward-error budget before calling the optimizer research-grade; the
-  current adjoint implementation is the bounded scaffold for this gate, not
-  the completed gate itself;
+- keep the recorded GPU χ/iteration campaign and the new D=2 gradient gate as
+  permanent replay artifacts; the product shapes pass their finite references,
+  while generic entangled cells remain review-only;
+- replace the frozen eigenprojector with a differentiable truncation policy,
+  then rerun the central-difference, paired-gauge, χ/iteration, and finite
+  periodic-reference gates on small entangled cells;
+- strengthen the implicit fixed-point/adjoint path with the same truncation
+  policy, transfer-spectrum gap checks, and a reproducible backward-error
+  budget before calling the optimizer research-grade; the current adjoint
+  implementation is the bounded scaffold, not the completed gate;
 - carry energy/variance/reference error and the new point-to-point observable
   deltas through the shared study/provenance and export APIs;
-- extend optimizer-state checkpointing from the finite-reference and bounded
-  feedback paths to the infinite-CTMRG AD/implicit-gradient full-update
-  solver. The stateless Torch line-search state is now resumable with strict
-  request/dtype/shape/method/history checks; the CTMRG fixed-point environment
-  is deliberately recomputed on resume rather than serialized as optimizer
-  state, so the resumed result still has to pass the same gap and gauge gates;
+- use the now-resumable Torch line-search state for longer campaigns; strict
+  request/dtype/shape/method/history checks remain mandatory, and the CTMRG
+  fixed-point environment is deliberately recomputed on resume rather than
+  serialized as optimizer state;
 - add a bounded PEPS gauge-preconditioning contract, with explicit
   canonicalization diagnostics and independent finite-reference checks before
   any gauge transform is allowed to alter the optimization path;

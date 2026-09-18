@@ -106,6 +106,16 @@ claiming convergence. The implementation therefore passes the product-limit
 runtime gate but remains `Needs review` for generic entangled cells; complex
 truncation currently uses a frozen eigenprojector in backward mode.
 
+A dedicated reproducible D=2 CUDA gradient gate confirms that this is a real
+scientific limitation rather than only a precision warning. On the RTX 3060,
+complex64 reached residual 7.06e-6 but had maximum sampled
+autodiff-vs-central-difference error 1.74e-2 and gauge energy drift 1.70e-2.
+With complex128 and residual 4.12e-10, the maximum sampled gradient error was
+1.23e-1 and gauge drift 3.68e-2. The gate therefore returns needs_review for
+both precisions; its replayable evidence is
+[ctmrg_gradient_gate_2026-09-18.json](C:/Users/shaxz/OneDrive/Dokumenty/Quantum-Circuit-Desktop/docs/evidence/ctmrg_gradient_gate_2026-09-18.json).
+This points to frozen truncation/gauge sensitivity, not host-RAM pressure.
+
 An opt-in paired virtual-gauge probe was added to the CTMRG request contract.
 On a deterministic random D=2 cell (`χ=2`, four iterations), the exact finite
 PEPS reference stayed invariant while the truncated CTMRG energy/observable

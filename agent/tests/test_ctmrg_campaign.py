@@ -6,6 +6,7 @@ from tools.ctmrg_campaign import (
     build_entangled_payload,
     build_product_payload,
 )
+from tools.ctmrg_gradient_gate import build_gradient_payload
 
 
 class CTMRGCampaignTests(unittest.TestCase):
@@ -30,6 +31,14 @@ class CTMRGCampaignTests(unittest.TestCase):
         self.assertEqual(len(payload.tensor_data or []), 4 * 2 * 2**4)
         self.assertEqual(len(payload.interactions), 2)
         self.assertEqual(payload.terms[0].paulis, {3: "Z"})
+
+    def test_gradient_gate_case_has_explicit_entangled_contract(self):
+        payload = build_gradient_payload("complex128", iterations=5, tolerance=1e-7)
+        self.assertEqual(payload.unit_cell, [1, 1])
+        self.assertEqual(payload.virtual_bond_dim, 2)
+        self.assertEqual(payload.environment_bond_dim, 2)
+        self.assertEqual(payload.full_update_optimizer, "autodiff-ctmrg-gradient")
+        self.assertEqual(len(payload.interactions), 1)
 
 
 if __name__ == "__main__":
