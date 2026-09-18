@@ -122,7 +122,7 @@ def _hermitian_sqrt(xp: Any, matrix: Any, *, inverse: bool, eigenvalue_floor: fl
     values = xp.real(values)
     scale = max(float(max(_host_array(values))), 1e-30) if int(values.shape[0]) else 1.0
     floor = max(float(eigenvalue_floor) * scale, 1e-30)
-    values = xp.maximum(values, floor)
+    values = xp.maximum(values, xp.full_like(values, floor))
     factors = 1.0 / xp.sqrt(values) if inverse else xp.sqrt(values)
     return (vectors * factors[None, :]) @ xp.conj(vectors).T
 
@@ -169,7 +169,10 @@ def _pair_metric(xp: Any, tensor: Any, lower_axis: int, upper_axis: int) -> tupl
 
 
 def _apply_leg_transform(xp: Any, tensor: Any, axis: int, matrix: Any) -> Any:
-    transformed = xp.tensordot(matrix, tensor, axes=([1], [axis]))
+    if getattr(xp, "__name__", "") == "torch":
+        transformed = xp.tensordot(matrix, tensor, dims=([1], [axis]))
+    else:
+        transformed = xp.tensordot(matrix, tensor, axes=([1], [axis]))
     return _moveaxis(xp, transformed, 0, axis)
 
 
