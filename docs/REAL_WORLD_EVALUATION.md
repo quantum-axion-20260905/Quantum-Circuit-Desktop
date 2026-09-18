@@ -224,6 +224,11 @@ the best sampled energy error is about `7.65e-3`, while other points exceed
 the study as diagnostic-only and does not use a single finite patch to promote
 the infinite CTMRG gate.
 
+The same damping control is now honored by the Torch unrolled and implicit
+fixed-point paths, with a finite product-limit gradient regression. This keeps
+the optimizer’s environment map aligned with the contraction backend; it does
+not change the current generic-entangled admission status.
+
 The study is exposed as `/jobs/ctmrg/boundary-mps-convergence` and as the
 `ctmrg_boundary_mps_convergence` unified async kind. It uses the same GPU
 preflight, provenance, and bounded-point admission as CTMRG, making the

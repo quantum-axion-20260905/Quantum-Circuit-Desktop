@@ -82,6 +82,12 @@ features.
   `0.29`; discarded weight is also non-monotone. This confirms the seam is
   useful evidence, not yet a converged infinite-2D reference.
 
+- The `environment_damping` control is now applied consistently in the Torch
+  unrolled and implicit fixed-point paths as well as the resident NumPy/CuPy
+  CTMRG path. A product-limit gradient regression covers the differentiable
+  route; this prevents optimizer diagnostics from silently using a different
+  environment map than the reported contraction.
+
 - The boundary-MPS study is now a first-class backend contract at
   `/jobs/ctmrg/boundary-mps-convergence` and in the unified async API. It
   performs CTMRG and the independent study under the same preflight/provenance
