@@ -219,15 +219,18 @@ but not released:
 - a bounded imaginary-time simple-update baseline now applies one- and
   two-site Pauli gates, performs SVD truncation at the requested virtual bond
   dimension, and reports discarded weight and bond-dimension history;
+- a bounded full-update coordinate baseline now re-evaluates CTMRG energy for
+  tensor candidates, with strict parameter/evaluation limits and explicit
+  optimization history.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
-The current optimizers are a D=1 mean-field baseline and a bounded simple
-update. The latter is an entangled-tensor baseline but does not feed the CTM
-environment back into a full variational update. Stronger reference
-calculations and frontend controls are still incomplete. They must land and
-pass their own gate before Phase 4 can be called complete or tagged as a
-release.
+The current optimizers are a D=1 mean-field baseline, a bounded simple update,
+and a bounded CTMRG-feedback coordinate baseline. The latter is not yet a
+scalable automatic-differentiation/full ground-state solver. Stronger
+reference calculations and frontend controls are still incomplete. They must
+land and pass their own gate before Phase 4 can be called complete or tagged
+as a release.
 
 ## Current next packet
 
@@ -235,8 +238,8 @@ The next implementation packet is Phase 4 variational research-grade convergence
 
 - compare one-site through 2x2 unit-cell environments and checkpoint/resume
   against finite PEPS/reference product states;
-- add full-update/environment-feedback tensor optimization that cannot be
-  confused with the current simple-update baseline;
+- replace the bounded coordinate baseline with scalable gradient/automatic
+  differentiation or an equivalent research-validated full-update solver;
 - add energy/variance and environment-dimension convergence evidence;
 - compare CTMRG local contractions against finite PEPS/reference product
   states and environment-dimension convergence;

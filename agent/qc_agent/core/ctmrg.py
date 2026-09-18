@@ -23,7 +23,7 @@ from ..plugins.models import CTMRGPayload, PauliTerm
 from ..provenance import sha256_json
 from .checkpoints import load_ctm_checkpoint, save_ctm_checkpoint
 from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
-from .ipeps_optimizer import optimize_product_states, run_simple_update
+from .ipeps_optimizer import optimize_product_states, run_full_update, run_simple_update
 from .observables import structured_observables
 
 
@@ -620,6 +620,9 @@ def run_ctmrg(
         elif payload.optimization == "simple-update":
             optimization_info = run_simple_update(xp, payload, tensors)
             tensors = optimization_info["tensors"]
+        elif payload.optimization == "full-update":
+            optimization_info = run_full_update(xp, payload, tensors)
+            tensors = optimization_info["tensors"]
     layers = [_double_layer(xp, tensor) for tensor in tensors]
     chi = int(payload.environment_bond_dim)
     environments = [_initialize_environment(xp, layer, chi) for layer in layers]
@@ -767,6 +770,7 @@ def run_ctmrg(
     )
     converged = bool(residual <= float(payload.tolerance))
     result_method = (
+        "ipeps-full-update-ctmrg" if payload.optimization == "full-update" else
         "ipeps-simple-update-ctmrg" if payload.optimization == "simple-update" else
         "ipeps-ctmrg-product-optimization" if optimization_info is not None else
         "ipeps-ctmrg-contraction"
@@ -780,6 +784,8 @@ def run_ctmrg(
         warnings.insert(0, "CTMRG contraction uses a periodic multi-site unit-cell environment")
     if payload.optimization == "simple-update":
         warnings.append("simple-update is an imaginary-time entangled-tensor baseline; full-update environment feedback is not implemented")
+    elif payload.optimization == "full-update":
+        warnings.append("full-update re-evaluates CTMRG energy for bounded coordinate trials; it is not an automatic-differentiation optimizer")
     elif optimization_info is not None:
         warnings.append("product-coordinate-descent is a variational mean-field baseline with virtual_bond_dim=1; it is not an entangled iPEPS update")
     elif payload.tensor_data is None:
@@ -797,7 +803,11 @@ def run_ctmrg(
         ),
     }
     limitations = [
-        "no variational tensor update or full ground-state optimization",
+        (
+            "full-update is bounded coordinate optimization and is not a scalable automatic-differentiation or full ground-state solver"
+            if payload.optimization == "full-update" else
+            "no environment-feedback full ground-state optimization"
+        ),
         "non-nearest interaction displacements are not yet supported by the two-site-RDM contraction",
     ]
     research_result = ResearchResult(

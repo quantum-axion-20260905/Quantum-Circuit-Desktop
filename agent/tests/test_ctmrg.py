@@ -219,6 +219,49 @@ class CTMRGTests(unittest.TestCase):
         self.assertFalse(result["resource_estimate"]["materializes_statevector"])
         self.assertTrue(any("full-update" in warning for warning in result["warnings"]))
 
+    def test_full_update_recomputes_ctmrg_energy_for_bounded_tensor_trials(self):
+        result = run_ctmrg(np, CTMRGPayload(
+            initial_state="plus",
+            optimization="full-update",
+            optimization_steps=1,
+            full_update_step=0.1,
+            full_update_max_parameters=8,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=-0.2)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=-1.0,
+            )],
+            environment_bond_dim=1,
+            iterations=1,
+        ))
+        diagnostics = result["optimization_diagnostics"]
+        self.assertEqual(result["method"], "ipeps-full-update-ctmrg")
+        self.assertEqual(diagnostics["parameter_count"], 4)
+        self.assertGreater(diagnostics["evaluations"], 1)
+        self.assertLess(diagnostics["final_energy"], diagnostics["initial_energy"])
+        self.assertTrue(any("CTMRG energy" in warning for warning in result["warnings"]))
+
+    def test_full_update_parameter_admission_is_explicit(self):
+        payload = CTMRGPayload(
+            virtual_bond_dim=2,
+            optimization="full-update",
+            full_update_max_parameters=4,
+            interactions=[{
+                "left_site": 0,
+                "right_site": 0,
+                "displacement": [1, 0],
+                "left_pauli": "Z",
+                "right_pauli": "Z",
+                "coefficient": 1.0,
+            }],
+        )
+        with self.assertRaisesRegex(ValueError, "full-update tensor parameter count"):
+            run_ctmrg(np, payload)
+
     def test_imported_complex_tensor_uses_declared_virtual_bond(self):
         tensor = np.zeros((2, 2, 2, 2, 2), dtype=np.complex128)
         tensor[0, 0, 0, 0, 0] = 1.0 / math.sqrt(2.0)

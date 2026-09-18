@@ -133,7 +133,7 @@ def method_catalog(*, gpu_available: bool, tensor_network_available: bool) -> li
             available=tensor_network_ready,
             status=runtime_status,
             description="Bounded one-site through 2x2 periodic infinite-2D iPEPS CTMRG contraction with explicit corner/edge environment convergence.",
-            limitations=("bounded unit cells up to 2x2; larger cells require a new admission contract", "simple-update and D=1 mean-field baselines are available; no environment-feedback full update", "no fallback to finite boundary-MPS"),
+            limitations=("bounded unit cells up to 2x2; larger cells require a new admission contract", "full-update is a strict bounded coordinate baseline, not a scalable automatic-differentiation solver", "no fallback to finite boundary-MPS"),
         ),
     ]
 

@@ -256,3 +256,99 @@ def run_simple_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dic
         "bond_dim_history": bond_dim_history,
         "converged": bool(discarded_history and discarded_history[-1] <= float(payload.optimization_tolerance)),
     }
+
+
+def _tensor_data_pairs(tensors: list[Any]) -> list[list[float]]:
+    pairs: list[list[float]] = []
+    for tensor in tensors:
+        for value in _host(tensor).reshape(-1):
+            complex_value = complex(value)
+            pairs.append([float(complex_value.real), float(complex_value.imag)])
+    return pairs
+
+
+def _normalize_tensors(xp: Any, tensors: list[Any]) -> list[Any]:
+    return [tensor / (xp.linalg.norm(tensor) + 1e-30) for tensor in tensors]
+
+
+def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[str, Any]:
+    """Bounded CTMRG energy-feedback coordinate optimization.
+
+    Each coordinate trial rebuilds the CTM environment, so the objective sees
+    the same infinite-system contraction used for the reported result.  The
+    parameter cap is intentionally strict: this is a reproducible research
+    baseline, not a claim of scalable automatic differentiation.
+    """
+
+    from .ctmrg import run_ctmrg  # lazy import avoids the optimizer/core cycle
+
+    parameter_count = sum(int(tensor.size) for tensor in tensors) * 2
+    if parameter_count > int(payload.full_update_max_parameters):
+        raise ValueError(
+            f"full-update tensor parameter count {parameter_count} exceeds "
+            f"full_update_max_parameters={payload.full_update_max_parameters}"
+        )
+    working = _normalize_tensors(xp, [tensor.copy() for tensor in tensors])
+    objective_payload = payload.model_copy(update={
+        "tensor_data": _tensor_data_pairs(working),
+        "optimization": "none",
+        "checkpoint_path": None,
+        "resume_from": None,
+    })
+
+    evaluations = 0
+
+    def evaluate(candidate: list[Any]) -> float:
+        nonlocal evaluations
+        candidate = _normalize_tensors(xp, candidate)
+        objective_payload.tensor_data = _tensor_data_pairs(candidate)
+        result = run_ctmrg(xp, objective_payload)
+        evaluations += 1
+        if not result.get("energy_complete", False):
+            raise ValueError("full-update requires complete nearest-neighbor interaction energy")
+        return float(result["energy"])
+
+    current_energy = evaluate(working)
+    history: list[dict[str, Any]] = []
+    component_count = parameter_count
+    for iteration in range(1, int(payload.optimization_steps) + 1):
+        sweep_start = current_energy
+        accepted_updates = 0
+        step = float(payload.full_update_step)
+        for site in range(len(working)):
+            for flat_index in range(int(working[site].size)):
+                for component in (0, 1):
+                    candidates: list[tuple[float, list[Any]]] = []
+                    for sign in (1.0, -1.0):
+                        candidate = [tensor.copy() for tensor in working]
+                        flat = candidate[site].reshape(-1)
+                        delta = step * sign if component == 0 else 1j * step * sign
+                        flat[flat_index] = flat[flat_index] + delta
+                        candidate = _normalize_tensors(xp, candidate)
+                        candidates.append((evaluate(candidate), candidate))
+                    best_energy, best_candidate = min(candidates, key=lambda item: item[0])
+                    if best_energy < current_energy - float(payload.optimization_tolerance):
+                        working = best_candidate
+                        current_energy = best_energy
+                        accepted_updates += 1
+        improvement = sweep_start - current_energy
+        history.append({
+            "iteration": iteration,
+            "energy": current_energy,
+            "improvement": improvement,
+            "accepted_updates": accepted_updates,
+            "evaluations": evaluations,
+            "parameter_count": component_count,
+        })
+        if improvement <= float(payload.optimization_tolerance):
+            break
+    return {
+        "tensors": working,
+        "iterations": len(history),
+        "energy_history": history,
+        "initial_energy": history[0]["energy"] + history[0]["improvement"] if history else current_energy,
+        "final_energy": current_energy,
+        "evaluations": evaluations,
+        "parameter_count": component_count,
+        "converged": bool(history and history[-1]["improvement"] <= float(payload.optimization_tolerance)),
+    }
