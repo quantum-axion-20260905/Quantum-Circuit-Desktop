@@ -75,6 +75,11 @@ returned a complete energy of `-1.0`, and preserved the explicit
 `deterministic-simultaneous-perturbation` experimental label. The smoke run did
 not populate the public host-side `tensor_data` field for inner candidates.
 
+The same bounded SPSA path was also checkpointed on CUDA after two iterations
+and resumed to four iterations. The resumed and fresh runs agreed within
+`2.5e-7` in energy, with `start_iteration=2`; the checkpoint is still an
+experimental infinite-objective baseline, not a variational convergence claim.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices

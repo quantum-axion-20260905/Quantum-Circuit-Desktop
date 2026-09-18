@@ -15,9 +15,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..plugins.models import CTMRGPayload
-from ..provenance import sha256_json
 from .checkpoints import load_optimizer_checkpoint, save_optimizer_checkpoint
 from .contracts import CheckpointManifest
+from .ctmrg_objective import optimizer_request_sha256
 
 
 def _host(value: Any) -> Any:
@@ -228,26 +228,6 @@ def _normalize_tensors(xp: Any, tensors: list[Any]) -> list[Any]:
     return [tensor / (xp.linalg.norm(tensor) + 1e-30) for tensor in tensors]
 
 
-def _optimizer_request_sha256(payload: CTMRGPayload) -> str:
-    """Hash the scientific optimizer problem, excluding run/checkpoint controls."""
-
-    data = payload.model_dump(
-        mode="json",
-        exclude={
-            "optimization_steps",
-            "optimization_tolerance",
-            "full_update_max_evaluations",
-            "max_time_ms",
-            "max_mem_mb",
-            "checkpoint_path",
-            "resume_from",
-            "optimizer_checkpoint_path",
-            "optimizer_resume_from",
-        },
-    )
-    return sha256_json(data)
-
-
 def run_finite_torus_gradient(
     xp: Any,
     payload: CTMRGPayload,
@@ -261,7 +241,7 @@ def run_finite_torus_gradient(
             f"full-update tensor parameter count {parameter_count} exceeds "
             f"full_update_max_parameters={payload.full_update_max_parameters}"
         )
-    request_sha256 = _optimizer_request_sha256(payload)
+    request_sha256 = optimizer_request_sha256(payload)
     working = _normalize_tensors(xp, [tensor.copy() for tensor in tensors])
     evaluations = 0
     max_evaluations = int(payload.full_update_max_evaluations)
@@ -272,7 +252,11 @@ def run_finite_torus_gradient(
     initial_energy: float | None = None
 
     if payload.optimizer_resume_from:
-        manifest, restored_tensors = load_optimizer_checkpoint(payload.optimizer_resume_from, xp)
+        manifest, restored_tensors = load_optimizer_checkpoint(
+            payload.optimizer_resume_from,
+            xp,
+            expected_method="ipeps-finite-torus-gradient",
+        )
         if manifest.get("request_sha256") != request_sha256:
             raise ValueError("optimizer checkpoint does not match the scientific finite-torus problem")
         if manifest.get("dtype") != payload.dtype:

@@ -278,10 +278,11 @@ class CTMRGPayload(BaseModel):
                 "CTMRG optimizer checkpoint/resume is not supported yet; checkpointing currently covers contraction-only runs"
             )
         if (self.optimizer_checkpoint_path is not None or self.optimizer_resume_from is not None) and (
-            self.optimization != "full-update" or self.full_update_optimizer != "finite-torus-gradient"
+            self.optimization != "full-update"
+            or self.full_update_optimizer not in {"finite-torus-gradient", "spsa-gradient"}
         ):
             raise ValueError(
-                "optimizer checkpoint state is currently supported only for full-update finite-torus-gradient"
+                "optimizer checkpoint state is currently supported only for full-update finite-torus-gradient or spsa-gradient"
             )
         expected_tensor_values = (
             cell_sites * int(self.physical_bond_dim) * int(self.virtual_bond_dim) ** 4

@@ -12,12 +12,33 @@ from __future__ import annotations
 from typing import Any
 
 from ..plugins.models import CTMRGPayload
+from ..provenance import sha256_json
 
 
 def normalize_tensors(xp: Any, tensors: list[Any]) -> list[Any]:
     """Return independently normalized candidate tensors."""
 
     return [tensor / (xp.linalg.norm(tensor) + 1e-30) for tensor in tensors]
+
+
+def optimizer_request_sha256(payload: CTMRGPayload) -> str:
+    """Hash the scientific optimizer problem, excluding run controls."""
+
+    data = payload.model_dump(
+        mode="json",
+        exclude={
+            "optimization_steps",
+            "optimization_tolerance",
+            "full_update_max_evaluations",
+            "max_time_ms",
+            "max_mem_mb",
+            "checkpoint_path",
+            "resume_from",
+            "optimizer_checkpoint_path",
+            "optimizer_resume_from",
+        },
+    )
+    return sha256_json(data)
 
 
 class CTMRGObjective:

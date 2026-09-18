@@ -273,8 +273,15 @@ def save_optimizer_checkpoint(
 def load_optimizer_checkpoint(
     path: str | os.PathLike[str],
     xp: Any = np,
+    *,
+    expected_method: str | None = None,
 ) -> tuple[dict[str, Any], list[Any]]:
-    """Load and validate a variational optimizer tensor state."""
+    """Load and validate a variational optimizer tensor state.
+
+    The file format is shared by bounded optimizer policies, while callers
+    still provide the exact expected method so a state cannot be resumed by a
+    different update rule accidentally.
+    """
 
     source = Path(path)
     with np.load(source, allow_pickle=False) as archive:
@@ -284,8 +291,11 @@ def load_optimizer_checkpoint(
         manifest = json.loads(str(raw_manifest))
         if manifest.get("schema") != CHECKPOINT_SCHEMA:
             raise ValueError("unsupported checkpoint schema")
-        if manifest.get("method") != "ipeps-finite-torus-gradient":
-            raise ValueError("checkpoint method is not ipeps-finite-torus-gradient")
+        method = manifest.get("method")
+        if not isinstance(method, str) or not method:
+            raise ValueError("optimizer checkpoint method is missing")
+        if expected_method is not None and method != expected_method:
+            raise ValueError(f"checkpoint method is not {expected_method}")
         if manifest.get("representation") != "ipeps-optimizer-state":
             raise ValueError("checkpoint representation is not ipeps-optimizer-state")
         if not manifest.get("resumable", False):

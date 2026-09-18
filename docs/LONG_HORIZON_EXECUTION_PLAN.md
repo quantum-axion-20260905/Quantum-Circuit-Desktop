@@ -307,6 +307,10 @@ but not released:
   without flattening them through the public host-side `tensor_data` request,
   preserving a clean insertion point for a future AD or implicit-gradient
   backend and reducing unnecessary GPU-to-host copies.
+- the bounded CTMRG-feedback SPSA path now has a separate optimizer-state
+  checkpoint contract with exact method/request/dtype/shape validation and
+  partial-resume equivalence tests on CPU and CUDA; coordinate and
+  finite-difference state resume remain explicitly unsupported.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
@@ -338,9 +342,10 @@ The next implementation packet is Phase 4 variational research-grade convergence
   regression/reference gate;
 - carry energy/variance/reference error and the new point-to-point observable
   deltas through the shared study/provenance and export APIs;
-- extend optimizer-state checkpointing from the finite-reference gradient path
-  to the eventual infinite-CTMRG full-update solver; coordinate/SPSA paths
-  remain explicit experimental modes until their state contracts are defined;
+- extend optimizer-state checkpointing from the finite-reference and bounded
+  SPSA paths to the eventual infinite-CTMRG full-update solver; coordinate and
+  finite-difference paths remain explicit experimental modes until their state
+  contracts are defined;
 - compare CTMRG local contractions against finite PEPS/reference product
   states across more than the current nearest-neighbor product gate, including
   small Ising/Heisenberg reference observables;
