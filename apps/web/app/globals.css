@@ -504,6 +504,8 @@ button:disabled {
 .qc-ctmrg-study-row { min-width: 470px; display: grid; grid-template-columns: 1fr repeat(3, minmax(90px, 1fr)); gap: 12px; padding: 10px 12px; border-top: 1px solid var(--qc-dark-border); color: var(--qc-dark-text-muted); font-size: 12px; }
 .qc-ctmrg-study-row:first-of-type { border-top: 0; }
 .qc-ctmrg-study-row code { color: var(--qc-dark-text); }
+.qc-ctmrg-reference { margin: 14px 0 0; color: var(--qc-dark-text-muted); font-size: 12px; }
+.qc-ctmrg-reference strong { color: var(--qc-dark-text); }
 .qc-ctmrg-error { margin: 14px 0 0; padding: 10px 12px; border: 1px solid rgba(248, 113, 113, .35); border-radius: var(--qc-radius-md); color: #fecaca; background: rgba(127, 29, 29, .35); font-size: 12px; }
 
 .qc-agent-status {

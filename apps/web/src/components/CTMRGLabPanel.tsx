@@ -81,6 +81,8 @@ export function CTMRGLabPanel({ dimensions, model, coupling, field, anisotropy, 
   const variance = finite(result?.energy_variance) ? result?.energy_variance : latestPoint?.energy_variance;
   const correlationLength = finite(result?.correlation_length) ? result?.correlation_length : latestPoint?.correlation_length;
   const reference = result?.reference_validation && typeof result.reference_validation === "object" ? result.reference_validation as Record<string, unknown> : null;
+  const referenceName = typeof reference?.reference === "string" ? reference.reference : null;
+  const referenceError = finite(reference?.max_abs_error) ? Number(reference.max_abs_error) : null;
   const points = isStudy && Array.isArray(result?.points) ? result.points as Array<Record<string, unknown>> : [];
 
   return (
@@ -100,6 +102,7 @@ export function CTMRGLabPanel({ dimensions, model, coupling, field, anisotropy, 
       {result ? <>
         <MetricGrid className="qc-ctmrg-metrics"><Metric label="Energy" value={finite(singleEnergy) ? Number(singleEnergy).toFixed(8) : "—"} tone="info" /><Metric label="Variance" value={finite(variance) ? Number(variance).toExponential(2) : "not available"} tone={finite(variance) && Number(variance) <= 1e-6 ? "success" : "warning"} /><Metric label="Correlation length" value={finite(correlationLength) ? Number(correlationLength).toFixed(5) : "—"} /><Metric label="Reference" value={reference?.passed === true ? "passed" : isStudy ? "per point" : "needs review"} tone={reference?.passed === true ? "success" : "warning"} /></MetricGrid>
         {isStudy ? <div className="qc-ctmrg-study-table"><div className="qc-label">Environment-χ convergence</div>{points.map((point, index) => <div className="qc-ctmrg-study-row" key={`${String(point.environment_bond_dim)}-${index}`}><span>χ={String(point.environment_bond_dim)}</span><code>{finite(point.energy) ? Number(point.energy).toFixed(8) : "—"}</code><code>Δ {finite(point.energy_delta) ? Number(point.energy_delta).toExponential(2) : "—"}</code><code>ξ {finite(point.correlation_length) ? Number(point.correlation_length).toFixed(4) : "—"}</code></div>)}</div> : null}
+        {referenceName ? <p className="qc-ctmrg-reference"><strong>Reference:</strong> {referenceName}{referenceError != null ? ` · max error ${referenceError.toExponential(2)}` : ""}</p> : null}
         {Array.isArray(result.warnings) && result.warnings.length ? <p className="qc-diagnostics-limitations"><strong>Declared limits:</strong> {result.warnings.slice(0, 2).join(" · ")}</p> : null}
       </> : null}
       {error ? <p className="qc-ctmrg-error" role="alert">{error}</p> : null}
