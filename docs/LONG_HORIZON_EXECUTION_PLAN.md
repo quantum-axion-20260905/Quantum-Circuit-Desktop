@@ -329,6 +329,10 @@ but not released:
   through CTMRG and reports energy/observable deltas; the independent finite
   PEPS reference is gauge invariant, while a random D=2 truncated environment
   correctly remains review-only when its gauge delta exceeds tolerance.
+- every CTMRG result now also reports non-mutating virtual-leg Gram spectra,
+  rank estimates, and conditioning diagnostics. This is the admission seam
+  for future paired PEPS preconditioning, not a claim that local whitening is
+  already a valid canonicalization.
 - CTMRG convergence now uses a boundary-basis-invariant singular-spectrum
   residual, while retaining the raw corner/edge entry residual as a separate
   diagnostic; this prevents harmless retained-basis rotations from being

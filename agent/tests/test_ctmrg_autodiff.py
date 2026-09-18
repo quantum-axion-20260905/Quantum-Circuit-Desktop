@@ -140,6 +140,7 @@ class CTMRGAutodiffTests(unittest.TestCase):
 
     def test_ctmrg_gauge_probe_surfaces_truncation_sensitivity(self):
         from qc_agent.core.ctmrg import run_ctmrg
+        from qc_agent.core.ctmrg_gauge import virtual_leg_conditioning_report
 
         rng = np.random.default_rng(17)
         tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
@@ -159,6 +160,16 @@ class CTMRGAutodiffTests(unittest.TestCase):
         self.assertFalse(gauge["passed"])
         self.assertGreater(gauge["max_abs_delta"], gauge["tolerance"])
         self.assertTrue(any("virtual-gauge validation" in warning for warning in result["warnings"]))
+        self.assertTrue(result["gauge_conditioning"]["performed"])
+        self.assertEqual(len(result["gauge_conditioning"]["legs"]), 4)
+
+        rank_deficient = np.zeros((2, 2, 2, 2, 2), dtype=np.complex128)
+        rank_deficient[0, 0, 0, 0, 0] = 1.0
+        before = rank_deficient.copy()
+        conditioning = virtual_leg_conditioning_report(np, [rank_deficient])
+        self.assertFalse(conditioning["well_conditioned"])
+        self.assertEqual(conditioning["legs"][0]["rank_estimate"], 1)
+        np.testing.assert_array_equal(rank_deficient, before)
 
     def test_unrolled_optimizer_checkpoint_resume_matches_fresh_cpu_run(self):
         from qc_agent.core.ctmrg import run_ctmrg

@@ -26,6 +26,7 @@ from ..provenance import sha256_json
 from .checkpoints import load_ctm_checkpoint, save_ctm_checkpoint
 from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
 from .ctmrg_reference import analytic_ghz_reference, finite_periodic_peps_reference, finite_product_reference
+from .ctmrg_gauge import virtual_leg_conditioning_report
 from .ipeps_optimizer import optimize_product_states, run_full_update, run_simple_update
 from .observables import structured_observables
 
@@ -1011,6 +1012,7 @@ def run_ctmrg(
             float(energy),
             tolerance=max(float(payload.tolerance) * 10.0, 1e-6),
         )
+    gauge_conditioning = virtual_leg_conditioning_report(xp, tensors)
     converged = bool(residual <= float(payload.tolerance))
     optimization_consistency_error: float | None = None
     if (
@@ -1077,6 +1079,8 @@ def run_ctmrg(
         warnings.append("the imported tensor was contracted without variational ground-state optimization")
     if int(payload.virtual_bond_dim) > 1 and payload.dtype == "complex64":
         warnings.append("complex64 entangled iPEPS runs may lose transfer-sector precision; use complex128 for reference-quality observables")
+    if gauge_conditioning.get("performed") and not gauge_conditioning.get("well_conditioned", False):
+        warnings.append("one or more virtual-leg Gram spectra are rank-deficient or ill-conditioned; gauge preconditioning remains diagnostic-only")
     if not interaction_values_available:
         warnings.append("one or more interaction displacements are outside the supported nearest-neighbor two-site CTM contraction")
     if reference_validation["performed"] and not reference_validation["passed"]:
@@ -1194,6 +1198,7 @@ def run_ctmrg(
             "environment_spectrum": environment_diagnostics["environment_spectrum"],
             "reference_validation": reference_validation,
             "gauge_validation": gauge_validation,
+            "gauge_conditioning": gauge_conditioning,
         },
     ).to_dict()
     return {
@@ -1228,6 +1233,7 @@ def run_ctmrg(
         "energy_variance": reference_validation.get("energy_variance"),
         "reference_validation": reference_validation,
         "gauge_validation": gauge_validation,
+        "gauge_conditioning": gauge_conditioning,
         "correlation_length": environment_diagnostics["correlation_length"],
         "correlation_lengths_by_site": environment_diagnostics["correlation_lengths_by_site"],
         "environment_spectrum": environment_diagnostics["environment_spectrum"],

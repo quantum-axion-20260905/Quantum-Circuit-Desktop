@@ -11,6 +11,96 @@ from __future__ import annotations
 from typing import Any
 
 
+_VIRTUAL_LEGS = ("up", "down", "left", "right")
+
+
+def _host_array(value: Any) -> Any:
+    """Copy a small diagnostic array to the host without assuming one backend."""
+
+    if hasattr(value, "detach"):
+        return value.detach().cpu().numpy()
+    if hasattr(value, "get"):
+        return value.get()
+    return value
+
+
+def virtual_leg_conditioning_report(
+    xp: Any,
+    tensors: list[Any],
+    *,
+    eigenvalue_floor: float = 1e-12,
+) -> dict[str, Any]:
+    """Report virtual-leg Gram spectra used by a future PEPS gauge preconditioner.
+
+    This deliberately does not mutate tensors.  A PEPS has no universal local
+    canonical form like a finite open-boundary MPS; a whitening transform must
+    be paired across every virtual bond and validated against an independent
+    contraction.  Returning the spectra first gives optimizers and the UI a
+    backend-neutral conditioning contract without making that scientific leap.
+    """
+
+    if not tensors:
+        return {
+            "performed": False,
+            "reason": "tensor cell is empty",
+            "method": "virtual-leg-gram-spectrum",
+            "legs": [],
+            "well_conditioned": False,
+        }
+    reports: list[dict[str, Any]] = []
+    for site, tensor in enumerate(tensors):
+        if getattr(tensor, "ndim", None) != 5:
+            return {
+                "performed": False,
+                "reason": "virtual-leg conditioning requires rank-5 iPEPS tensors",
+                "method": "virtual-leg-gram-spectrum",
+                "legs": [],
+                "well_conditioned": False,
+            }
+        for axis, leg in enumerate(_VIRTUAL_LEGS, start=1):
+            moved = tensor.movedim(axis, 0) if hasattr(tensor, "movedim") else xp.moveaxis(tensor, axis, 0)
+            matrix = moved.reshape((int(moved.shape[0]), -1))
+            gram = matrix @ matrix.conj().T
+            eigenvalues = _host_array(xp.linalg.eigvalsh(gram))
+            eigenvalues = sorted(
+                max(0.0, float(value.real if hasattr(value, "real") else value))
+                for value in eigenvalues
+            )
+            largest = eigenvalues[-1] if eigenvalues else 0.0
+            smallest = eigenvalues[0] if eigenvalues else 0.0
+            effective_floor = max(float(eigenvalue_floor), largest * float(eigenvalue_floor))
+            condition_number = (
+                largest / smallest
+                if smallest > effective_floor
+                else None
+            )
+            reports.append({
+                "site": int(site),
+                "leg": leg,
+                "dimension": int(tensor.shape[axis]),
+                "eigenvalues": eigenvalues,
+                "trace": float(sum(eigenvalues)),
+                "minimum_eigenvalue": smallest,
+                "maximum_eigenvalue": largest,
+                "condition_number": condition_number,
+                "rank_estimate": int(sum(value > effective_floor for value in eigenvalues)),
+                "well_conditioned": bool(smallest > effective_floor),
+            })
+    return {
+        "performed": True,
+        "method": "virtual-leg-gram-spectrum",
+        "eigenvalue_floor": float(eigenvalue_floor),
+        "legs": reports,
+        "well_conditioned": bool(all(item["well_conditioned"] for item in reports)),
+        "mutated_tensors": False,
+        "limitations": [
+            "this is a conditioning diagnostic, not PEPS canonicalization",
+            "a future preconditioner must pair inverse transforms across every virtual bond",
+            "conditioning does not establish CTMRG gauge invariance or thermodynamic convergence",
+        ],
+    }
+
+
 def paired_virtual_gauge(xp: Any, tensors: list[Any]) -> list[Any]:
     """Apply a deterministic, invertible paired gauge to each unit-cell tensor."""
 

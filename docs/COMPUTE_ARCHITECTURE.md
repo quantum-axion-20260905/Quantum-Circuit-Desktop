@@ -345,7 +345,7 @@ tensor arithmetic, admission, execution, provenance, and persistence.
 | Finite PEPS simple update | usable for bounded 2D/3D exploration | compare with boundary-MPS/full update |
 | PEPS double-layer contraction | implemented for bounded width | environment-aware contraction path |
 | Finite boundary-MPS | in progress for open 2D | replayable observables and final 2D gate |
-| CTMRG/iPEPS | experimental bounded 1x1–2x2 | independent reference and Ising/Heisenberg phase benchmarks |
+| CTMRG/iPEPS | experimental bounded 1x1–2x2 with gauge/residual diagnostics | independent reference and Ising/Heisenberg phase benchmarks |
 | Full-update PEPS | bounded coordinate, finite-difference, SPSA, exact finite-torus analytic-gradient reference, Torch/CUDA unrolled-autograd, and bounded implicit-adjoint CTMRG paths; shared resident-tensor objective seam | differentiable truncation/gauge validation, implicit infinite-CTMRG fixed-point evidence, and scalable variational update |
 | 3D approximate contraction | planned | HOTRG/boundary-width benchmark suite |
 | Fermionic Hubbard | mapping/prototype level | symmetry-aware MPO and reference energies |
