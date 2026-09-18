@@ -237,17 +237,26 @@ def save_ctm_checkpoint(
 ) -> dict[str, Any]:
     """Atomically persist a CTMRG environment and its resumability manifest."""
 
-    _validate_ctm_environment(environment)
+    environments = environment if isinstance(environment, list) else [environment]
+    if not environments:
+        raise ValueError("CTMRG checkpoint needs at least one environment")
+    for item in environments:
+        _validate_ctm_environment(item)
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     manifest_dict = manifest.to_dict()
     metadata = dict(manifest_dict.get("metadata", {}))
+    metadata.setdefault("environment_count", len(environments))
     metadata.setdefault("environment_shapes", {
-        name: list(getattr(environment, name).shape) for name in _CTM_NAMES
+        str(index): {name: list(getattr(item, name).shape) for name in _CTM_NAMES}
+        for index, item in enumerate(environments)
     })
     metadata.setdefault("representation", "ipeps")
     manifest_dict["metadata"] = metadata
-    arrays = {name: _to_host(getattr(environment, name)) for name in _CTM_NAMES}
+    arrays: dict[str, np.ndarray] = {}
+    for index, item in enumerate(environments):
+        prefix = "" if len(environments) == 1 else f"site{index}_"
+        arrays.update({f"{prefix}{name}": _to_host(getattr(item, name)) for name in _CTM_NAMES})
 
     temporary_path: str | None = None
     try:
@@ -293,13 +302,23 @@ def load_ctm_checkpoint(
             raise ValueError("checkpoint representation is not ipeps")
         if not manifest.get("resumable", False):
             raise ValueError("checkpoint is marked non-resumable")
-        if any(name not in archive.files for name in _CTM_NAMES):
-            raise ValueError("CTMRG checkpoint is missing one or more environment tensors")
-        arrays = {name: xp.asarray(archive[name]) for name in _CTM_NAMES}
+        environment_count = int(manifest.get("metadata", {}).get("environment_count", 1))
+        if environment_count < 1 or environment_count > 4:
+            raise ValueError("CTMRG checkpoint environment count is outside the supported range")
+        arrays: dict[str, Any] = {}
+        for index in range(environment_count):
+            prefix = "" if environment_count == 1 else f"site{index}_"
+            for name in _CTM_NAMES:
+                entry = f"{prefix}{name}"
+                if entry not in archive.files:
+                    raise ValueError("CTMRG checkpoint is missing one or more environment tensors")
+                arrays[entry] = xp.asarray(archive[entry])
     class _LoadedEnvironment:
         pass
-    environment = _LoadedEnvironment()
-    for name, value in arrays.items():
-        setattr(environment, name, value)
-    _validate_ctm_environment(environment)
+    for index in range(environment_count):
+        prefix = "" if environment_count == 1 else f"site{index}_"
+        environment = _LoadedEnvironment()
+        for name in _CTM_NAMES:
+            setattr(environment, name, arrays[f"{prefix}{name}"])
+        _validate_ctm_environment(environment)
     return manifest, arrays

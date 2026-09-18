@@ -1,8 +1,9 @@
 """Bounded iPEPS corner-transfer-matrix contraction.
 
 This module deliberately owns only the numerical representation.  Admission,
-HTTP lifecycle, provenance, and domain builders stay outside the module so a
-future two-site/2x2 unit-cell implementation can reuse the same result seam.
+HTTP lifecycle, provenance, and domain builders stay outside the module so
+larger unit cells and domain-specific optimizers can reuse the same result
+seam.
 
 The solver supports one-site and two-site checkerboard environments. It does
 not optimize the iPEPS tensor and therefore reports ``needs_review``; that
@@ -78,6 +79,7 @@ def _build_tensors(xp: Any, payload: CTMRGPayload) -> list[Any]:
     dtype = xp.complex64 if payload.dtype == "complex64" else xp.complex128
     virtual = int(payload.virtual_bond_dim)
     cell_sites = math.prod(payload.unit_cell)
+    nx = int(payload.unit_cell[0])
     tensor_size = physical * virtual ** 4
     if payload.tensor_data is not None:
         values = [complex(float(real), float(imaginary)) for real, imaginary in payload.tensor_data]
@@ -94,7 +96,7 @@ def _build_tensors(xp: Any, payload: CTMRGPayload) -> list[Any]:
             amplitudes = [1.0, 0.0]
             if payload.initial_state == "down":
                 amplitudes = [0.0, 1.0]
-            elif payload.initial_state == "neel" and site % 2:
+            elif payload.initial_state == "neel" and ((site % nx) + (site // nx)) % 2:
                 amplitudes = [0.0, 1.0]
         tensor[:, 0, 0, 0, 0] = xp.asarray(amplitudes, dtype=dtype)
         tensors.append(tensor)
@@ -274,36 +276,51 @@ def _bottom_move_two_site(
     return CTMEnvironment(env_self.C1, env_self.C2, c3, c4, env_self.T1, env_self.T2, t3, env_self.T4), discarded
 
 
-def _two_site_sweep(
+def _unit_cell_sweep(
     xp: Any,
     environments: list[CTMEnvironment],
     layers: list[Any],
     chi: int,
+    unit_cell: list[int],
 ) -> tuple[list[CTMEnvironment], float]:
-    """Run the checkerboard two-environment CTM sweep."""
+    """Run one periodic unit-cell CTM sweep for 2, 3, or 4 tensors.
 
-    if len(environments) != 2 or len(layers) != 2:
-        raise ValueError("two-site CTMRG sweep requires exactly two unit-cell tensors")
-    env_a, env_b = environments
-    layer_a, layer_b = layers
+    The environment associated with a cell site is updated from the tensor
+    and environment of its periodic neighbor in each direction.  The
+    sequential update order is deterministic and reduces to the standard
+    checkerboard two-site sweep for a 2x1 cell.
+    """
+
+    nx, ny = (int(value) for value in unit_cell)
+    if len(environments) != nx * ny or len(layers) != nx * ny:
+        raise ValueError("unit-cell CTMRG sweep tensor/environment count mismatch")
+
+    def site_index(x: int, y: int) -> int:
+        return (x % nx) + nx * (y % ny)
+
+    def neighbors(site: int) -> tuple[int, int, int, int]:
+        x, y = site % nx, site // nx
+        return (
+            site_index(x - 1, y),
+            site_index(x + 1, y),
+            site_index(x, y - 1),
+            site_index(x, y + 1),
+        )
+
+    working = list(environments)
     discarded_total = 0.0
-    env_a, discarded = _left_move_two_site(xp, env_a, env_b, layer_b, chi)
-    discarded_total += discarded
-    env_b, discarded = _left_move_two_site(xp, env_b, env_a, layer_a, chi)
-    discarded_total += discarded
-    env_a, discarded = _right_move_two_site(xp, env_a, env_b, layer_b, chi)
-    discarded_total += discarded
-    env_b, discarded = _right_move_two_site(xp, env_b, env_a, layer_a, chi)
-    discarded_total += discarded
-    env_a, discarded = _top_move_two_site(xp, env_a, env_b, layer_b, chi)
-    discarded_total += discarded
-    env_b, discarded = _top_move_two_site(xp, env_b, env_a, layer_a, chi)
-    discarded_total += discarded
-    env_a, discarded = _bottom_move_two_site(xp, env_a, env_b, layer_b, chi)
-    discarded_total += discarded
-    env_b, discarded = _bottom_move_two_site(xp, env_b, env_a, layer_a, chi)
-    discarded_total += discarded
-    return [_renormalize(xp, env_a), _renormalize(xp, env_b)], discarded_total
+    moves = (
+        (0, _left_move_two_site),
+        (1, _right_move_two_site),
+        (2, _top_move_two_site),
+        (3, _bottom_move_two_site),
+    )
+    for neighbor_position, move in moves:
+        for site in range(len(working)):
+            neighbor = neighbors(site)[neighbor_position]
+            working[site], discarded = move(xp, working[site], working[neighbor], layers[neighbor], chi)
+            discarded_total += discarded
+    return [_renormalize(xp, env) for env in working], discarded_total
 
 
 def _renormalize(xp: Any, env: CTMEnvironment) -> CTMEnvironment:
@@ -555,6 +572,17 @@ def _environment_from_arrays(arrays: dict[str, Any]) -> CTMEnvironment:
     return CTMEnvironment(*(arrays[name] for name in ("C1", "C2", "C3", "C4", "T1", "T2", "T3", "T4")))
 
 
+def _environments_from_arrays(arrays: dict[str, Any], count: int) -> list[CTMEnvironment]:
+    environments: list[CTMEnvironment] = []
+    for index in range(int(count)):
+        prefix = "" if int(count) == 1 else f"site{index}_"
+        environments.append(CTMEnvironment(*(
+            arrays[f"{prefix}{name}"]
+            for name in ("C1", "C2", "C3", "C4", "T1", "T2", "T3", "T4")
+        )))
+    return environments
+
+
 def run_ctmrg(
     xp: Any,
     payload: CTMRGPayload,
@@ -565,10 +593,8 @@ def run_ctmrg(
     """Run bounded one-site or two-site checkerboard CTMRG contraction."""
 
     unit_cell = list(payload.unit_cell)
-    if unit_cell not in ([1, 1], [2, 1], [1, 2]):
-        raise ValueError("the current CTMRG solver supports unit_cell=[1, 1], [2, 1], or [1, 2]; 2x2 is not silently approximated")
-    if math.prod(unit_cell) > 1 and (payload.checkpoint_path or payload.resume_from):
-        raise ValueError("multi-site CTMRG checkpointing is reserved for the 2x2 environment checkpoint packet")
+    if unit_cell not in ([1, 1], [2, 1], [1, 2], [2, 2]):
+        raise ValueError("the current CTMRG solver supports unit_cell dimensions no larger than 2x2")
 
     started = time.perf_counter()
     tensors = _build_tensors(xp, payload)
@@ -582,7 +608,7 @@ def run_ctmrg(
     start_iteration = 0
     checkpoint_info: dict[str, Any] = {}
 
-    if len(tensors) == 1 and payload.resume_from:
+    if payload.resume_from:
         manifest, arrays = load_ctm_checkpoint(payload.resume_from, xp)
         if manifest.get("request_sha256") != problem_sha256:
             raise ValueError("CTMRG checkpoint does not match the scientific tensor problem")
@@ -596,6 +622,10 @@ def run_ctmrg(
         ):
             if int(metadata.get(name, -1)) != int(expected):
                 raise ValueError(f"CTMRG checkpoint {name} does not match the request")
+        if list(metadata.get("unit_cell", unit_cell)) != unit_cell:
+            raise ValueError("CTMRG checkpoint unit cell does not match the request")
+        if int(metadata.get("environment_count", len(tensors))) != len(tensors):
+            raise ValueError("CTMRG checkpoint environment count does not match the request")
         start_iteration = int(manifest.get("step", 0))
         if start_iteration > int(payload.iterations):
             raise ValueError(
@@ -607,7 +637,7 @@ def run_ctmrg(
         points = [ConvergencePoint(**dict(point)) for point in raw_points]
         discarded_total = float(metadata.get("discarded_weight_total", 0.0))
         residual = float(metadata.get("residual", math.inf))
-        environments = [_environment_from_arrays(arrays)]
+        environments = _environments_from_arrays(arrays, len(tensors))
         checkpoint_info = manifest
 
     def save_iteration_checkpoint(iteration: int) -> None:
@@ -616,7 +646,7 @@ def run_ctmrg(
             return
         checkpoint_info = save_ctm_checkpoint(
             payload.checkpoint_path,
-            environments[0],
+            environments,
             CheckpointManifest(
                 checkpoint_id=f"ctmrg-{problem_sha256[:12]}-iteration-{iteration}",
                 request_sha256=problem_sha256,
@@ -634,6 +664,8 @@ def run_ctmrg(
                     "physical_bond_dim": int(payload.physical_bond_dim),
                     "virtual_bond_dim": int(payload.virtual_bond_dim),
                     "environment_bond_dim": int(payload.environment_bond_dim),
+                    "unit_cell": list(unit_cell),
+                    "environment_count": len(environments),
                 },
             ),
         )
@@ -651,7 +683,7 @@ def run_ctmrg(
             environments = [_renormalize(xp, env)]
             discarded_sweep = left_discarded + right_discarded + top_discarded + bottom_discarded
         else:
-            environments, discarded_sweep = _two_site_sweep(xp, environments, layers, chi)
+            environments, discarded_sweep = _unit_cell_sweep(xp, environments, layers, chi, unit_cell)
         discarded_total += discarded_sweep
         residual = max(
             _environment_residual(xp, old, new)
@@ -718,7 +750,7 @@ def run_ctmrg(
     if len(tensors) == 1:
         warnings.insert(0, "CTMRG contraction uses a one-site translational environment")
     else:
-        warnings.insert(0, "CTMRG contraction uses a two-site checkerboard environment; 2x2 unit cells require a separate acceptance gate")
+        warnings.insert(0, "CTMRG contraction uses a periodic multi-site unit-cell environment")
     if payload.tensor_data is None:
         warnings.append("the tensor is a deterministic product-state ansatz; no variational ground-state optimization was performed")
     else:
@@ -730,11 +762,10 @@ def run_ctmrg(
         "reason": (
             "set checkpoint_path to persist and resume the CTMRG environment"
             if len(tensors) == 1 else
-            "multi-site environment checkpointing is reserved for the 2x2 checkpoint packet"
+            "set checkpoint_path to persist and resume the multi-site CTMRG environment"
         ),
     }
     limitations = [
-        "2x2 unit cell is not yet numerically enabled",
         "no variational tensor update or full ground-state optimization",
         "non-nearest interaction displacements are not yet supported by the two-site-RDM contraction",
     ]

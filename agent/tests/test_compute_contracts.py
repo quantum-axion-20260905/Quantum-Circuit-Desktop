@@ -89,7 +89,9 @@ class ComputeContractTests(unittest.TestCase):
         self.assertFalse(report["materializes_statevector"])
         supported = estimate_ctmrg(payload.model_copy(update={"unit_cell": [2, 1]}), gpu_free_mb=4096)
         self.assertTrue(supported["feasible"])
-        unsupported = estimate_ctmrg(payload.model_copy(update={"unit_cell": [2, 2]}), gpu_free_mb=4096)
+        two_by_two = estimate_ctmrg(payload.model_copy(update={"unit_cell": [2, 2]}), gpu_free_mb=4096)
+        self.assertTrue(two_by_two["feasible"])
+        unsupported = estimate_ctmrg(payload.model_copy(update={"unit_cell": [3, 1]}), gpu_free_mb=4096)
         self.assertFalse(unsupported["feasible"])
         with self.assertRaises(ValueError):
             CTMRGPayload(

@@ -212,18 +212,22 @@ but not released:
   use an explicit two-site CTM contraction; unsupported longer displacements
   remain visible as withheld values rather than product-of-averages guesses.
 
-The CTMRG solver now supports one-site and 2-site checkerboard cells with
-imported tensors, but remains non-variational.  2x2 cells, multi-site
-checkpoint/resume, variational updates, stronger reference calculations, and
-frontend controls are still incomplete. They must land and pass their own gate
-before Phase 4 can be called complete or tagged as a release.
+The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
+periodic cells with imported tensors and multi-environment checkpoint/resume,
+but remains non-variational. Variational updates, stronger reference
+calculations, and frontend controls are still incomplete. They must land and
+pass their own gate before Phase 4 can be called complete or tagged as a
+release.
 
 ## Current next packet
 
-The next implementation packet is Phase 4 research-grade convergence:
+The next implementation packet is Phase 4 variational research-grade convergence:
 
-- add the 2x2 unit-cell environment and extend the explicit two-site RDM
-  contraction beyond the current 2-site checkerboard environment;
+- compare one-site through 2x2 unit-cell environments and checkpoint/resume
+  against finite PEPS/reference product states;
+- add a tensor update/optimization contract that cannot be confused with bare
+  CTMRG environment contraction;
+- add energy/variance and environment-dimension convergence evidence;
 - compare CTMRG local contractions against finite PEPS/reference product
   states and environment-dimension convergence;
 - add a variational/simple-update packet only after the contraction gate stays

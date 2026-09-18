@@ -103,6 +103,55 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(result["tensor_source"], "imported")
         self.assertAlmostEqual(result["interactions"][0]["value"], -1.0, places=6)
 
+    def test_two_by_two_periodic_cell_contracts_all_nearest_bonds(self):
+        interactions = [
+            IPEPSInteraction(left_site=0, right_site=1, displacement=[1, 0], left_pauli="Z", right_pauli="Z", coefficient=1.0),
+            IPEPSInteraction(left_site=0, right_site=2, displacement=[0, 1], left_pauli="Z", right_pauli="Z", coefficient=1.0),
+            IPEPSInteraction(left_site=1, right_site=3, displacement=[0, 1], left_pauli="Z", right_pauli="Z", coefficient=1.0),
+            IPEPSInteraction(left_site=2, right_site=3, displacement=[1, 0], left_pauli="Z", right_pauli="Z", coefficient=1.0),
+        ]
+        result = run_ctmrg(np, CTMRGPayload(
+            unit_cell=[2, 2],
+            initial_state="neel",
+            interactions=interactions,
+            environment_bond_dim=2,
+            iterations=2,
+        ))
+        self.assertEqual(result["unit_cell_sites"], 4)
+        self.assertEqual([round(item["value"], 6) for item in result["interactions"]], [-1.0] * 4)
+        self.assertTrue(result["energy_complete"])
+        self.assertFalse(result["resource_estimate"]["materializes_statevector"])
+
+    def test_two_by_two_checkpoint_resume_restores_all_environments(self):
+        payload = CTMRGPayload(
+            unit_cell=[2, 2],
+            initial_state="neel",
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=1,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+            environment_bond_dim=2,
+            iterations=2,
+            tolerance=1e-20,
+        )
+        with TemporaryDirectory() as directory:
+            checkpoint_path = os.path.join(directory, "ctmrg-2x2.npz")
+            partial = run_ctmrg(np, payload.model_copy(update={"checkpoint_path": checkpoint_path}))
+            self.assertEqual(partial["checkpoint"]["metadata"]["environment_count"], 4)
+            resumed = run_ctmrg(np, payload.model_copy(update={
+                "iterations": 4,
+                "resume_from": checkpoint_path,
+                "checkpoint_path": checkpoint_path,
+            }))
+            fresh = run_ctmrg(np, payload.model_copy(update={"iterations": 4}))
+            self.assertEqual(resumed["unit_cell"], [2, 2])
+            self.assertEqual(resumed["checkpoint"]["metadata"]["environment_count"], 4)
+            self.assertAlmostEqual(resumed["energy"], fresh["energy"], places=6)
+
     def test_imported_complex_tensor_uses_declared_virtual_bond(self):
         tensor = np.zeros((2, 2, 2, 2, 2), dtype=np.complex128)
         tensor[0, 0, 0, 0, 0] = 1.0 / math.sqrt(2.0)
