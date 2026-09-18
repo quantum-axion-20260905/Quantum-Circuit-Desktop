@@ -69,6 +69,12 @@ six-step run exactly to the recorded `1e-10` comparison threshold. This
 checkpoint is specific to the finite-reference optimizer; unsupported
 infinite-CTMRG optimizer resume requests are rejected before execution.
 
+After the objective-seam refactor, a bounded CUDA SPSA run on the D=1 X-X
+product limit used the resident-tensor CTMRG objective for seven evaluations,
+returned a complete energy of `-1.0`, and preserved the explicit
+`deterministic-simultaneous-perturbation` experimental label. The smoke run did
+not populate the public host-side `tensor_data` field for inner candidates.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices
