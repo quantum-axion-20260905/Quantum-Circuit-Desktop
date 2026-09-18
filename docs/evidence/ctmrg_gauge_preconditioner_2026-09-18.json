@@ -2,6 +2,10 @@
   "artifact": "ctmrg-gauge-preconditioner-candidate",
   "date": "2026-09-18",
   "git_revision": "bbf31f7",
+  "verification": {
+    "full_backend_unittest": "143/143 passed",
+    "cuda_multi_site_smoke": "passed in a fresh Torch process"
+  },
   "scope": {
     "unit_cell": [1, 1],
     "physical_bond_dim": 2,
