@@ -902,7 +902,7 @@ def run_ctmrg(
         (
             "energy variance is a finite product-supercell diagnostic and is not an infinite-lattice variance proof"
             if reference_validation.get("reference") == "finite-product-supercell" else
-            "energy variance is a finite 2x2 periodic-torus diagnostic and is not an infinite-lattice variance proof"
+            f"energy variance is a finite torus ({'x'.join(str(value) for value in reference_validation.get('reference_lattice', [2, 2]))} periodic-torus) diagnostic and is not an infinite-lattice variance proof"
             if reference_validation.get("reference") == "finite-periodic-peps-2x2" else
             "the selected entangled reference validates local observables but does not provide an infinite-lattice variance"
             if reference_validation["performed"] else
@@ -1038,6 +1038,8 @@ def run_ctmrg_convergence_study(
 
     points: list[dict[str, Any]] = []
     previous_energy: float | None = None
+    previous_observables: list[float] | None = None
+    previous_interactions: list[float | None] | None = None
     for point_index, environment_bond_dim in enumerate(normalized_dims):
         if cancel_cb and cancel_cb():
             raise RuntimeError("job canceled")
@@ -1060,12 +1062,35 @@ def run_ctmrg_convergence_study(
             cancel_cb=cancel_cb,
         )
         energy = float(result["energy"])
+        observables = [float(item["value"]) for item in result["observables"]]
+        interactions = [
+            None if item["value"] is None else float(item["value"])
+            for item in result["interactions"]
+        ]
+        observable_delta = None
+        if previous_observables is not None and len(previous_observables) == len(observables):
+            observable_delta = max(
+                (abs(current - previous) for current, previous in zip(observables, previous_observables)),
+                default=0.0,
+            )
+        interaction_delta = None
+        if previous_interactions is not None and len(previous_interactions) == len(interactions):
+            comparable = [
+                abs(float(current) - float(previous))
+                for current, previous in zip(interactions, previous_interactions)
+                if current is not None and previous is not None
+            ]
+            interaction_delta = max(comparable, default=0.0)
+        reference = result["reference_validation"]
         points.append({
             "environment_bond_dim": environment_bond_dim,
             "environment_bond_dim_used": int(result["environment_bond_dim_used"]),
             "energy": energy,
             "energy_complete": bool(result["energy_complete"]),
             "energy_delta": None if previous_energy is None else energy - previous_energy,
+            "energy_abs_delta": None if previous_energy is None else abs(energy - previous_energy),
+            "observable_max_abs_delta": observable_delta,
+            "interaction_max_abs_delta": interaction_delta,
             "residual": float(result["residual"]),
             "converged": bool(result["converged"]),
             "correlation_length": result["correlation_length"],
@@ -1073,10 +1098,26 @@ def run_ctmrg_convergence_study(
             "environment_spectrum": result["environment_spectrum"],
             "energy_second_moment": result["energy_second_moment"],
             "energy_variance": result["energy_variance"],
-            "reference_validation": result["reference_validation"],
+            "reference_validation": reference,
+            "reference_name": reference.get("reference") if reference.get("performed") else None,
+            "reference_passed": bool(reference.get("passed")) if reference.get("performed") else None,
+            "reference_max_abs_error": reference.get("max_abs_error"),
             "resource_estimate": result["resource_estimate"],
         })
         previous_energy = energy
+        previous_observables = observables
+        previous_interactions = interactions
+
+    reference_names = sorted({
+        str(point["reference_name"])
+        for point in points
+        if point["reference_name"] is not None
+    })
+    reference_errors = [
+        float(point["reference_max_abs_error"])
+        for point in points
+        if point["reference_max_abs_error"] is not None
+    ]
 
     return {
         "status": "done",
@@ -1085,6 +1126,13 @@ def run_ctmrg_convergence_study(
         "unit_cell": list(payload.unit_cell),
         "unit_cell_sites": math.prod(payload.unit_cell),
         "points": points,
+        "reference_summary": {
+            "reference_names": reference_names,
+            "consistent_reference": reference_names[0] if len(reference_names) == 1 else None,
+            "performed_points": sum(1 for point in points if point["reference_name"] is not None),
+            "passed_points": sum(1 for point in points if point["reference_passed"] is True),
+            "max_abs_error": max(reference_errors, default=None),
+        },
         "materializes_statevector": False,
         "warnings": [
             "points are independent bounded CTMRG contractions from the same tensor ansatz",

@@ -501,7 +501,7 @@ button:disabled {
 .qc-ctmrg-panel .qc-metric-success { color: #86efac; }
 .qc-ctmrg-panel .qc-metric-warning { color: #fbbf24; }
 .qc-ctmrg-study-table { margin-top: 18px; overflow-x: auto; border: 1px solid var(--qc-dark-border); border-radius: var(--qc-radius-md); }
-.qc-ctmrg-study-row { min-width: 590px; display: grid; grid-template-columns: 1fr repeat(4, minmax(90px, 1fr)); gap: 12px; padding: 10px 12px; border-top: 1px solid var(--qc-dark-border); color: var(--qc-dark-text-muted); font-size: 12px; }
+.qc-ctmrg-study-row { min-width: 700px; display: grid; grid-template-columns: 1fr repeat(5, minmax(90px, 1fr)); gap: 12px; padding: 10px 12px; border-top: 1px solid var(--qc-dark-border); color: var(--qc-dark-text-muted); font-size: 12px; }
 .qc-ctmrg-study-row:first-of-type { border-top: 0; }
 .qc-ctmrg-study-row code { color: var(--qc-dark-text); }
 .qc-ctmrg-ref-pass { color: #86efac !important; }

@@ -41,12 +41,17 @@ statevector allocation:
 | 2×2 periodic Ising product cell | `χ=2`, 4 CTMRG iterations | `E=-8.0`, variance `0`, product reference passed; χ=1/2 study both `-8.0` | The admitted product-limit 2D contract is reproducible and numerically stable. |
 | Canonical D=2 GHZ iPEPS | `complex128`, `χ=2`, 16 iterations | `E=0.9999963`, `<Z>=-3.7e-6`, `<ZZ>=1.0`, analytic GHZ reference passed, correlation length unresolved | One named entangled transfer fixed point is validated; the degeneracy correctly prevents a finite ξ claim. |
 | Generic D=2 iPEPS | `complex128`, `χ=2`, 3 iterations | CTMRG `E=0.4457706`; exact 2×2 torus reference `E=0.7112282`; max error `0.5033`; reference failed | This is useful diagnostic evidence, not a production answer. The current infinite-environment approximation needs larger χ/iterations and broader validation. |
+| Generic D=2, 2×2 unit-cell iPEPS | RTX 3060 GPU, `complex128`, `χ=2`, 3 iterations | `E=0.3000`, independent finite 2×2 periodic reference performed; max error `0.03531`; reference failed | The multi-site reference path works on CUDA without a statevector and correctly keeps this entangled result in review. |
 | D=1 SPSA full-update | `complex128`, one deterministic direction, 16 steps, 49 objective evaluations | energy `0 → -1.1999990`; known D=1 product reference `-1.2` | The parameter-independent update can reach a declared product limit without a statevector; its stochastic-gradient convergence flag remains explicit and it is still a non-AD baseline. |
 
-The generic entangled case is intentionally recorded as a failed reference
-comparison. This is a release-quality behavior: the tool surfaces the mismatch
+The generic entangled cases are intentionally recorded as failed reference
+comparisons. This is a release-quality behavior: the tool surfaces the mismatch
 and keeps the result in `Needs review` instead of presenting a plausible number
 as a converged infinite-lattice result.
+
+The χ-study result now also carries point-to-point energy, local-observable and
+interaction deltas, plus a reference pass summary. This makes environment
+convergence evidence auditable beyond a single energy column.
 
 ## Phase 2 finite-2D boundary-MPS slice
 

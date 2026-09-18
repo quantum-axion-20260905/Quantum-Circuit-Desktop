@@ -133,7 +133,51 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(math.isfinite(reference["reference_energy"]))
         self.assertFalse(reference["passed"])
         self.assertTrue(any("finite-periodic-peps-2x2" in warning for warning in result["warnings"]))
-        self.assertTrue(any("finite 2x2 periodic-torus" in limitation for limitation in result["research_result"]["limitations"]))
+        self.assertTrue(any("finite torus" in limitation for limitation in result["research_result"]["limitations"]))
+
+    def test_generic_two_by_two_unit_cell_gets_independent_finite_reference(self):
+        tensors: list[list[float]] = []
+        for site in range(4):
+            tensor = np.zeros((2, 2, 2, 2, 2), dtype=np.complex128)
+            tensor[0, 0, 0, 0, 0] = 1.0 + 0.05j * site
+            tensor[1, 1, 1, 1, 1] = 0.2 + 0.03j * site
+            tensor[0, 0, 1, 1, 0] = 0.1
+            tensors.extend([[float(value.real), float(value.imag)] for value in tensor.reshape(-1)])
+        result = run_ctmrg(np, CTMRGPayload(
+            unit_cell=[2, 2],
+            virtual_bond_dim=2,
+            dtype="complex128",
+            tensor_data=tensors,
+            environment_bond_dim=2,
+            iterations=3,
+            terms=[PauliTerm(paulis={3: "Z"}, coefficient=0.1)],
+            interactions=[
+                IPEPSInteraction(
+                    left_site=0,
+                    right_site=1,
+                    displacement=[1, 0],
+                    left_pauli="Z",
+                    right_pauli="Z",
+                    coefficient=0.2,
+                ),
+                IPEPSInteraction(
+                    left_site=0,
+                    right_site=2,
+                    displacement=[0, 1],
+                    left_pauli="X",
+                    right_pauli="X",
+                    coefficient=-0.1,
+                ),
+            ],
+        ))
+        reference = result["reference_validation"]
+        self.assertTrue(reference["performed"])
+        self.assertEqual(reference["reference"], "finite-periodic-peps-2x2")
+        self.assertEqual(reference["reference_unit_cell"], [2, 2])
+        self.assertEqual(reference["reference_lattice"], [2, 2])
+        self.assertEqual(reference["reference_sites"], 4)
+        self.assertTrue(math.isfinite(reference["reference_energy"]))
+        self.assertFalse(reference["passed"])
 
     def test_two_site_checkerboard_contracts_neel_bond(self):
         payload = CTMRGPayload(
@@ -612,13 +656,19 @@ class CTMRGTests(unittest.TestCase):
         study = run_ctmrg_convergence_study(np, payload, [1, 2, 4])
         self.assertEqual(study["method"], "ipeps-ctmrg-environment-convergence-study")
         self.assertEqual([point["environment_bond_dim"] for point in study["points"]], [1, 2, 4])
+        self.assertEqual(study["reference_summary"]["consistent_reference"], "finite-product-supercell")
+        self.assertEqual(study["reference_summary"]["performed_points"], 3)
+        self.assertEqual(study["reference_summary"]["passed_points"], 3)
         self.assertFalse(study["materializes_statevector"])
         self.assertIsNone(study["points"][0]["energy_delta"])
+        self.assertIsNone(study["points"][0]["observable_max_abs_delta"])
         for point in study["points"]:
             self.assertTrue(math.isfinite(point["energy"]))
             self.assertTrue(math.isfinite(point["residual"]))
             self.assertTrue(math.isfinite(point["correlation_length"]))
             self.assertGreaterEqual(len(point["environment_spectrum"]), 1)
+            self.assertEqual(point["reference_name"], "finite-product-supercell")
+            self.assertTrue(point["reference_passed"])
 
     def test_environment_dimension_convergence_study_requires_plain_contraction(self):
         with self.assertRaisesRegex(ValueError, "optimization='none'"):

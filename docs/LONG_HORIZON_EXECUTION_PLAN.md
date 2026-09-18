@@ -265,10 +265,14 @@ but not released:
   `<ZZ>=1`) without pretending it is a generic entangled-iPEPS reference;
   complex64 entangled runs expose a precision warning and recommend
   complex128 for reference-quality observables.
-- generic one-site virtual-D≤2 tensors now receive an independent exact 2x2
-  finite-periodic PEPS double-layer comparison with finite-size variance and
-  explicit thermodynamic-limit limitations; disagreement remains `needs_review`
-  instead of being hidden as a successful infinite-lattice result.
+- generic virtual-D≤2 tensors now receive an independent exact finite-periodic
+  PEPS double-layer comparison for every admitted 1x1–2x2 unit cell, with
+  finite-size variance, explicit unit-cell/lattice metadata, and
+  thermodynamic-limit limitations; disagreement remains `needs_review` instead
+  of being hidden as a successful infinite-lattice result.
+- environment-χ studies now expose point-to-point energy, local-observable, and
+  interaction deltas together with a reference summary and pass count, so a
+  study cannot be reduced to an energy-only plot.
 - the lattice domain plugin now builds periodic iPEPS CTMRG payloads for
   Ising, Heisenberg, and XXZ unit cells without putting model logic into the
   numerical core; 1x1 and 2x2 product-limit tests pass the independent
