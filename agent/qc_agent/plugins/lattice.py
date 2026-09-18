@@ -95,6 +95,11 @@ def build_ctmrg_spin_payload(
     gauge_preconditioner: str = "none",
     gauge_preconditioner_iterations: int = 4,
     environment_sector_policy: str = "single",
+    boundary_mps_reference: bool = False,
+    boundary_mps_width: int = 4,
+    boundary_mps_height: int = 4,
+    boundary_mps_bond_dim: int = 16,
+    boundary_mps_cutoff: float = 0.0,
 ) -> CTMRGPayload:
     """Build a periodic 2D spin model for the bounded iPEPS CTMRG backend.
 
@@ -163,4 +168,9 @@ def build_ctmrg_spin_payload(
         gauge_preconditioner=gauge_preconditioner,
         gauge_preconditioner_iterations=gauge_preconditioner_iterations,
         environment_sector_policy=environment_sector_policy,
+        boundary_mps_reference=boundary_mps_reference,
+        boundary_mps_width=boundary_mps_width,
+        boundary_mps_height=boundary_mps_height,
+        boundary_mps_bond_dim=boundary_mps_bond_dim,
+        boundary_mps_cutoff=boundary_mps_cutoff,
     )

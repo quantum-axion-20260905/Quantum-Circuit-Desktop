@@ -64,9 +64,15 @@ class PhysicsPluginTests(unittest.TestCase):
             iterations=2,
             gauge_preconditioner="pairwise-polar-balance",
             gauge_preconditioner_iterations=2,
+            boundary_mps_reference=True,
+            boundary_mps_width=3,
+            boundary_mps_height=3,
+            boundary_mps_bond_dim=4,
         ))
         self.assertEqual(preconditioned["gauge_preconditioner"], "pairwise-polar-balance")
         self.assertEqual(preconditioned["gauge_preconditioner_iterations"], 2)
+        self.assertTrue(preconditioned["boundary_mps_reference"])
+        self.assertEqual(preconditioned["boundary_mps_bond_dim"], 4)
 
     def test_periodic_single_site_axis_does_not_create_self_edge(self):
         graph = lattice_graph(LatticeHamiltonianPayload(dimensions=[1, 2], boundary="periodic"))

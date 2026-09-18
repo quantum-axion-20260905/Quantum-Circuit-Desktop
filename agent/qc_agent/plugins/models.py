@@ -234,6 +234,11 @@ class CTMRGPayload(BaseModel):
     gauge_preconditioner: Literal["none", "pairwise-polar-balance"] = "none"
     gauge_preconditioner_iterations: int = Field(default=4, ge=1, le=16)
     environment_damping: float = Field(default=1.0, gt=0.0, le=1.0)
+    boundary_mps_reference: bool = False
+    boundary_mps_width: int = Field(default=4, ge=2, le=16)
+    boundary_mps_height: int = Field(default=4, ge=2, le=16)
+    boundary_mps_bond_dim: int = Field(default=16, ge=1, le=128)
+    boundary_mps_cutoff: float = Field(default=0.0, ge=0.0, le=1.0)
     iterations: int = Field(default=20, ge=1, le=200)
     tolerance: float = Field(default=1e-8, gt=0, le=1.0)
     optimization: Literal["none", "product-coordinate-descent", "simple-update", "full-update"] = "none"
@@ -302,6 +307,10 @@ class CTMRGPayload(BaseModel):
             raise ValueError("symmetry-sector ensemble does not support checkpoint or optimizer resume yet")
         if self.environment_sector_policy != "single" and self.gauge_preconditioner != "none":
             raise ValueError("symmetry-sector ensemble and virtual-gauge preconditioning are separate experimental policies")
+        if self.boundary_mps_reference and self.optimization != "none":
+            raise ValueError("boundary-MPS reference diagnostics are contraction-only and cannot run inside optimization yet")
+        if self.boundary_mps_reference and self.environment_sector_policy != "single":
+            raise ValueError("boundary-MPS reference diagnostics and symmetry-sector ensembles are separate experimental policies")
         if self.optimization != "none" and (self.checkpoint_path is not None or self.resume_from is not None):
             raise ValueError(
                 "CTMRG optimizer checkpoint/resume is not supported yet; checkpointing currently covers contraction-only runs"
@@ -460,6 +469,11 @@ class CTMRGSpinModelPayload(LatticeHamiltonianPayload):
     gauge_preconditioner: Literal["none", "pairwise-polar-balance"] = "none"
     gauge_preconditioner_iterations: int = Field(default=4, ge=1, le=16)
     environment_sector_policy: Literal["single", "symmetry-ensemble"] = "single"
+    boundary_mps_reference: bool = False
+    boundary_mps_width: int = Field(default=4, ge=2, le=16)
+    boundary_mps_height: int = Field(default=4, ge=2, le=16)
+    boundary_mps_bond_dim: int = Field(default=16, ge=1, le=128)
+    boundary_mps_cutoff: float = Field(default=0.0, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def validate_ctmrg_geometry(self):

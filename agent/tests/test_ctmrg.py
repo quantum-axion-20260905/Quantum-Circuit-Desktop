@@ -312,6 +312,32 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(result["reference_validation"]["passed"])
         self.assertTrue(any("under-relaxation damping" in warning for warning in result["warnings"]))
 
+    def test_boundary_mps_reference_preserves_product_limit_and_surfaces_diagnostics(self):
+        result = run_ctmrg(np, CTMRGPayload(
+            boundary_mps_reference=True,
+            boundary_mps_width=3,
+            boundary_mps_height=3,
+            boundary_mps_bond_dim=4,
+            environment_bond_dim=2,
+            iterations=3,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=0.5,
+            )],
+        ))
+        reference = result["boundary_mps_reference"]
+        self.assertTrue(reference["performed"])
+        self.assertEqual(reference["reference"], "finite-cylinder-boundary-mps")
+        self.assertAlmostEqual(reference["reference_energy"], 1.5, places=6)
+        self.assertAlmostEqual(reference["max_abs_error"], 0.0, places=8)
+        self.assertEqual(reference["diagnostics"]["norm_contraction"]["boundary_bond_dim_used"], 1)
+        self.assertTrue(any("finite-cylinder boundary-MPS reference" in warning for warning in result["warnings"]))
+
     def test_plus_state_has_unit_x_expectation(self):
         payload = CTMRGPayload(
             terms=[PauliTerm(paulis={0: "X"}, coefficient=1.0)],
@@ -1094,6 +1120,7 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(study["environment_sector_summary"]["policies"], ["single"])
         self.assertEqual(study["environment_sector_summary"]["sector_counts"], [1])
         self.assertEqual(study["environment_sector_summary"]["max_spread"]["energy_abs_range"], 0.0)
+        self.assertEqual(study["boundary_mps_summary"]["performed_points"], 0)
         self.assertIn("research_gate_summary", study)
         self.assertEqual(study["research_gate_summary"]["status"], "passed")
         self.assertTrue(study["research_gate_summary"]["production_ready"])

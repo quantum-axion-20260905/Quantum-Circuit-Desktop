@@ -1894,7 +1894,7 @@ def run_ctmrg(
             "research_gate": research_gate,
         },
     ).to_dict()
-    return {
+    result = {
         "status": "done",
         "backend": "tensor-network-ctmrg",
         "method": result_method,
@@ -1954,6 +1954,24 @@ def run_ctmrg(
         "warnings": warnings,
         "time_ms": round((time.perf_counter() - started) * 1000, 3),
     }
+    if payload.boundary_mps_reference:
+        from .ctmrg_boundary_mps import run_boundary_mps_reference
+
+        boundary_reference = run_boundary_mps_reference(
+            tensors,
+            payload,
+            ctmrg_energy=float(energy),
+            ctmrg_onsite=onsite_values,
+            ctmrg_interactions=interaction_values,
+        )
+        result["boundary_mps_reference"] = boundary_reference
+        result["research_result"]["details"]["boundary_mps_reference"] = boundary_reference
+        result["research_result"]["metrics"]["boundary_mps_max_abs_error"] = boundary_reference.get("max_abs_error")
+        result["warnings"].append(
+            "finite-cylinder boundary-MPS reference is an independent diagnostic; it does not establish infinite-lattice convergence"
+        )
+        result["research_result"]["warnings"] = list(result["warnings"])
+    return result
 
 
 def run_ctmrg_convergence_study(
@@ -2035,12 +2053,18 @@ def run_ctmrg_convergence_study(
             interaction_delta = max(comparable, default=0.0)
         reference = result["reference_validation"]
         research_gate = result["research_gate"]
+        boundary_reference = result.get("boundary_mps_reference", {})
+        boundary_diagnostics = boundary_reference.get("diagnostics", {}) if isinstance(boundary_reference, dict) else {}
+        boundary_norm_diagnostics = boundary_diagnostics.get("norm_contraction", {}) if isinstance(boundary_diagnostics, dict) else {}
         points.append({
             "environment_bond_dim": environment_bond_dim,
             "environment_bond_dim_used": int(result["environment_bond_dim_used"]),
             "environment_sector_policy": result.get("environment_sector_policy", "single"),
             "environment_sector_count": int(result.get("environment_sector_count", 1)),
             "environment_sector_spread": result.get("environment_sector_spread"),
+            "boundary_mps_reference_performed": bool(boundary_reference.get("performed", False)) if isinstance(boundary_reference, dict) else False,
+            "boundary_mps_max_abs_error": boundary_reference.get("max_abs_error") if isinstance(boundary_reference, dict) else None,
+            "boundary_mps_discarded_weight": boundary_norm_diagnostics.get("discarded_weight"),
             "energy": energy,
             "energy_complete": bool(result["energy_complete"]),
             "energy_delta": None if previous_energy is None else energy - previous_energy,
@@ -2117,6 +2141,10 @@ def run_ctmrg_convergence_study(
         )
         for field in sector_spread_fields
     }
+    boundary_points = [
+        point for point in points
+        if point.get("boundary_mps_reference_performed")
+    ]
 
     return {
         "status": "done",
@@ -2137,6 +2165,17 @@ def run_ctmrg_convergence_study(
             "policies": sector_policies,
             "sector_counts": sorted({int(point["environment_sector_count"]) for point in points}),
             "max_spread": sector_spread_summary,
+        },
+        "boundary_mps_summary": {
+            "performed_points": len(boundary_points),
+            "max_abs_error": max(
+                (float(point["boundary_mps_max_abs_error"]) for point in boundary_points if point.get("boundary_mps_max_abs_error") is not None),
+                default=None,
+            ),
+            "max_discarded_weight": max(
+                (float(point["boundary_mps_discarded_weight"]) for point in boundary_points if point.get("boundary_mps_discarded_weight") is not None),
+                default=None,
+            ),
         },
         "gauge_conditioning": study_gauge_conditioning or {
             "performed": False,

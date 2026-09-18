@@ -256,6 +256,13 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
     edge_values = 4 * environment_bond_dim * double_layer_dim * environment_bond_dim
     iteration_values = tensor_values + double_layer_values + corner_values + edge_values
     iteration_values += finite_reference_state_values
+    boundary_reference_evaluations = 0
+    if bool(getattr(payload, "boundary_mps_reference", False)):
+        boundary_width = int(getattr(payload, "boundary_mps_width", 4))
+        boundary_height = int(getattr(payload, "boundary_mps_height", 4))
+        boundary_bond_dim = int(getattr(payload, "boundary_mps_bond_dim", 16))
+        boundary_reference_evaluations = 1 + len(payload.terms) + len(payload.interactions)
+        iteration_values += boundary_width * max(1, boundary_bond_dim) ** 2 * max(1, double_layer_dim)
     work = max(1, int(payload.iterations)) * max(1, cell_sites) * max(1, environment_bond_dim) ** 3 * max(1, double_layer_dim)
     projector = getattr(payload, "ctmrg_projector", "half-density")
     if projector == "full-svd":
@@ -305,6 +312,8 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         work *= max(1, min(estimated_full_update_evaluations + gauge_probe_evaluations, int(getattr(payload, "full_update_max_evaluations", 512))))
     elif gauge_probe_evaluations:
         work *= 2
+    if boundary_reference_evaluations:
+        work += boundary_reference_evaluations * max(1, boundary_width) * max(1, boundary_height) * max(1, boundary_bond_dim) ** 3 * max(1, double_layer_dim)
     estimated_ms = int(1 + work / 25_000)
     warnings: list[str] = [
         "CTMRG is an experimental infinite-2D path; compare environment-dimension convergence",
@@ -322,6 +331,10 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
     if float(getattr(payload, "environment_damping", 1.0)) < 1.0:
         warnings.append(
             f"CTMRG under-relaxation damping={float(payload.environment_damping):.3f} is experimental; compare fixed-point residuals across damping values"
+        )
+    if boundary_reference_evaluations:
+        warnings.append(
+            "finite-cylinder boundary-MPS reference is diagnostic-only; compare patch size and boundary bond dimension and do not treat it as an infinite-lattice proof"
         )
     if getattr(payload, "optimization", "none") == "product-coordinate-descent" and virtual_bond_dim != 1:
         warnings.append("product-coordinate-descent optimization requires virtual_bond_dim=1")

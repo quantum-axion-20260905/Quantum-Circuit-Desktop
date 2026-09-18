@@ -35,4 +35,9 @@ class SpinLatticePlugin:
             gauge_preconditioner=payload.gauge_preconditioner,
             gauge_preconditioner_iterations=payload.gauge_preconditioner_iterations,
             environment_sector_policy=payload.environment_sector_policy,
+            boundary_mps_reference=payload.boundary_mps_reference,
+            boundary_mps_width=payload.boundary_mps_width,
+            boundary_mps_height=payload.boundary_mps_height,
+            boundary_mps_bond_dim=payload.boundary_mps_bond_dim,
+            boundary_mps_cutoff=payload.boundary_mps_cutoff,
         ).model_dump(mode="json")
