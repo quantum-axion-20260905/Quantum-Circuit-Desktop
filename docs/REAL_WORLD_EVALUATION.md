@@ -94,6 +94,15 @@ about 11.1 GB after cleanup. This validates the runtime seam and GPU execution,
 not a production claim: the objective is an unrolled bounded environment, not
 yet an implicit CTMRG fixed-point/thermodynamic-limit gradient.
 
+The bounded implicit-adjoint path was also run through the same CUDA API on the
+D=1 X-X limit. It returned `method=ipeps-full-update-implicit-ctmrg`,
+`E=-1.0`, `transfer_gap=1.0`, and zero measured adjoint residual for the
+one-dimensional environment. A complex D=2 random-cell probe correctly
+reported an unresolved transfer gap and nonzero adjoint residual instead of
+claiming convergence. The implementation therefore passes the product-limit
+runtime gate but remains `Needs review` for generic entangled cells; complex
+truncation currently uses a frozen eigenprojector in backward mode.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices

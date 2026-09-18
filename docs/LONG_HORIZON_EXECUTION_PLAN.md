@@ -320,15 +320,21 @@ but not released:
   CuPy desktop install lightweight, and uses a bounded evaluation budget;
   small transfer-spectrum diagnostics fall back to host LAPACK if optional
   Torch/CuPy CUDA libraries expose incompatible Windows solver symbols.
+- a bounded implicit CTMRG adjoint path now exists behind an explicit optimizer
+  contract; its D=1 gradient matches central differences and its CUDA smoke
+  reports transfer-gap, fixed-point, and adjoint residual diagnostics. Complex
+  truncated eigenspaces currently use a frozen eigenprojector in backward mode,
+  so the path remains `needs_review` until entangled gauge and gap gates pass.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
 The current optimizers are a D=1 mean-field baseline, a bounded simple update,
 bounded CTMRG-feedback coordinate/finite-difference/SPSA baselines, an
 analytic finite-torus gradient reference path, and an optional Torch
-unrolled-autograd CTMRG path. The Torch path is not yet a scalable
-infinite-CTMRG implicit-gradient/full ground-state solver. Stronger
-infinite-objective validation and broader frontend coverage are still
+unrolled-autograd CTMRG path, and a bounded implicit-adjoint path. The latter
+two use a frozen truncation projector for complex-eigenspace stability and are
+not yet scalable, gauge-validated infinite-CTMRG full ground-state solvers.
+Stronger infinite-objective validation and broader frontend coverage are still
 incomplete.
 They must land and pass their own gate before Phase 4 can be called complete or tagged
 as a release. The current frontend panel is an admitted experimental path,
@@ -352,7 +358,9 @@ The next implementation packet is Phase 4 variational research-grade convergence
   regression/reference gate;
 - then replace or augment unrolling with an implicit fixed-point/adjoint
   gradient contract, including transfer-spectrum gap checks and a reproducible
-  backward-error budget before calling the optimizer research-grade;
+  backward-error budget before calling the optimizer research-grade; the
+  current adjoint implementation is the bounded scaffold for this gate, not
+  the completed gate itself;
 - carry energy/variance/reference error and the new point-to-point observable
   deltas through the shared study/provenance and export APIs;
 - extend optimizer-state checkpointing from the finite-reference and bounded

@@ -747,6 +747,10 @@ def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[
         from .ctmrg_autodiff import run_autodiff_full_update
 
         return run_autodiff_full_update(xp, payload, tensors, run_ctmrg)
+    if payload.full_update_optimizer == "implicit-ctmrg-gradient":
+        from .ctmrg_autodiff import run_implicit_full_update
+
+        return run_implicit_full_update(xp, payload, tensors, run_ctmrg)
     if payload.full_update_optimizer == "finite-difference-gradient":
         return _run_finite_difference_full_update(xp, payload, tensors, run_ctmrg)
     if payload.full_update_optimizer == "spsa-gradient":
