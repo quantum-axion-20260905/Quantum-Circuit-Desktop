@@ -62,6 +62,34 @@ evidence and remains visible; it is not converted into a passing result by
 changing presentation code. If a packet does not improve a declared gate, it
 is reverted or kept as an explicitly experimental branch of the architecture.
 
+### Long-session cadence
+
+Every extended work session follows the same six-step loop so the project can
+continue safely across goal-mode runs and context changes:
+
+1. **Resume:** read this plan, inspect the working tree, current release, last
+   evidence artifact, and the first incomplete packet. Do not reopen completed
+   phases unless a regression is demonstrated.
+2. **Scope:** select exactly one implementation packet. New ideas are recorded
+   as backlog items; they do not silently enlarge the active packet.
+3. **Implement:** keep domain plugins, numerical kernels, admission gates,
+   persistence, and desktop presentation on their existing seams. Add a
+   contract before adding a control or a backend branch.
+4. **Verify:** run focused tests first, then the relevant backend suite. Use a
+   small GPU smoke only when it answers a declared numerical or resource
+   question. Large campaigns wait for the packet gate.
+5. **Decide:** mark the packet `passed`, `needs_review`, or `blocked` with the
+   measured reason. A completed async job is not a scientific pass.
+6. **Checkpoint:** update the plan/evidence, commit only coherent changes,
+   push the commit, and write the exact next packet. The next session starts
+   from that checkpoint rather than from memory.
+
+Resource guardrails are part of the cadence: unrelated high-RAM processes are
+never inspected, stopped, or competed with; GPU probes remain bounded by the
+declared preflight estimate and a short wall-clock budget; and a test that
+cannot run within those limits is reduced or deferred, not forced through the
+machine.
+
 ### Frontend timing rule
 
 The frontend may be polished continuously for capabilities already admitted,
