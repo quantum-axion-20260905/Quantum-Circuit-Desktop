@@ -29,4 +29,6 @@ class SpinLatticePlugin:
             environment_bond_dim=payload.environment_bond_dim,
             iterations=payload.iterations,
             tolerance=payload.tolerance,
+            gauge_validation=payload.gauge_validation,
+            gauge_validation_tolerance=payload.gauge_validation_tolerance,
         ).model_dump(mode="json")

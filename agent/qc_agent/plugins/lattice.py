@@ -89,6 +89,8 @@ def build_ctmrg_spin_payload(
     environment_bond_dim: int = 16,
     iterations: int = 20,
     tolerance: float = 1e-8,
+    gauge_validation: bool = False,
+    gauge_validation_tolerance: float = 1e-4,
 ) -> CTMRGPayload:
     """Build a periodic 2D spin model for the bounded iPEPS CTMRG backend.
 
@@ -151,4 +153,6 @@ def build_ctmrg_spin_payload(
         environment_bond_dim=environment_bond_dim,
         iterations=iterations,
         tolerance=tolerance,
+        gauge_validation=gauge_validation,
+        gauge_validation_tolerance=gauge_validation_tolerance,
     )
