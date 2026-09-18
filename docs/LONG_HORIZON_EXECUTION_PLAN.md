@@ -75,6 +75,13 @@ features.
   promote an infinite CTMRG result by itself. The next fixed-point packet
   compares patch size, boundary bond dimension, and CTMRG χ together.
 
+- The first patch/bond convergence study is recorded at
+  `docs/evidence/ctmrg_boundary_mps_convergence_2026-09-18.json`. The six
+  CUDA points for a random D=2 cell move materially with patch and boundary
+  bond, with best sampled energy error about `7.65e-3` but other points above
+  `0.29`; discarded weight is also non-monotone. This confirms the seam is
+  useful evidence, not yet a converged infinite-2D reference.
+
 ### Four-step delivery ladder for the active phase
 
 The following ladder is the working sequence. Each step produces a commit and

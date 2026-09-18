@@ -1,0 +1,35 @@
+{
+  "artifact": "ctmrg-boundary-mps-patch-bond-convergence",
+  "date": "2026-09-18",
+  "git_revision": "56c3c74",
+  "verification": {
+    "full_backend_unittest": "148/148 passed",
+    "backend": "CuPy CUDA",
+    "dtype": "complex64",
+    "random_seed": 20260918,
+    "point_count": 6
+  },
+  "ctmrg": {
+    "unit_cell": [1, 1],
+    "virtual_bond_dim": 2,
+    "environment_bond_dim": 2,
+    "iterations": 8,
+    "energy": -0.23707599937915802,
+    "residual": 0.23463104221911346
+  },
+  "points": [
+    {"patch": [2, 2], "boundary_bond_dim": 2, "reference_energy": 0.06074376928065575, "energy_error": 0.29781976865981374, "observable_max_abs_error": 0.5863629800923612, "interaction_max_abs_error": 0.28854321143254746, "discarded_weight": 0.306566007920979},
+    {"patch": [2, 2], "boundary_bond_dim": 4, "reference_energy": 0.07958525267780209, "energy_error": 0.3166612520569601, "observable_max_abs_error": 0.5261790792978361, "interaction_max_abs_error": 0.20951782724087603, "discarded_weight": 0.0},
+    {"patch": [3, 3], "boundary_bond_dim": 2, "reference_energy": -0.12810244662797188, "energy_error": 0.10897355275118614, "observable_max_abs_error": 0.062326555438413034, "interaction_max_abs_error": 0.04664699731277311, "discarded_weight": 0.825099738170106},
+    {"patch": [3, 3], "boundary_bond_dim": 4, "reference_energy": -0.24472271287225, "energy_error": 0.007646713493091983, "observable_max_abs_error": 0.056377328161411444, "interaction_max_abs_error": 0.04873061466831946, "discarded_weight": 0.189907528629097},
+    {"patch": [4, 4], "boundary_bond_dim": 2, "reference_energy": -0.15023019915337812, "energy_error": 0.0868458002257799, "observable_max_abs_error": 0.014403977084506914, "interaction_max_abs_error": 0.10124977731028681, "discarded_weight": 1.6209687231025658},
+    {"patch": [4, 4], "boundary_bond_dim": 4, "reference_energy": -0.15161934282089237, "energy_error": 0.08545665655826565, "observable_max_abs_error": 0.03140947463500443, "interaction_max_abs_error": 0.11686613119327008, "discarded_weight": 0.6374406269005428}
+  ],
+  "decision": "keep-as-convergence-diagnostic-only",
+  "conclusion": [
+    "Patch and boundary-bond changes materially move the independent reference, so the finite-cylinder diagnostic is not converged for this random cell.",
+    "The best sampled energy error is about 7.65e-3, while other points exceed 0.29; no production gate is passed.",
+    "Discarded weight is not monotone in this bounded sweep and must remain visible in the result."
+  ],
+  "next_action": "use patch/bond convergence as an input to a transfer-fixed-point environment rather than accepting a single finite patch"
+}

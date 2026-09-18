@@ -216,6 +216,14 @@ about `7.3e-2`–`8.7e-2` and substantial discarded weight. This is independent
 diagnostic evidence, not an infinite-lattice reference or a replacement for
 CTMRG; patch-size and boundary-bond convergence are still required.
 
+The first bounded patch/bond study is recorded in
+`docs/evidence/ctmrg_boundary_mps_convergence_2026-09-18.json`. Six CUDA
+points over patches `2x2`–`4x4` and boundary bonds `2`–`4` move materially;
+the best sampled energy error is about `7.65e-3`, while other points exceed
+`0.29`, and discarded weight is non-monotone. The backend therefore reports
+the study as diagnostic-only and does not use a single finite patch to promote
+the infinite CTMRG gate.
+
 The Torch unrolled and implicit full-update paths now have an explicit,
 opt-in optimizer checkpoint contract. A CPU resume-vs-fresh regression matches
 the final energy for both paths; checkpoint manifests bind the state to the
