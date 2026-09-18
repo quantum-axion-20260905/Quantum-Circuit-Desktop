@@ -261,6 +261,14 @@ therefore improved, but the generic entangled optimizer remains diagnostic
 only; the complete result is preserved in
 `docs/evidence/ctmrg_gradient_gate_rerun_2026-09-18.json`.
 
+A separate χ/iteration sweep on the same complex128 differentiable-truncation
+path confirms that simply increasing resources does not solve the issue:
+paired-gauge drift remains approximately `4.97e-3`–`9.70e-3` across χ=2–4
+and 3–12 iterations, with non-monotone residual behavior. The next work must
+target a covariant environment/fixed-point map rather than presenting larger
+χ as a solution. See
+`docs/evidence/ctmrg_gauge_convergence_probe_2026-09-18.json`.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices

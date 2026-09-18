@@ -1,0 +1,29 @@
+{
+  "artifact": "ctmrg-gauge-convergence-probe",
+  "date": "2026-09-18",
+  "revision": "bdd79a8",
+  "environment": {
+    "device": "cuda:0",
+    "gpu": "RTX 3060",
+    "dtype": "complex128",
+    "truncation_gradient": "differentiable-eigh",
+    "virtual_bond_dim": 2
+  },
+  "question": "Does increasing CTMRG chi or iteration count remove the paired virtual-gauge drift?",
+  "policy": "bounded diagnostic sweep; no optimizer or production admission change",
+  "points": [
+    {"chi": 2, "iterations": 3, "energy": -0.0016278456175943179, "gauge_delta": 0.004973814921079143, "residual": 3.5999966746524947e-06, "gauged_residual": 3.4170080892570454e-06},
+    {"chi": 2, "iterations": 5, "energy": -0.007577554403399566, "gauge_delta": 0.00690500934060011, "residual": 3.6434373131832842e-06, "gauged_residual": 6.441339253759892e-06},
+    {"chi": 2, "iterations": 8, "energy": -0.008270706143707838, "gauge_delta": 0.00935422710038306, "residual": 3.306651266243854e-06, "gauged_residual": 6.1410148327945e-05},
+    {"chi": 2, "iterations": 12, "energy": -0.008310151996298741, "gauge_delta": 0.007629128151580318, "residual": 1.6390014161427047e-06, "gauged_residual": 7.568149787331446e-04},
+    {"chi": 3, "iterations": 3, "energy": -0.0014827726942733337, "gauge_delta": 0.005316311207089007, "residual": 5.204199053254754e-06, "gauged_residual": 6.894094072951162e-06},
+    {"chi": 3, "iterations": 5, "energy": -0.0075322515998349415, "gauge_delta": 0.009357899092087982, "residual": 5.257952065518268e-06, "gauged_residual": 1.1039831302794845e-05},
+    {"chi": 3, "iterations": 8, "energy": -0.008264235058698636, "gauge_delta": 0.007902089049550014, "residual": 5.5846623521205174e-06, "gauged_residual": 7.971507007598078e-05},
+    {"chi": 3, "iterations": 12, "energy": -0.008307550569631342, "gauge_delta": 0.006717103576628873, "residual": 6.3629940429965615e-06, "gauged_residual": 1.6233791261789365e-03},
+    {"chi": 4, "iterations": 3, "energy": -0.0012719794291741761, "gauge_delta": 0.005171897724102214, "residual": 7.068869146142909e-06, "gauged_residual": 3.1297793543383357e-05},
+    {"chi": 4, "iterations": 5, "energy": -0.007496438440459572, "gauge_delta": 0.00798473275538309, "residual": 7.142022058648223e-06, "gauged_residual": 3.714615569838653e-05},
+    {"chi": 4, "iterations": 8, "energy": -0.00826257208077561, "gauge_delta": 0.009698570533047832, "residual": 7.378713532846248e-06, "gauged_residual": 3.0050289166239086e-04},
+    {"chi": 4, "iterations": 12, "energy": -0.008307611731875431, "gauge_delta": 0.009074987522224744, "residual": 7.461525221796883e-06, "gauged_residual": 4.988991192447334e-03}
+  ],
+  "conclusion": "The drift is non-monotone and remains orders of magnitude above 1e-4; increasing chi or iterations alone is not a gauge-stability solution. The next implementation target is a covariant environment/fixed-point strategy, with the current preconditioner remaining diagnostic-only."
+}

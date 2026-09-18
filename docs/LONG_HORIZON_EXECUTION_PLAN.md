@@ -110,6 +110,13 @@ features.
   the entangled optimizer. The full artifact is
   `docs/evidence/ctmrg_gradient_gate_rerun_2026-09-18.json`.
 
+- A bounded χ/iteration gauge sweep confirms that drift is non-monotone:
+  across χ=2–4 and 3–12 iterations it stays around `4.97e-3`–`9.70e-3`,
+  while the gauged residual can grow to about `4.99e-3`. Increasing χ or
+  iterations alone is therefore not the fix; the next implementation packet
+  must make the environment/fixed-point map covariant. Evidence is recorded
+  in `docs/evidence/ctmrg_gauge_convergence_probe_2026-09-18.json`.
+
 ### Four-step delivery ladder for the active phase
 
 The following ladder is the working sequence. Each step produces a commit and
