@@ -192,8 +192,8 @@ but not released:
 - iPEPS unit-cell and translational interaction request validation exists;
 - CTMRG resource preflight prices double-layer tensors and corner/edge
   environments without dense statevector assumptions;
-- the backend registry exposes CTMRG as planned and rejects accidental solver
-  substitution;
+- the backend registry exposes CTMRG as an explicit tensor-network method and
+  rejects accidental solver substitution;
 - contract and preflight tests cover unit-cell bounds, site validation, and
   statevector-free estimates.
 - a bounded one-site CTMRG core now performs corner/edge growth, Hermitian
@@ -212,18 +212,18 @@ but not released:
   use an explicit two-site CTM contraction; unsupported longer displacements
   remain visible as withheld values rather than product-of-averages guesses.
 
-The CTMRG solver is intentionally limited to a one-site product-state ansatz:
-multi-site cells, arbitrary tensor import, environment checkpoint/resume,
-variational updates, stronger reference calculations, and frontend controls
-are still incomplete. They must land and pass their own gate before Phase 4
-can be called complete or tagged as a release.
+The CTMRG solver now supports one-site and 2-site checkerboard cells with
+imported tensors, but remains non-variational.  2x2 cells, multi-site
+checkpoint/resume, variational updates, stronger reference calculations, and
+frontend controls are still incomplete. They must land and pass their own gate
+before Phase 4 can be called complete or tagged as a release.
 
 ## Current next packet
 
 The next implementation packet is Phase 4 research-grade convergence:
 
-- add a two-site/2x2 unit-cell environment and extend the explicit two-site
-  RDM contraction beyond the one-site translational environment;
+- add the 2x2 unit-cell environment and extend the explicit two-site RDM
+  contraction beyond the current 2-site checkerboard environment;
 - compare CTMRG local contractions against finite PEPS/reference product
   states and environment-dimension convergence;
 - add a variational/simple-update packet only after the contraction gate stays

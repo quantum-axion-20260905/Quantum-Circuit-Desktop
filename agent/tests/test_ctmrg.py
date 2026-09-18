@@ -54,9 +54,14 @@ class CTMRGTests(unittest.TestCase):
         self.assertAlmostEqual(result["observables"][0]["value"], 1.0, places=6)
         self.assertAlmostEqual(result["interactions"][0]["value"], 1.0, places=6)
 
-    def test_multi_site_cell_is_rejected_instead_of_silently_falling_back(self):
+    def test_two_site_checkerboard_contracts_neel_bond(self):
         payload = CTMRGPayload(
             unit_cell=[2, 1],
+            initial_state="neel",
+            terms=[
+                PauliTerm(paulis={0: "Z"}, coefficient=1.0),
+                PauliTerm(paulis={1: "Z"}, coefficient=1.0),
+            ],
             interactions=[IPEPSInteraction(
                 left_site=0,
                 right_site=1,
@@ -65,9 +70,38 @@ class CTMRGTests(unittest.TestCase):
                 right_pauli="Z",
                 coefficient=1.0,
             )],
+            environment_bond_dim=2,
+            iterations=3,
         )
-        with self.assertRaisesRegex(ValueError, "unit_cell=\[1, 1\]"):
-            run_ctmrg(np, payload)
+        result = run_ctmrg(np, payload)
+        self.assertEqual(result["unit_cell"], [2, 1])
+        self.assertEqual(result["unit_cell_sites"], 2)
+        self.assertAlmostEqual(result["observables"][0]["value"], 1.0, places=6)
+        self.assertAlmostEqual(result["observables"][1]["value"], -1.0, places=6)
+        self.assertAlmostEqual(result["interactions"][0]["value"], -1.0, places=6)
+        self.assertTrue(result["energy_complete"])
+
+    def test_vertical_checkerboard_and_multi_tensor_import(self):
+        # Two D=1 tensors are serialized site-major: |up> followed by |down>.
+        tensor_data = [[1.0, 0.0], [0.0, 0.0], [0.0, 0.0], [1.0, 0.0]]
+        payload = CTMRGPayload(
+            unit_cell=[1, 2],
+            tensor_data=tensor_data,
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=1,
+                displacement=[0, 1],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+            environment_bond_dim=2,
+            iterations=2,
+        )
+        result = run_ctmrg(np, payload)
+        self.assertEqual(result["unit_cell"], [1, 2])
+        self.assertEqual(result["tensor_source"], "imported")
+        self.assertAlmostEqual(result["interactions"][0]["value"], -1.0, places=6)
 
     def test_imported_complex_tensor_uses_declared_virtual_bond(self):
         tensor = np.zeros((2, 2, 2, 2, 2), dtype=np.complex128)

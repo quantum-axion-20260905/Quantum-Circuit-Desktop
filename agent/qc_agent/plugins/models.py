@@ -261,10 +261,12 @@ class CTMRGPayload(BaseModel):
     @model_validator(mode="after")
     def validate_payload(self):
         cell_sites = math.prod(self.unit_cell)
-        expected_tensor_values = int(self.physical_bond_dim) * int(self.virtual_bond_dim) ** 4
+        expected_tensor_values = (
+            cell_sites * int(self.physical_bond_dim) * int(self.virtual_bond_dim) ** 4
+        )
         if self.tensor_data is not None and len(self.tensor_data) != expected_tensor_values:
             raise ValueError(
-                "iPEPS tensor_data length must equal physical_bond_dim * virtual_bond_dim**4 "
+                "iPEPS tensor_data length must equal unit_cell_sites * physical_bond_dim * virtual_bond_dim**4 "
                 f"({expected_tensor_values})"
             )
         for term in self.terms:
