@@ -25,7 +25,7 @@ mostly scientific breadth and release hardening:
 | Contracts, registry, preflight, provenance | implemented | stable compatibility and migration tests |
 | 1D MPS/DMRG/TEBD | usable, incomplete hardening | research-ready bounded 1D workflow |
 | Finite 2D boundary-MPS | experimental open-2D implementation | validated finite-2D workflow |
-| CTMRG/iPEPS | planned | tested infinite-2D workflow |
+| CTMRG/iPEPS | bounded experimental 1x1–2x2 slice | gauge/χ-converged infinite-2D workflow |
 | Symmetry/high entanglement | planned hooks | block-sparse validated solvers |
 | 3D contraction | bounded exploratory PEPS only | explicit approximate 3D backend |
 | Fermionic materials/chemistry | mapping and small Hubbard prototypes | reproducible domain workflow |
@@ -291,6 +291,21 @@ Non-goals for the first CTMRG release:
 - arbitrary unit cells without explicit resource estimates;
 - silently using finite boundary-MPS in place of CTMRG;
 - calling one converged environment a proof of physical correctness.
+
+Current implementation status (unreleased Phase 4 work):
+
+- bounded one-site through 2x2 CTMRG, χ studies, checkpoints, independent
+  finite-PEPS references, resident-tensor Torch/CUDA autograd, and a bounded
+  implicit adjoint path are implemented;
+- an opt-in paired virtual-gauge probe compares energy and observables after an
+  exact virtual gauge transformation;
+- convergence uses a gauge-invariant boundary singular-spectrum residual while
+  retaining raw basis drift as a diagnostic;
+- D=1 finite-difference/adjoint and CUDA endpoint gates pass, but generic D=2
+  cells can still fail transfer-gap, gauge-sensitivity, or adjoint-residual
+  gates and remain `needs_review`;
+- complex truncated eigenspaces currently use a frozen eigenprojector in
+  backward mode, so this is not yet the `v0.8.0` research-grade release.
 
 Acceptance gate: environment `chi`, truncation, CTMRG residual, correlation
 length, and physical observable convergence are all reported and benchmarked.
