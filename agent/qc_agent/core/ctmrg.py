@@ -5,10 +5,12 @@ HTTP lifecycle, provenance, and domain builders stay outside the module so
 larger unit cells and domain-specific optimizers can reuse the same result
 seam.
 
-The solver supports one-site and two-site checkerboard environments. It does
-not optimize the iPEPS tensor and therefore reports ``needs_review``; that
-distinction is important for research use and prevents a product-state ansatz
-from being presented as a variational ground state.
+The base solver supports one-site, checkerboard, and small periodic
+unit-cell environments. Optional optimizer paths are deliberately explicit:
+the finite-torus gradient mode optimizes a bounded four-site reference, while
+the other paths remain experimental. Every result therefore retains the
+``needs_review`` distinction until the declared infinite-lattice evidence is
+available.
 """
 
 from __future__ import annotations

@@ -302,9 +302,11 @@ but not released:
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
 The current optimizers are a D=1 mean-field baseline, a bounded simple update,
-and a bounded CTMRG-feedback coordinate baseline. The latter is not yet a
-scalable automatic-differentiation/full ground-state solver. Stronger
-reference calculations and broader frontend coverage are still incomplete.
+bounded CTMRG-feedback coordinate/finite-difference/SPSA baselines, and an
+analytic finite-torus gradient reference path. The finite-torus path is not
+yet a scalable infinite-CTMRG automatic-differentiation/full ground-state
+solver. Stronger infinite-objective validation and broader frontend coverage
+are still incomplete.
 They must land and pass their own gate before Phase 4 can be called complete or tagged
 as a release. The current frontend panel is an admitted experimental path,
 not evidence that the full variational solver is complete.

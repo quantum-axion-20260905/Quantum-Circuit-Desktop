@@ -251,9 +251,11 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
     bytes_per_value = 8 if payload.dtype == "complex64" else 16
     tensor_values = cell_sites * physical_bond_dim * max(1, virtual_bond_dim ** 4)
     double_layer_values = cell_sites * max(1, double_layer_dim ** 4)
+    finite_reference_state_values = 16 if getattr(payload, "full_update_optimizer", None) == "finite-torus-gradient" else 0
     corner_values = 4 * environment_bond_dim * environment_bond_dim
     edge_values = 4 * environment_bond_dim * double_layer_dim * environment_bond_dim
     iteration_values = tensor_values + double_layer_values + corner_values + edge_values
+    iteration_values += finite_reference_state_values
     peak_mb = iteration_values * bytes_per_value * 3.0 / (1024 * 1024)
     work = max(1, int(payload.iterations)) * max(1, cell_sites) * max(1, environment_bond_dim) ** 3 * max(1, double_layer_dim)
     if getattr(payload, "optimization", "none") != "none":
@@ -304,6 +306,20 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
             warnings.append("finite-torus-gradient uses an explicitly bounded 4-site finite reference statevector; it is not an infinite-lattice CTMRG objective")
             if virtual_bond_dim > 2:
                 warnings.append("finite-torus-gradient requires virtual_bond_dim<=2")
+            if any(len(term.paulis) > 1 for term in payload.terms):
+                warnings.append("finite-torus-gradient supports one-site terms only")
+            for interaction in payload.interactions:
+                if tuple(map(abs, interaction.displacement)) not in ((1, 0), (0, 1)):
+                    warnings.append("finite-torus-gradient supports nearest-neighbor interactions only")
+                    break
+                cell_width, cell_height = (int(value) for value in payload.unit_cell)
+                left_x = int(interaction.left_site) % cell_width
+                left_y = int(interaction.left_site) // cell_width
+                dx, dy = (int(value) for value in interaction.displacement)
+                expected_right = (left_x + dx) % cell_width + cell_width * ((left_y + dy) % cell_height)
+                if int(interaction.right_site) != expected_right:
+                    warnings.append("finite-torus-gradient requires right_site to match left_site plus displacement")
+                    break
         if estimated_full_update_evaluations is not None and estimated_full_update_evaluations > int(getattr(payload, "full_update_max_evaluations", 512)):
             warnings.append(
                 f"full-update estimated evaluations {estimated_full_update_evaluations} exceed full_update_max_evaluations={payload.full_update_max_evaluations}"
@@ -314,7 +330,7 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         warnings.append(f"estimated CTMRG environment memory {peak_mb:.1f} MB exceeds 70% of currently free GPU memory")
     if estimated_ms > int(payload.max_time_ms):
         warnings.append(f"estimated CTMRG time {estimated_ms} ms exceeds time budget")
-    blocking_warnings = [warning for warning in warnings if "exceeds" in warning or "current CTMRG solver supports" in warning or "product-coordinate-descent optimization requires" in warning or "full-update tensor parameter count" in warning or "full-update estimated evaluations" in warning or "finite-torus-gradient requires" in warning]
+    blocking_warnings = [warning for warning in warnings if "exceeds" in warning or "current CTMRG solver supports" in warning or "product-coordinate-descent optimization requires" in warning or "full-update tensor parameter count" in warning or "full-update estimated evaluations" in warning or "finite-torus-gradient requires" in warning or "finite-torus-gradient supports" in warning]
     return {
         "status": "ready" if not blocking_warnings else "rejected",
         "feasible": not blocking_warnings,
@@ -330,6 +346,7 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         "iterations": int(payload.iterations),
         "tensor_values": tensor_values,
         "double_layer_values": double_layer_values,
+        "finite_reference_state_values": finite_reference_state_values,
         "corner_values": corner_values,
         "edge_values": edge_values,
         "materializes_statevector": False,

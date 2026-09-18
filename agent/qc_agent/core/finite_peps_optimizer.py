@@ -167,6 +167,24 @@ def finite_torus_energy_gradient(
         raise ValueError("finite-torus-gradient is limited to virtual_bond_dim<=2")
     if len(tensors) != math.prod(payload.unit_cell):
         raise ValueError("finite-torus-gradient tensor count does not match the unit cell")
+    cell_width, cell_height = (int(value) for value in payload.unit_cell)
+    cell_sites = cell_width * cell_height
+    if any(len(term.paulis) > 1 for term in payload.terms):
+        raise ValueError("finite-torus-gradient supports one-site terms only")
+    if any(
+        tuple(map(abs, interaction.displacement)) not in ((1, 0), (0, 1))
+        for interaction in payload.interactions
+    ):
+        raise ValueError("finite-torus-gradient supports nearest-neighbor interactions only")
+    for interaction in payload.interactions:
+        left_x = int(interaction.left_site) % cell_width
+        left_y = int(interaction.left_site) // cell_width
+        dx, dy = (int(value) for value in interaction.displacement)
+        expected_right = _cell_site_index(left_x + dx, left_y + dy, payload.unit_cell)
+        if int(interaction.right_site) != expected_right:
+            raise ValueError("finite-torus-gradient requires right_site to match left_site plus displacement")
+        if int(interaction.left_site) >= cell_sites or int(interaction.right_site) >= cell_sites:
+            raise ValueError("finite-torus-gradient interaction site exceeds the unit cell")
     psi, jacobians = _wavefunction_and_jacobian(xp, payload, tensors)
     hamiltonian = _hamiltonian(xp, payload, tensors[0].dtype)
     norm = _real(xp.vdot(psi, psi))

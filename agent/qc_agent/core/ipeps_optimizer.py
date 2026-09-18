@@ -584,12 +584,13 @@ def _run_spsa_full_update(
 
 
 def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[str, Any]:
-    """Bounded CTMRG energy-feedback coordinate optimization.
+    """Dispatch explicit bounded full-update/reference optimization paths.
 
-    Each coordinate trial rebuilds the CTM environment, so the objective sees
-    the same infinite-system contraction used for the reported result.  The
-    parameter cap is intentionally strict: this is a reproducible research
-    baseline, not a claim of scalable automatic differentiation.
+    CTMRG-feedback coordinate/finite-difference/SPSA paths use the same
+    infinite-system contraction as the final result.  The finite-torus
+    analytic-gradient path is intentionally dispatched to a separate module:
+    it is an exact four-site reference objective, not an infinite-system
+    gradient claim.
     """
 
     from .ctmrg import run_ctmrg  # lazy import avoids the optimizer/core cycle
