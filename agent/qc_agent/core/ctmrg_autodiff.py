@@ -285,6 +285,7 @@ def _ctmrg_sweep(
     environments: list[Any],
     *,
     differentiate_truncation: bool = True,
+    tensors: list[Any] | None = None,
 ) -> list[Any]:
     """Apply exactly one differentiable CTMRG environment sweep."""
 
@@ -299,10 +300,11 @@ def _ctmrg_sweep(
     chi = int(payload.environment_bond_dim)
     if len(environments) == 1:
         env = environments[0]
-        env, _ = _left_move(torch, env, layers[0], chi, differentiate_truncation)
-        env, _ = _right_move(torch, env, layers[0], chi, differentiate_truncation)
-        env, _ = _top_move(torch, env, layers[0], chi, differentiate_truncation)
-        env, _ = _bottom_move(torch, env, layers[0], chi, differentiate_truncation)
+        tensor = None if tensors is None else tensors[0]
+        env, _ = _left_move(torch, env, layers[0], chi, differentiate_truncation, tensor, payload.ctmrg_projector)
+        env, _ = _right_move(torch, env, layers[0], chi, differentiate_truncation, tensor, payload.ctmrg_projector)
+        env, _ = _top_move(torch, env, layers[0], chi, differentiate_truncation, tensor, payload.ctmrg_projector)
+        env, _ = _bottom_move(torch, env, layers[0], chi, differentiate_truncation, tensor, payload.ctmrg_projector)
         return [_renormalize(torch, torch, env)]
     environments, _ = _unit_cell_sweep(
         torch,
@@ -312,6 +314,8 @@ def _ctmrg_sweep(
         list(payload.unit_cell),
         renormalize=lambda _xp, env: _renormalize(torch, torch, env),
         differentiate_truncation=differentiate_truncation,
+        tensors=tensors,
+        projector_method=payload.ctmrg_projector,
     )
     return environments
 
@@ -387,7 +391,12 @@ def _transfer_gap(torch: Any, environments: list[Any]) -> float:
     return min(gaps) if gaps else 0.0
 
 
-def _fixed_point_environments(torch: Any, payload: CTMRGPayload, layers: list[Any]) -> tuple[list[Any], float, int]:
+def _fixed_point_environments(
+    torch: Any,
+    payload: CTMRGPayload,
+    layers: list[Any],
+    tensors: list[Any] | None = None,
+) -> tuple[list[Any], float, int]:
     """Find a bounded CTMRG fixed point without retaining the forward graph."""
 
     from .ctmrg import _environment_residual, _initialize_environment
@@ -398,7 +407,14 @@ def _fixed_point_environments(torch: Any, payload: CTMRGPayload, layers: list[An
     with torch.no_grad():
         for iteration in range(1, int(payload.iterations) + 1):
             before = list(environments)
-            environments = _ctmrg_sweep(torch, payload, layers, environments, differentiate_truncation=False)
+            environments = _ctmrg_sweep(
+                torch,
+                payload,
+                layers,
+                environments,
+                differentiate_truncation=False,
+                tensors=tensors,
+            )
             residual = max(
                 _environment_residual(torch, old, new)
                 for old, new in zip(before, environments)
@@ -440,7 +456,7 @@ def implicit_ctmrg_energy_and_gradient(
     from .ctmrg import _double_layer
 
     layers = [_double_layer(torch, tensor) for tensor in tensors]
-    fixed_environments, fixed_residual, fixed_iterations = _fixed_point_environments(torch, payload, layers)
+    fixed_environments, fixed_residual, fixed_iterations = _fixed_point_environments(torch, payload, layers, tensors)
     environment_vector = _pack_environment(torch, fixed_environments).detach().requires_grad_(True)
     graph_environments = _unpack_environment(torch, environment_vector, fixed_environments)
     energy = _environment_energy(torch, payload, graph_environments, tensors)
@@ -450,6 +466,7 @@ def implicit_ctmrg_energy_and_gradient(
         layers,
         graph_environments,
         differentiate_truncation=_differentiate_truncation(payload),
+        tensors=tensors,
     )
     mapped_vector = _pack_environment(torch, mapped_environments)
 
@@ -555,6 +572,7 @@ def differentiable_ctmrg_energy(torch: Any, payload: CTMRGPayload, tensors: list
             layers,
             environments,
             differentiate_truncation=_differentiate_truncation(payload),
+            tensors=tensors,
         )
         residual = max(
             _environment_residual(torch, old, new)

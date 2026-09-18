@@ -12,6 +12,74 @@ from qc_agent.plugins.models import CTMRGConvergenceStudyPayload, CTMRGPayload, 
 
 
 class CTMRGTests(unittest.TestCase):
+    def test_full_svd_projector_preserves_the_declared_product_limit(self):
+        payload = CTMRGPayload(
+            ctmrg_projector="full-svd",
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=0.5,
+            )],
+            environment_bond_dim=2,
+            iterations=3,
+        )
+        result = run_ctmrg(np, payload)
+        self.assertEqual(result["ctmrg_projector"], "full-svd")
+        self.assertAlmostEqual(result["energy"], 1.5, places=6)
+        self.assertEqual(result["research_gate"]["status"], "passed")
+
+    def test_full_svd_entangled_gate_stays_review_only_when_reference_fails(self):
+        tensor_data: list[list[float]] = []
+        for physical in range(2):
+            for up in range(2):
+                for down in range(2):
+                    for left in range(2):
+                        for right in range(2):
+                            tensor_data.append([
+                                float(physical == up == down == left == right),
+                                0.0,
+                            ])
+        result = run_ctmrg(np, CTMRGPayload(
+            ctmrg_projector="full-svd",
+            virtual_bond_dim=2,
+            dtype="complex128",
+            tensor_data=tensor_data,
+            environment_bond_dim=2,
+            iterations=4,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+        ))
+        self.assertEqual(result["ctmrg_projector"], "full-svd")
+        self.assertFalse(result["reference_validation"]["passed"])
+        self.assertFalse(result["research_gate"]["production_ready"])
+        self.assertEqual(result["research_gate"]["status"], "needs_review")
+
+    def test_full_svd_projector_rejects_unbounded_virtual_bond(self):
+        with self.assertRaisesRegex(ValueError, "full-svd CTMRG projectors"):
+            CTMRGPayload(
+                ctmrg_projector="full-svd",
+                virtual_bond_dim=3,
+                interactions=[IPEPSInteraction(
+                    left_site=0,
+                    right_site=0,
+                    displacement=[1, 0],
+                    left_pauli="Z",
+                    right_pauli="Z",
+                    coefficient=1.0,
+                )],
+            )
+
     def test_product_up_state_contracts_z_and_interaction_without_statevector(self):
         payload = CTMRGPayload(
             terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0, label="magnetization")],

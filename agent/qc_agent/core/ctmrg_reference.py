@@ -33,6 +33,12 @@ def _operator(n_sites: int, paulis: dict[int, str]) -> np.ndarray:
 
 
 def _host(value: Any) -> np.ndarray:
+    detach = getattr(value, "detach", None)
+    if detach is not None:
+        value = detach()
+    cpu = getattr(value, "cpu", None)
+    if cpu is not None:
+        value = cpu()
     try:
         return np.asarray(value.get())
     except AttributeError:

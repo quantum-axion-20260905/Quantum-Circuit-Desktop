@@ -27,8 +27,11 @@ features.
 - Current useful capability: bounded product-state CTMRG has a declared
   research gate; generic entangled `D>1` results remain `needs_review`.
 - Current scientific blocker: the paired virtual-gauge energy drift is still
-  nonzero on the entangled CUDA gate. This is an environment/gauge-stability
-  problem, not something to hide with looser tolerances or UI wording.
+  nonzero on the entangled CUDA gate. The first opt-in full-SVD projector
+  candidate preserves the D=1 product limit but also fails the D=2 GHZ
+  independent-reference gate, so it is experimental and not production-ready.
+  This is an environment/gauge-stability problem, not something to hide with
+  looser tolerances or UI wording.
 - Current resource rule: GPU experiments stay small and bounded; the agent
   must not inspect, stop, or compete with unrelated high-RAM training jobs.
 
@@ -440,6 +443,11 @@ but not released:
   residual, while retaining the raw corner/edge entry residual as a separate
   diagnostic; this prevents harmless retained-basis rotations from being
   misreported as physical non-convergence.
+- an opt-in full-SVD CTMRG projector policy now has its own resident-tensor
+  contraction seam, resource preflight estimate, result metadata, and bounded
+  tests. It passes the D=1 product limit, but its D=2 GHZ reference and paired
+  gauge gates remain review-only; the failed evidence is preserved rather than
+  promoting the candidate.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
@@ -470,6 +478,9 @@ The next implementation packet is Phase 4 variational research-grade convergence
 - replace the frozen eigenprojector with a differentiable truncation policy,
   then rerun the central-difference, paired-gauge, χ/iteration, and finite
   periodic-reference gates on small entangled cells;
+- validate the full-SVD quarter-index ordering and biorthogonal absorption
+  against the analytic GHZ transfer fixed point before using that policy for
+  any optimizer or desktop control;
 - strengthen the implicit fixed-point/adjoint path with the same truncation
   policy, transfer-spectrum gap checks, and a reproducible backward-error
   budget before calling the optimizer research-grade; the current adjoint

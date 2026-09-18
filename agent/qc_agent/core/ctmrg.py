@@ -28,6 +28,7 @@ from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, 
 from .ctmrg_admission import ctmrg_research_gate
 from .ctmrg_reference import analytic_ghz_reference, finite_periodic_peps_reference, finite_product_reference
 from .ctmrg_gauge import virtual_leg_conditioning_report
+from .ctmrg_projectors import full_svd_projectors, swap_fused_pair_columns, swap_fused_pair_rows
 from .ipeps_optimizer import optimize_product_states, run_full_update, run_simple_update
 from .observables import structured_observables
 
@@ -56,6 +57,12 @@ class CTMEnvironment:
 
 
 def _host(value: Any) -> Any:
+    detach = getattr(value, "detach", None)
+    if detach is not None:
+        value = detach()
+    cpu = getattr(value, "cpu", None)
+    if cpu is not None:
+        value = cpu()
     try:
         return value.get()
     except AttributeError:
@@ -73,6 +80,14 @@ def _copy(value: Any) -> Any:
 
 def _real(value: Any) -> float:
     return float(complex(_host(value)).real)
+
+
+def _device_name(xp: Any, value: Any | None = None) -> str:
+    device = getattr(value, "device", None)
+    device_type = getattr(device, "type", None)
+    if device_type in {"cpu", "cuda", "mps"}:
+        return str(device_type)
+    return "cuda" if hasattr(xp, "cuda") else "cpu"
 
 
 def _state_pairs(xp: Any, states: list[Any]) -> list[list[list[float]]]:
@@ -151,15 +166,23 @@ def _build_tensor(xp: Any, payload: CTMRGPayload) -> Any:
     return _build_tensors(xp, payload)[0]
 
 
-def _pauli_matrix(xp: Any, dtype: Any, label: str) -> Any:
+def _pauli_matrix(xp: Any, dtype: Any, label: str, device: Any | None = None) -> Any:
+    kwargs = {"dtype": dtype}
+    if getattr(xp, "__name__", "") == "torch" and device is not None:
+        kwargs["device"] = device
+    def matrix(values: list[list[Any]]) -> Any:
+        if getattr(xp, "__name__", "") == "torch":
+            return xp.tensor(values, **kwargs)
+        return xp.asarray(values, dtype=dtype)
+
     if label == "I":
-        return xp.eye(2, dtype=dtype)
+        return xp.eye(2, **kwargs)
     if label == "X":
-        return xp.asarray([[0, 1], [1, 0]], dtype=dtype)
+        return matrix([[0, 1], [1, 0]])
     if label == "Y":
-        return xp.asarray([[0, -1j], [1j, 0]], dtype=dtype)
+        return matrix([[0, -1j], [1j, 0]])
     if label == "Z":
-        return xp.asarray([[1, 0], [0, -1]], dtype=dtype)
+        return matrix([[1, 0], [0, -1]])
     raise ValueError(f"unsupported Pauli operator {label!r}")
 
 
@@ -251,42 +274,140 @@ def _ctm_move(
     return new_left, new_right, new_edge, discarded_weight
 
 
-def _left_move(xp: Any, env: CTMEnvironment, double_layer: Any, chi: int, differentiate_truncation: bool = True) -> tuple[CTMEnvironment, float]:
+def _left_move(
+    xp: Any,
+    env: CTMEnvironment,
+    double_layer: Any,
+    chi: int,
+    differentiate_truncation: bool = True,
+    tensor: Any | None = None,
+    projector_method: str = "half-density",
+) -> tuple[CTMEnvironment, float]:
     d2 = int(double_layer.shape[0])
     c1_g = xp.einsum("ab,buc->auc", env.C1, env.T1).reshape(-1, env.T1.shape[2])
     c4_g = xp.einsum("gh,hdi->gdi", env.C4, env.T3).reshape(-1, env.T3.shape[2])
     t4_g = xp.einsum("alg,udlr->augdr", env.T4, double_layer)
     t4_g = _transpose(xp, t4_g, (0, 1, 4, 2, 3)).reshape(c1_g.shape[0], d2, c4_g.shape[0])
+    if projector_method == "full-svd":
+        if tensor is None:
+            raise ValueError("full-svd CTMRG projectors require resident raw tensors")
+        left_projector, right_projector, discarded = full_svd_projectors(
+            xp,
+            env,
+            tensor,
+            chi,
+            "left",
+            differentiate_truncation=differentiate_truncation,
+        )
+        c1 = left_projector @ c1_g
+        c4 = xp.conj(right_projector).T @ c4_g
+        t4 = xp.einsum("ai,idj,jb->adb", left_projector, t4_g, right_projector)
+        return CTMEnvironment(c1, env.C2, env.C3, c4, env.T1, env.T2, env.T3, t4), discarded
     c1, c4, t4, discarded = _ctm_move(xp, c1_g, c4_g, t4_g, chi, differentiate_truncation)
     return CTMEnvironment(c1, env.C2, env.C3, c4, env.T1, env.T2, env.T3, t4), discarded
 
 
-def _right_move(xp: Any, env: CTMEnvironment, double_layer: Any, chi: int, differentiate_truncation: bool = True) -> tuple[CTMEnvironment, float]:
+def _right_move(
+    xp: Any,
+    env: CTMEnvironment,
+    double_layer: Any,
+    chi: int,
+    differentiate_truncation: bool = True,
+    tensor: Any | None = None,
+    projector_method: str = "half-density",
+) -> tuple[CTMEnvironment, float]:
     d2 = int(double_layer.shape[0])
     c2_g = xp.einsum("ce,buc->eub", env.C2, env.T1).reshape(-1, env.T1.shape[0])
     c3_g = xp.einsum("im,hdi->mdh", env.C3, env.T3).reshape(-1, env.T3.shape[0])
     t2_g = xp.einsum("erm,udlr->eumdl", env.T2, double_layer)
     t2_g = _transpose(xp, t2_g, (0, 1, 4, 2, 3)).reshape(c2_g.shape[0], d2, c3_g.shape[0])
+    if projector_method == "full-svd":
+        if tensor is None:
+            raise ValueError("full-svd CTMRG projectors require resident raw tensors")
+        left_projector, right_projector, discarded = full_svd_projectors(
+            xp,
+            env,
+            tensor,
+            chi,
+            "right",
+            differentiate_truncation=differentiate_truncation,
+        )
+        virtual = int(tensor.shape[1])
+        left_projector = swap_fused_pair_columns(xp, left_projector, int(env.C1.shape[0]), virtual)
+        right_projector = swap_fused_pair_rows(xp, right_projector, int(env.C1.shape[0]), virtual)
+        c2 = left_projector @ c2_g
+        c3 = xp.conj(right_projector).T @ c3_g
+        t2 = xp.einsum("ai,idj,jb->adb", left_projector, t2_g, right_projector)
+        return CTMEnvironment(env.C1, c2, c3, env.C4, env.T1, t2, env.T3, env.T4), discarded
     c2, c3, t2, discarded = _ctm_move(xp, c2_g, c3_g, t2_g, chi, differentiate_truncation)
     return CTMEnvironment(env.C1, c2, c3, env.C4, env.T1, t2, env.T3, env.T4), discarded
 
 
-def _top_move(xp: Any, env: CTMEnvironment, double_layer: Any, chi: int, differentiate_truncation: bool = True) -> tuple[CTMEnvironment, float]:
+def _top_move(
+    xp: Any,
+    env: CTMEnvironment,
+    double_layer: Any,
+    chi: int,
+    differentiate_truncation: bool = True,
+    tensor: Any | None = None,
+    projector_method: str = "half-density",
+) -> tuple[CTMEnvironment, float]:
     d2 = int(double_layer.shape[0])
     c1_g = xp.einsum("ab,alg->blg", env.C1, env.T4).reshape(-1, env.T4.shape[2])
     c2_g = xp.einsum("ce,erm->crm", env.C2, env.T2).reshape(-1, env.T2.shape[2])
     t1_g = xp.einsum("buc,udlr->bcdlr", env.T1, double_layer)
     t1_g = _transpose(xp, t1_g, (0, 3, 2, 1, 4)).reshape(c1_g.shape[0], d2, c2_g.shape[0])
+    if projector_method == "full-svd":
+        if tensor is None:
+            raise ValueError("full-svd CTMRG projectors require resident raw tensors")
+        left_projector, right_projector, discarded = full_svd_projectors(
+            xp,
+            env,
+            tensor,
+            chi,
+            "top",
+            differentiate_truncation=differentiate_truncation,
+        )
+        c1 = xp.conj(right_projector).T @ c1_g
+        c2 = left_projector @ c2_g
+        t1 = xp.einsum("ai,idj,jb->adb", xp.conj(right_projector).T, t1_g, xp.conj(left_projector).T)
+        return CTMEnvironment(c1, c2, env.C3, env.C4, t1, env.T2, env.T3, env.T4), discarded
     c1, c2, t1, discarded = _ctm_move(xp, c1_g, c2_g, t1_g, chi, differentiate_truncation)
     return CTMEnvironment(c1, c2, env.C3, env.C4, t1, env.T2, env.T3, env.T4), discarded
 
 
-def _bottom_move(xp: Any, env: CTMEnvironment, double_layer: Any, chi: int, differentiate_truncation: bool = True) -> tuple[CTMEnvironment, float]:
+def _bottom_move(
+    xp: Any,
+    env: CTMEnvironment,
+    double_layer: Any,
+    chi: int,
+    differentiate_truncation: bool = True,
+    tensor: Any | None = None,
+    projector_method: str = "half-density",
+) -> tuple[CTMEnvironment, float]:
     d2 = int(double_layer.shape[0])
     c4_g = _transpose(xp, xp.einsum("gh,alg->hal", env.C4, env.T4), (0, 2, 1)).reshape(-1, env.T4.shape[0])
     c3_g = xp.einsum("im,erm->ire", env.C3, env.T2).reshape(-1, env.T2.shape[0])
     t3_g = xp.einsum("hdi,udlr->hiulr", env.T3, double_layer)
     t3_g = _transpose(xp, t3_g, (0, 3, 2, 1, 4)).reshape(c4_g.shape[0], d2, c3_g.shape[0])
+    if projector_method == "full-svd":
+        if tensor is None:
+            raise ValueError("full-svd CTMRG projectors require resident raw tensors")
+        left_projector, right_projector, discarded = full_svd_projectors(
+            xp,
+            env,
+            tensor,
+            chi,
+            "bottom",
+            differentiate_truncation=differentiate_truncation,
+        )
+        virtual = int(tensor.shape[1])
+        left_projector = swap_fused_pair_rows(xp, left_projector, int(env.C1.shape[0]), virtual)
+        right_projector = swap_fused_pair_columns(xp, right_projector, int(env.C1.shape[0]), virtual)
+        c4 = right_projector @ c4_g
+        c3 = xp.conj(left_projector).T @ c3_g
+        t3 = xp.einsum("ai,idj,jb->adb", right_projector, t3_g, left_projector)
+        return CTMEnvironment(env.C1, env.C2, c3, c4, env.T1, env.T2, t3, env.T4), discarded
     c4, c3, t3, discarded = _ctm_move(xp, c4_g, c3_g, t3_g, chi, differentiate_truncation)
     return CTMEnvironment(env.C1, env.C2, c3, c4, env.T1, env.T2, t3, env.T4), discarded
 
@@ -298,12 +419,29 @@ def _left_move_two_site(
     neighbor_layer: Any,
     chi: int,
     differentiate_truncation: bool = True,
+    neighbor_tensor: Any | None = None,
+    projector_method: str = "half-density",
 ) -> tuple[CTMEnvironment, float]:
     d2 = int(neighbor_layer.shape[0])
     c1_g = xp.einsum("ab,buc->auc", env_self.C1, env_neighbor.T1).reshape(-1, env_neighbor.T1.shape[2])
     c4_g = xp.einsum("gh,hdi->gdi", env_self.C4, env_neighbor.T3).reshape(-1, env_neighbor.T3.shape[2])
     t4_g = xp.einsum("alg,udlr->augdr", env_self.T4, neighbor_layer)
     t4_g = _transpose(xp, t4_g, (0, 1, 4, 2, 3)).reshape(c1_g.shape[0], d2, c4_g.shape[0])
+    if projector_method == "full-svd":
+        if neighbor_tensor is None:
+            raise ValueError("full-svd CTMRG projectors require resident raw tensors")
+        left_projector, right_projector, discarded = full_svd_projectors(
+            xp,
+            env_self,
+            neighbor_tensor,
+            chi,
+            "left",
+            differentiate_truncation=differentiate_truncation,
+        )
+        c1 = left_projector @ c1_g
+        c4 = xp.conj(right_projector).T @ c4_g
+        t4 = xp.einsum("ai,idj,jb->adb", left_projector, t4_g, right_projector)
+        return CTMEnvironment(c1, env_self.C2, env_self.C3, c4, env_self.T1, env_self.T2, env_self.T3, t4), discarded
     c1, c4, t4, discarded = _ctm_move(xp, c1_g, c4_g, t4_g, chi, differentiate_truncation)
     return CTMEnvironment(c1, env_self.C2, env_self.C3, c4, env_self.T1, env_self.T2, env_self.T3, t4), discarded
 
@@ -315,12 +453,29 @@ def _right_move_two_site(
     neighbor_layer: Any,
     chi: int,
     differentiate_truncation: bool = True,
+    neighbor_tensor: Any | None = None,
+    projector_method: str = "half-density",
 ) -> tuple[CTMEnvironment, float]:
     d2 = int(neighbor_layer.shape[0])
     c2_g = xp.einsum("ce,buc->eub", env_self.C2, env_neighbor.T1).reshape(-1, env_neighbor.T1.shape[0])
     c3_g = xp.einsum("im,hdi->mdh", env_self.C3, env_neighbor.T3).reshape(-1, env_neighbor.T3.shape[0])
     t2_g = xp.einsum("erm,udlr->eumdl", env_self.T2, neighbor_layer)
     t2_g = _transpose(xp, t2_g, (0, 1, 4, 2, 3)).reshape(c2_g.shape[0], d2, c3_g.shape[0])
+    if projector_method == "full-svd":
+        if neighbor_tensor is None:
+            raise ValueError("full-svd CTMRG projectors require resident raw tensors")
+        left_projector, right_projector, discarded = full_svd_projectors(
+            xp,
+            env_self,
+            neighbor_tensor,
+            chi,
+            "right",
+            differentiate_truncation=differentiate_truncation,
+        )
+        c2 = left_projector @ c2_g
+        c3 = xp.conj(right_projector).T @ c3_g
+        t2 = xp.einsum("ai,idj,jb->adb", left_projector, t2_g, right_projector)
+        return CTMEnvironment(env_self.C1, c2, c3, env_self.C4, env_self.T1, t2, env_self.T3, env_self.T4), discarded
     c2, c3, t2, discarded = _ctm_move(xp, c2_g, c3_g, t2_g, chi, differentiate_truncation)
     return CTMEnvironment(env_self.C1, c2, c3, env_self.C4, env_self.T1, t2, env_self.T3, env_self.T4), discarded
 
@@ -332,12 +487,29 @@ def _top_move_two_site(
     neighbor_layer: Any,
     chi: int,
     differentiate_truncation: bool = True,
+    neighbor_tensor: Any | None = None,
+    projector_method: str = "half-density",
 ) -> tuple[CTMEnvironment, float]:
     d2 = int(neighbor_layer.shape[0])
     c1_g = xp.einsum("ab,alg->blg", env_self.C1, env_neighbor.T4).reshape(-1, env_neighbor.T4.shape[2])
     c2_g = xp.einsum("ce,erm->crm", env_self.C2, env_neighbor.T2).reshape(-1, env_neighbor.T2.shape[2])
     t1_g = xp.einsum("buc,udlr->bcdlr", env_self.T1, neighbor_layer)
     t1_g = _transpose(xp, t1_g, (0, 3, 2, 1, 4)).reshape(c1_g.shape[0], d2, c2_g.shape[0])
+    if projector_method == "full-svd":
+        if neighbor_tensor is None:
+            raise ValueError("full-svd CTMRG projectors require resident raw tensors")
+        left_projector, right_projector, discarded = full_svd_projectors(
+            xp,
+            env_self,
+            neighbor_tensor,
+            chi,
+            "top",
+            differentiate_truncation=differentiate_truncation,
+        )
+        c1 = xp.conj(right_projector).T @ c1_g
+        c2 = left_projector @ c2_g
+        t1 = xp.einsum("ai,idj,jb->adb", xp.conj(right_projector).T, t1_g, xp.conj(left_projector).T)
+        return CTMEnvironment(c1, c2, env_self.C3, env_self.C4, t1, env_self.T2, env_self.T3, env_self.T4), discarded
     c1, c2, t1, discarded = _ctm_move(xp, c1_g, c2_g, t1_g, chi, differentiate_truncation)
     return CTMEnvironment(c1, c2, env_self.C3, env_self.C4, t1, env_self.T2, env_self.T3, env_self.T4), discarded
 
@@ -349,12 +521,29 @@ def _bottom_move_two_site(
     neighbor_layer: Any,
     chi: int,
     differentiate_truncation: bool = True,
+    neighbor_tensor: Any | None = None,
+    projector_method: str = "half-density",
 ) -> tuple[CTMEnvironment, float]:
     d2 = int(neighbor_layer.shape[0])
     c4_g = _transpose(xp, xp.einsum("gh,alg->hal", env_self.C4, env_neighbor.T4), (0, 2, 1)).reshape(-1, env_neighbor.T4.shape[0])
     c3_g = xp.einsum("im,erm->ire", env_self.C3, env_neighbor.T2).reshape(-1, env_neighbor.T2.shape[0])
     t3_g = xp.einsum("hdi,udlr->hiulr", env_self.T3, neighbor_layer)
     t3_g = _transpose(xp, t3_g, (0, 3, 2, 1, 4)).reshape(c4_g.shape[0], d2, c3_g.shape[0])
+    if projector_method == "full-svd":
+        if neighbor_tensor is None:
+            raise ValueError("full-svd CTMRG projectors require resident raw tensors")
+        left_projector, right_projector, discarded = full_svd_projectors(
+            xp,
+            env_self,
+            neighbor_tensor,
+            chi,
+            "bottom",
+            differentiate_truncation=differentiate_truncation,
+        )
+        c4 = right_projector @ c4_g
+        c3 = xp.conj(left_projector).T @ c3_g
+        t3 = xp.einsum("ai,idj,jb->adb", right_projector, t3_g, left_projector)
+        return CTMEnvironment(env_self.C1, env_self.C2, c3, c4, env_self.T1, env_self.T2, t3, env_self.T4), discarded
     c4, c3, t3, discarded = _ctm_move(xp, c4_g, c3_g, t3_g, chi, differentiate_truncation)
     return CTMEnvironment(env_self.C1, env_self.C2, c3, c4, env_self.T1, env_self.T2, t3, env_self.T4), discarded
 
@@ -367,6 +556,8 @@ def _unit_cell_sweep(
     unit_cell: list[int],
     renormalize: Any = None,
     differentiate_truncation: bool = True,
+    tensors: list[Any] | None = None,
+    projector_method: str = "half-density",
 ) -> tuple[list[CTMEnvironment], float]:
     """Run one periodic unit-cell CTM sweep for 2, 3, or 4 tensors.
 
@@ -379,6 +570,8 @@ def _unit_cell_sweep(
     nx, ny = (int(value) for value in unit_cell)
     if len(environments) != nx * ny or len(layers) != nx * ny:
         raise ValueError("unit-cell CTMRG sweep tensor/environment count mismatch")
+    if projector_method == "full-svd" and (tensors is None or len(tensors) != nx * ny):
+        raise ValueError("full-svd CTMRG projectors require resident raw tensors for every unit-cell site")
 
     def site_index(x: int, y: int) -> int:
         return (x % nx) + nx * (y % ny)
@@ -410,6 +603,8 @@ def _unit_cell_sweep(
                 layers[neighbor],
                 chi,
                 differentiate_truncation,
+                None if tensors is None else tensors[neighbor],
+                projector_method,
             )
             discarded_total += discarded
     normalize = renormalize or _renormalize
@@ -552,7 +747,7 @@ def _term_expectation(xp: Any, env: CTMEnvironment, tensor: Any, term: PauliTerm
         raise ValueError("one-site CTMRG onsite terms must act on at most one unit-cell site")
     pauli = next(iter(term.paulis.values()), "I")
     dtype = tensor.dtype
-    op = _pauli_matrix(xp, dtype, str(pauli))
+    op = _pauli_matrix(xp, dtype, str(pauli), getattr(tensor, "device", None))
     numerator = _environment_contraction(xp, env, _double_layer(xp, tensor, op))
     denominator = _environment_contraction(xp, env, _double_layer(xp, tensor))
     return _real(numerator / (denominator + 1e-30))
@@ -670,8 +865,8 @@ def _interaction_expectation(
     if (abs(dx), abs(dy)) not in ((1, 0), (0, 1)):
         return None
     dtype = tensor.dtype
-    left_operator = _pauli_matrix(xp, dtype, left_pauli)
-    right_operator = _pauli_matrix(xp, dtype, right_pauli)
+    left_operator = _pauli_matrix(xp, dtype, left_pauli, getattr(tensor, "device", None))
+    right_operator = _pauli_matrix(xp, dtype, right_pauli, getattr(tensor, "device", None))
     left = _double_layer(xp, tensor, left_operator)
     right = _double_layer(xp, tensor, right_operator)
     identity = _double_layer(xp, tensor)
@@ -702,8 +897,8 @@ def _interaction_expectation_cell(
     left_tensor = tensors[int(left_site)]
     right_tensor = tensors[int(right_site)]
     dtype = left_tensor.dtype
-    left_layer = _double_layer(xp, left_tensor, _pauli_matrix(xp, dtype, left_pauli))
-    right_layer = _double_layer(xp, right_tensor, _pauli_matrix(xp, dtype, right_pauli))
+    left_layer = _double_layer(xp, left_tensor, _pauli_matrix(xp, dtype, left_pauli, getattr(left_tensor, "device", None)))
+    right_layer = _double_layer(xp, right_tensor, _pauli_matrix(xp, dtype, right_pauli, getattr(right_tensor, "device", None)))
     left_identity = _double_layer(xp, left_tensor)
     right_identity = _double_layer(xp, right_tensor)
     if abs(dx) == 1:
@@ -730,12 +925,20 @@ def _resource_summary(
     iterations: int,
     unit_cell: list[int],
 ) -> dict[str, Any]:
+    def element_count(value: Any) -> int:
+        numel = getattr(value, "numel", None)
+        if callable(numel):
+            return int(numel())
+        size = getattr(value, "size", 0)
+        return int(size() if callable(size) else size)
+
     env_list = environments if isinstance(environments, list) else [environments]
     tensor_list = tensors if isinstance(tensors, list) else [tensors]
-    values = sum(int(item.size) for env in env_list for item in env.tensors())
-    values += sum(int(tensor.size) for tensor in tensor_list)
+    values = sum(element_count(item) for env in env_list for item in env.tensors())
+    values += sum(element_count(tensor) for tensor in tensor_list)
     tensor = tensor_list[0]
-    itemsize = int(getattr(tensor.dtype, "itemsize", 8))
+    itemsize_value = getattr(tensor, "element_size", None)
+    itemsize = int(itemsize_value() if callable(itemsize_value) else getattr(tensor.dtype, "itemsize", 8))
     return {
         "representation": "ipeps",
         "unit_cell": list(unit_cell),
@@ -748,7 +951,7 @@ def _resource_summary(
         "peak_bytes_estimate": int(math.ceil(values * itemsize * 3.0)),
         "iterations": int(iterations),
         "materializes_statevector": False,
-        "device": "cuda" if hasattr(xp, "cuda") else "cpu",
+        "device": _device_name(xp, tensor),
     }
 
 
@@ -893,7 +1096,7 @@ def run_ctmrg(
                 method="ipeps-ctmrg-contraction",
                 representation="ipeps",
                 dtype=payload.dtype,
-                device="cuda" if hasattr(xp, "cuda") else "cpu",
+                device=_device_name(xp, tensors[0] if tensors else None),
                 step=iteration,
                 created_at=datetime.now(timezone.utc).isoformat(),
                 metadata={
@@ -916,14 +1119,30 @@ def run_ctmrg(
         before = list(environments)
         if len(environments) == 1:
             env = environments[0]
-            env, left_discarded = _left_move(xp, env, layers[0], chi)
-            env, right_discarded = _right_move(xp, env, layers[0], chi)
-            env, top_discarded = _top_move(xp, env, layers[0], chi)
-            env, bottom_discarded = _bottom_move(xp, env, layers[0], chi)
+            env, left_discarded = _left_move(
+                xp, env, layers[0], chi, tensor=tensors[0], projector_method=payload.ctmrg_projector
+            )
+            env, right_discarded = _right_move(
+                xp, env, layers[0], chi, tensor=tensors[0], projector_method=payload.ctmrg_projector
+            )
+            env, top_discarded = _top_move(
+                xp, env, layers[0], chi, tensor=tensors[0], projector_method=payload.ctmrg_projector
+            )
+            env, bottom_discarded = _bottom_move(
+                xp, env, layers[0], chi, tensor=tensors[0], projector_method=payload.ctmrg_projector
+            )
             environments = [_renormalize(xp, env)]
             discarded_sweep = left_discarded + right_discarded + top_discarded + bottom_discarded
         else:
-            environments, discarded_sweep = _unit_cell_sweep(xp, environments, layers, chi, unit_cell)
+            environments, discarded_sweep = _unit_cell_sweep(
+                xp,
+                environments,
+                layers,
+                chi,
+                unit_cell,
+                tensors=tensors,
+                projector_method=payload.ctmrg_projector,
+            )
         discarded_total += discarded_sweep
         residual = max(
             _environment_residual(xp, old, new)
@@ -1038,6 +1257,10 @@ def run_ctmrg(
     warnings = [
         "compare environment_bond_dim and iteration convergence before using values as scientific conclusions",
     ]
+    if payload.ctmrg_projector == "full-svd":
+        warnings.append(
+            "full-svd CTMRG projector is an opt-in entangled research path; it remains needs_review until paired-gauge and independent-reference gates pass"
+        )
     if raw_residual > max(float(payload.tolerance) * 10.0, 1e-6) and residual <= float(payload.tolerance):
         warnings.append(
             f"raw boundary-basis residual is {raw_residual:.3e}; convergence uses a gauge-invariant environment spectrum"
@@ -1205,6 +1428,7 @@ def run_ctmrg(
         limitations=limitations,
         details={
             "initial_state": payload.initial_state,
+            "ctmrg_projector": payload.ctmrg_projector,
             "environment_shapes": [[list(item.shape) for item in env.tensors()] for env in environments],
             "optimization": (
                 {key: value for key, value in optimization_info.items() if key not in {"states", "tensors"}}
@@ -1224,6 +1448,7 @@ def run_ctmrg(
         "backend": "tensor-network-ctmrg",
         "method": result_method,
         "representation": "ipeps",
+        "ctmrg_projector": payload.ctmrg_projector,
         "unit_cell": unit_cell,
         "unit_cell_sites": len(tensors),
         "tensor_source": (

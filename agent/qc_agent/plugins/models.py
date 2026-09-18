@@ -229,6 +229,7 @@ class CTMRGPayload(BaseModel):
     virtual_bond_dim: int = Field(default=1, ge=1, le=8)
     tensor_data: list[list[float]] | None = Field(default=None, max_length=32768)
     environment_bond_dim: int = Field(default=16, ge=1, le=128)
+    ctmrg_projector: Literal["half-density", "full-svd"] = "half-density"
     iterations: int = Field(default=20, ge=1, le=200)
     tolerance: float = Field(default=1e-8, gt=0, le=1.0)
     optimization: Literal["none", "product-coordinate-descent", "simple-update", "full-update"] = "none"
@@ -279,6 +280,8 @@ class CTMRGPayload(BaseModel):
     @model_validator(mode="after")
     def validate_payload(self):
         cell_sites = math.prod(self.unit_cell)
+        if self.ctmrg_projector == "full-svd" and self.virtual_bond_dim > 2:
+            raise ValueError("full-svd CTMRG projectors currently require virtual_bond_dim<=2")
         if self.optimization != "none" and (self.checkpoint_path is not None or self.resume_from is not None):
             raise ValueError(
                 "CTMRG optimizer checkpoint/resume is not supported yet; checkpointing currently covers contraction-only runs"

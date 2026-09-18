@@ -1,0 +1,31 @@
+{
+  "artifact": "ctmrg-full-svd-projector-gate",
+  "date": "2026-09-18",
+  "git_revision": "working-tree-after-8888a95",
+  "policy": "full-svd",
+  "scope": {
+    "physical_bond_dim": 2,
+    "virtual_bond_dim": 2,
+    "environment_bond_dim": 2,
+    "unit_cell": [1, 1],
+    "dtype": "complex128",
+    "iterations": 6
+  },
+  "product_limit": {
+    "passed": true,
+    "energy": 1.5,
+    "research_gate_status": "passed"
+  },
+  "ghz_reference": {
+    "passed": false,
+    "energy": -1.200000212110748e-09,
+    "onsite_z": -1.200000212110748e-09,
+    "interaction_zz": 0.0,
+    "research_gate_status": "needs_review",
+    "production_ready": false,
+    "reason": "independent analytic GHZ transfer-fixed-point reference failed"
+  },
+  "decision": "keep-opt-in-experimental",
+  "next_action": "validate quarter-index ordering and biorthogonal absorption before rerunning the entangled gate",
+  "resource_note": "bounded CPU reference only; no unrelated high-RAM process was touched"
+}

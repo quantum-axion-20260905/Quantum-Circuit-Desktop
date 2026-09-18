@@ -256,8 +256,16 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
     edge_values = 4 * environment_bond_dim * double_layer_dim * environment_bond_dim
     iteration_values = tensor_values + double_layer_values + corner_values + edge_values
     iteration_values += finite_reference_state_values
-    peak_mb = iteration_values * bytes_per_value * 3.0 / (1024 * 1024)
     work = max(1, int(payload.iterations)) * max(1, cell_sites) * max(1, environment_bond_dim) ** 3 * max(1, double_layer_dim)
+    projector = getattr(payload, "ctmrg_projector", "half-density")
+    if projector == "full-svd":
+        # Full projectors form four quarter matrices with row/column size
+        # chi*D**2 and retain temporary SVD workspaces.  Keep this explicit in
+        # admission so a research policy cannot bypass the memory estimate.
+        quarter_matrix_dim = environment_bond_dim * max(1, double_layer_dim)
+        iteration_values += 8 * quarter_matrix_dim * quarter_matrix_dim
+        work *= max(1, quarter_matrix_dim) ** 3
+    peak_mb = iteration_values * bytes_per_value * 3.0 / (1024 * 1024)
     if getattr(payload, "optimization", "none") != "none":
         work += max(1, int(getattr(payload, "optimization_steps", 1))) * max(1, cell_sites) * 16
     estimated_full_update_evaluations = None
@@ -307,6 +315,10 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         warnings.append("current CTMRG solver supports only physical_bond_dim=2 for Pauli observables")
     if virtual_bond_dim > 1 and payload.dtype == "complex64":
         warnings.append("complex64 entangled iPEPS runs may lose transfer-sector precision; complex128 is recommended for reference-quality observables")
+    if projector == "full-svd":
+        warnings.append("full-svd CTMRG projector is an opt-in entangled research path; paired-gauge and independent-reference gates remain mandatory")
+        if virtual_bond_dim > 2:
+            warnings.append("full-svd CTMRG projectors currently require virtual_bond_dim<=2")
     if getattr(payload, "optimization", "none") == "product-coordinate-descent" and virtual_bond_dim != 1:
         warnings.append("product-coordinate-descent optimization requires virtual_bond_dim=1")
     if getattr(payload, "optimization", "none") == "full-update":
@@ -359,7 +371,7 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         warnings.append(f"estimated CTMRG environment memory {peak_mb:.1f} MB exceeds 70% of currently free GPU memory")
     if estimated_ms > int(payload.max_time_ms):
         warnings.append(f"estimated CTMRG time {estimated_ms} ms exceeds time budget")
-    blocking_warnings = [warning for warning in warnings if "exceeds" in warning or "current CTMRG solver supports" in warning or "product-coordinate-descent optimization requires" in warning or "full-update tensor parameter count" in warning or "full-update estimated evaluations" in warning or "finite-torus-gradient requires" in warning or "finite-torus-gradient supports" in warning or "gauge validation requires" in warning]
+    blocking_warnings = [warning for warning in warnings if "exceeds" in warning or "current CTMRG solver supports" in warning or "product-coordinate-descent optimization requires" in warning or "full-update tensor parameter count" in warning or "full-update estimated evaluations" in warning or "finite-torus-gradient requires" in warning or "finite-torus-gradient supports" in warning or "gauge validation requires" in warning or "full-svd CTMRG projectors currently require" in warning]
     return {
         "status": "ready" if not blocking_warnings else "rejected",
         "feasible": not blocking_warnings,
