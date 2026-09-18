@@ -13,6 +13,7 @@ import math
 from typing import Any
 
 from ..plugins.models import CTMRGPayload
+from .ctmrg_objective import CTMRGObjective, normalize_tensors
 
 
 def _host(value: Any) -> Any:
@@ -258,19 +259,6 @@ def run_simple_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dic
     }
 
 
-def _tensor_data_pairs(tensors: list[Any]) -> list[list[float]]:
-    pairs: list[list[float]] = []
-    for tensor in tensors:
-        for value in _host(tensor).reshape(-1):
-            complex_value = complex(value)
-            pairs.append([float(complex_value.real), float(complex_value.imag)])
-    return pairs
-
-
-def _normalize_tensors(xp: Any, tensors: list[Any]) -> list[Any]:
-    return [tensor / (xp.linalg.norm(tensor) + 1e-30) for tensor in tensors]
-
-
 def _run_finite_difference_full_update(
     xp: Any,
     payload: CTMRGPayload,
@@ -293,28 +281,14 @@ def _run_finite_difference_full_update(
             f"full-update tensor parameter count {parameter_count} exceeds "
             f"full_update_max_parameters={payload.full_update_max_parameters}"
         )
-    working = _normalize_tensors(xp, [tensor.copy() for tensor in tensors])
-    objective_payload = payload.model_copy(update={
-        "tensor_data": _tensor_data_pairs(working),
-        "optimization": "none",
-        "checkpoint_path": None,
-        "resume_from": None,
-    })
-    evaluations = 0
+    working = normalize_tensors(xp, [tensor.copy() for tensor in tensors])
+    objective = CTMRGObjective(xp, payload, run_ctmrg)
     max_evaluations = int(payload.full_update_max_evaluations)
     budget_exhausted = False
 
     def evaluate(candidate: list[Any]) -> float | None:
-        nonlocal evaluations
-        if evaluations >= max_evaluations:
-            return None
-        candidate = _normalize_tensors(xp, candidate)
-        objective_payload.tensor_data = _tensor_data_pairs(candidate)
-        result = run_ctmrg(xp, objective_payload)
-        evaluations += 1
-        if not result.get("energy_complete", False):
-            raise ValueError("full-update requires complete nearest-neighbor interaction energy")
-        return float(result["energy"])
+        result = objective.evaluate(candidate)
+        return None if result is None else float(result["energy"])
 
     current_energy = evaluate(working)
     if current_energy is None:
@@ -324,7 +298,7 @@ def _run_finite_difference_full_update(
     epsilon = float(payload.full_update_gradient_epsilon)
 
     for iteration in range(1, int(payload.optimization_steps) + 1):
-        if evaluations + 2 * parameter_count > max_evaluations:
+        if objective.evaluations + 2 * parameter_count > max_evaluations:
             budget_exhausted = True
             break
         gradients: list[tuple[int, int, complex]] = []
@@ -358,7 +332,7 @@ def _run_finite_difference_full_update(
                 "improvement": 0.0,
                 "gradient_norm": math.sqrt(gradient_squared_norm),
                 "accepted_updates": 0,
-                "evaluations": evaluations,
+                "evaluations": objective.evaluations,
                 "parameter_count": parameter_count,
                 "evaluation_budget_exhausted": True,
             })
@@ -369,7 +343,7 @@ def _run_finite_difference_full_update(
         accepted_energy = current_energy
         accepted_candidate: list[Any] | None = None
         for scale in (1.0, 0.5, 0.25, 0.125):
-            if evaluations >= max_evaluations:
+            if objective.evaluations >= max_evaluations:
                 budget_exhausted = True
                 break
             candidate = [tensor.copy() for tensor in working]
@@ -379,7 +353,7 @@ def _run_finite_difference_full_update(
             candidate_energy = evaluate(candidate)
             if candidate_energy is not None and candidate_energy < accepted_energy - float(payload.optimization_tolerance):
                 accepted_energy = candidate_energy
-                accepted_candidate = _normalize_tensors(xp, candidate)
+                accepted_candidate = normalize_tensors(xp, candidate)
                 break
         if accepted_candidate is not None:
             working = accepted_candidate
@@ -391,7 +365,7 @@ def _run_finite_difference_full_update(
             "improvement": improvement,
             "gradient_norm": gradient_norm,
             "accepted_updates": 1 if accepted_candidate is not None else 0,
-            "evaluations": evaluations,
+            "evaluations": objective.evaluations,
             "parameter_count": parameter_count,
             "evaluation_budget_exhausted": budget_exhausted,
         })
@@ -404,7 +378,7 @@ def _run_finite_difference_full_update(
         "energy_history": history,
         "initial_energy": initial_energy,
         "final_energy": current_energy,
-        "evaluations": evaluations,
+        "evaluations": objective.evaluations,
         "parameter_count": parameter_count,
         "optimizer": "finite-difference-gradient",
         "gradient_backend": "bounded-finite-difference",
@@ -461,28 +435,14 @@ def _run_spsa_full_update(
             f"full-update tensor parameter count {parameter_count} exceeds "
             f"full_update_max_parameters={payload.full_update_max_parameters}"
         )
-    working = _normalize_tensors(xp, [tensor.copy() for tensor in tensors])
-    objective_payload = payload.model_copy(update={
-        "tensor_data": _tensor_data_pairs(working),
-        "optimization": "none",
-        "checkpoint_path": None,
-        "resume_from": None,
-    })
-    evaluations = 0
+    working = normalize_tensors(xp, [tensor.copy() for tensor in tensors])
+    objective = CTMRGObjective(xp, payload, run_ctmrg)
     max_evaluations = int(payload.full_update_max_evaluations)
     budget_exhausted = False
 
     def evaluate(candidate: list[Any]) -> float | None:
-        nonlocal evaluations
-        if evaluations >= max_evaluations:
-            return None
-        candidate = _normalize_tensors(xp, candidate)
-        objective_payload.tensor_data = _tensor_data_pairs(candidate)
-        result = run_ctmrg(xp, objective_payload)
-        evaluations += 1
-        if not result.get("energy_complete", False):
-            raise ValueError("full-update requires complete nearest-neighbor interaction energy")
-        return float(result["energy"])
+        result = objective.evaluate(candidate)
+        return None if result is None else float(result["energy"])
 
     current_energy = evaluate(working)
     if current_energy is None:
@@ -493,7 +453,7 @@ def _run_spsa_full_update(
     direction_count = int(payload.full_update_spsa_directions)
 
     for iteration in range(1, int(payload.optimization_steps) + 1):
-        if evaluations + 2 * direction_count > max_evaluations:
+        if objective.evaluations + 2 * direction_count > max_evaluations:
             budget_exhausted = True
             break
         averaged_gradient: list[Any] = [xp.zeros_like(tensor) for tensor in working]
@@ -528,7 +488,7 @@ def _run_spsa_full_update(
         accepted_energy = current_energy
         accepted_candidate: list[Any] | None = None
         for scale in (1.0, 0.5, 0.25, 0.125):
-            if evaluations >= max_evaluations:
+            if objective.evaluations >= max_evaluations:
                 budget_exhausted = True
                 break
             candidate = [
@@ -538,7 +498,7 @@ def _run_spsa_full_update(
             candidate_energy = evaluate(candidate)
             if candidate_energy is not None and candidate_energy < accepted_energy - float(payload.optimization_tolerance):
                 accepted_energy = candidate_energy
-                accepted_candidate = _normalize_tensors(xp, candidate)
+                accepted_candidate = normalize_tensors(xp, candidate)
                 break
         if accepted_candidate is not None:
             working = accepted_candidate
@@ -552,7 +512,7 @@ def _run_spsa_full_update(
             "gradient_scales": gradient_scales,
             "direction_count": direction_count,
             "accepted_updates": 1 if accepted_candidate is not None else 0,
-            "evaluations": evaluations,
+            "evaluations": objective.evaluations,
             "parameter_count": parameter_count,
             "evaluation_budget_exhausted": budget_exhausted,
         })
@@ -565,7 +525,7 @@ def _run_spsa_full_update(
         "energy_history": history,
         "initial_energy": initial_energy,
         "final_energy": current_energy,
-        "evaluations": evaluations,
+        "evaluations": objective.evaluations,
         "parameter_count": parameter_count,
         "optimizer": "spsa-gradient",
         "gradient_backend": "deterministic-simultaneous-perturbation",
@@ -610,27 +570,14 @@ def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[
             f"full-update tensor parameter count {parameter_count} exceeds "
             f"full_update_max_parameters={payload.full_update_max_parameters}"
         )
-    working = _normalize_tensors(xp, [tensor.copy() for tensor in tensors])
-    objective_payload = payload.model_copy(update={
-        "tensor_data": _tensor_data_pairs(working),
-        "optimization": "none",
-        "checkpoint_path": None,
-        "resume_from": None,
-    })
-
-    evaluations = 0
+    working = normalize_tensors(xp, [tensor.copy() for tensor in tensors])
+    objective = CTMRGObjective(xp, payload, run_ctmrg)
     max_evaluations = int(payload.full_update_max_evaluations)
 
     def evaluate(candidate: list[Any]) -> float:
-        nonlocal evaluations
-        if evaluations >= max_evaluations:
+        result = objective.evaluate(candidate)
+        if result is None:
             raise ValueError("full-update evaluation budget exhausted")
-        candidate = _normalize_tensors(xp, candidate)
-        objective_payload.tensor_data = _tensor_data_pairs(candidate)
-        result = run_ctmrg(xp, objective_payload)
-        evaluations += 1
-        if not result.get("energy_complete", False):
-            raise ValueError("full-update requires complete nearest-neighbor interaction energy")
         return float(result["energy"])
 
     current_energy = evaluate(working)
@@ -649,7 +596,7 @@ def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[
                         flat = candidate[site].reshape(-1)
                         delta = step * sign if component == 0 else 1j * step * sign
                         flat[flat_index] = flat[flat_index] + delta
-                        candidate = _normalize_tensors(xp, candidate)
+                        candidate = normalize_tensors(xp, candidate)
                         candidates.append((evaluate(candidate), candidate))
                     best_energy, best_candidate = min(candidates, key=lambda item: item[0])
                     if best_energy < current_energy - float(payload.optimization_tolerance):
@@ -662,7 +609,7 @@ def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[
             "energy": current_energy,
             "improvement": improvement,
             "accepted_updates": accepted_updates,
-            "evaluations": evaluations,
+            "evaluations": objective.evaluations,
             "parameter_count": component_count,
         })
         if improvement <= float(payload.optimization_tolerance):
@@ -673,11 +620,11 @@ def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[
         "energy_history": history,
         "initial_energy": history[0]["energy"] + history[0]["improvement"] if history else current_energy,
         "final_energy": current_energy,
-        "evaluations": evaluations,
+        "evaluations": objective.evaluations,
         "parameter_count": component_count,
         "optimizer": "coordinate",
         "gradient_backend": None,
         "evaluation_budget": max_evaluations,
-        "evaluation_budget_exhausted": evaluations >= max_evaluations,
+        "evaluation_budget_exhausted": objective.evaluations >= max_evaluations,
         "converged": bool(history and history[-1]["improvement"] <= float(payload.optimization_tolerance)),
     }

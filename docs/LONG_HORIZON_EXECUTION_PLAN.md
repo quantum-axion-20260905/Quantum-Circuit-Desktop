@@ -302,6 +302,11 @@ but not released:
   format with request/dtype/shape validation, iteration/history/evaluation
   persistence, and partial-resume equivalence tests; unsupported optimizer
   checkpoint combinations remain rejected before execution.
+- all CTMRG-feedback optimizer policies now share a bounded CTMRG objective
+  seam; inner candidate evaluations can pass backend-resident tensors directly
+  without flattening them through the public host-side `tensor_data` request,
+  preserving a clean insertion point for a future AD or implicit-gradient
+  backend and reducing unnecessary GPU-to-host copies.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.

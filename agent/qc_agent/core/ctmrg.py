@@ -658,15 +658,42 @@ def run_ctmrg(
     *,
     progress_cb: Any = None,
     cancel_cb: Any = None,
+    tensors: list[Any] | None = None,
 ) -> dict[str, Any]:
-    """Run bounded one-site or two-site checkerboard CTMRG contraction."""
+    """Run bounded one-site or two-site checkerboard CTMRG contraction.
+
+    ``tensors`` is an internal optimizer seam: when supplied, the solver uses
+    the already resident backend tensors directly instead of serializing a
+    candidate through the public ``tensor_data`` request field. This avoids a
+    GPU-to-host round trip for every variational objective evaluation while
+    preserving the public request contract for ordinary jobs.
+    """
 
     unit_cell = list(payload.unit_cell)
     if unit_cell not in ([1, 1], [2, 1], [1, 2], [2, 2]):
         raise ValueError("the current CTMRG solver supports unit_cell dimensions no larger than 2x2")
 
     started = time.perf_counter()
-    tensors = _build_tensors(xp, payload)
+    if tensors is None:
+        tensors = _build_tensors(xp, payload)
+    else:
+        expected_dtype = xp.complex64 if payload.dtype == "complex64" else xp.complex128
+        expected_shape = (
+            int(payload.physical_bond_dim),
+            int(payload.virtual_bond_dim),
+            int(payload.virtual_bond_dim),
+            int(payload.virtual_bond_dim),
+            int(payload.virtual_bond_dim),
+        )
+        if len(tensors) != math.prod(payload.unit_cell):
+            raise ValueError("runtime CTMRG tensor count does not match the unit cell")
+        for index, tensor in enumerate(tensors):
+            if tuple(int(size) for size in tensor.shape) != expected_shape:
+                raise ValueError(f"runtime CTMRG tensor_{index} shape does not match the request")
+            if tensor.dtype != expected_dtype:
+                raise ValueError(f"runtime CTMRG tensor_{index} dtype does not match the request")
+            if not bool(_host(xp.all(xp.isfinite(tensor)))):
+                raise ValueError(f"runtime CTMRG tensor_{index} contains non-finite values")
     optimization_info: dict[str, Any] | None = None
     if payload.optimization != "none":
         if payload.optimization == "product-coordinate-descent" and int(payload.virtual_bond_dim) != 1:
