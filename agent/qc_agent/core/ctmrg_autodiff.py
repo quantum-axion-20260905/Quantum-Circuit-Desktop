@@ -291,6 +291,7 @@ def _ctmrg_sweep(
 
     from .ctmrg import (
         _bottom_move,
+        _blend_environments,
         _left_move,
         _right_move,
         _top_move,
@@ -305,8 +306,9 @@ def _ctmrg_sweep(
         env, _ = _right_move(torch, env, layers[0], chi, differentiate_truncation, tensor, payload.ctmrg_projector)
         env, _ = _top_move(torch, env, layers[0], chi, differentiate_truncation, tensor, payload.ctmrg_projector)
         env, _ = _bottom_move(torch, env, layers[0], chi, differentiate_truncation, tensor, payload.ctmrg_projector)
-        return [_renormalize(torch, torch, env)]
-    environments, _ = _unit_cell_sweep(
+        candidate = _renormalize(torch, torch, env)
+        return _blend_environments(torch, environments, [candidate], float(payload.environment_damping))
+    candidates, _ = _unit_cell_sweep(
         torch,
         environments,
         layers,
@@ -317,7 +319,7 @@ def _ctmrg_sweep(
         tensors=tensors,
         projector_method=payload.ctmrg_projector,
     )
-    return environments
+    return _blend_environments(torch, environments, candidates, float(payload.environment_damping))
 
 
 def _environment_energy(torch: Any, payload: CTMRGPayload, environments: list[Any], tensors: list[Any]) -> Any:

@@ -79,6 +79,25 @@ class CTMRGAutodiffTests(unittest.TestCase):
         self.assertEqual(diagnostics["truncation_gradient"], "differentiable-eigh")
         self.assertTrue(bool(torch.isfinite(gradient).all()))
 
+    def test_unrolled_autodiff_honors_environment_damping(self):
+        import torch
+
+        from qc_agent.core.ctmrg_autodiff import differentiable_ctmrg_energy
+
+        tensor = torch.tensor(
+            [1.0 / math.sqrt(2.0), 1.0 / math.sqrt(2.0)],
+            dtype=torch.complex64,
+        ).reshape(2, 1, 1, 1, 1).requires_grad_(True)
+        payload = _payload().model_copy(update={
+            "environment_damping": 0.25,
+            "iterations": 4,
+        })
+        energy, diagnostics = differentiable_ctmrg_energy(torch, payload, [tensor])
+        gradient = torch.autograd.grad(energy, [tensor])[0]
+        self.assertAlmostEqual(float(energy.detach()), -1.0, places=5)
+        self.assertTrue(bool(torch.isfinite(gradient).all()))
+        self.assertEqual(diagnostics["gradient_backend"], "torch-autograd-unrolled-ctmrg")
+
     def test_implicit_fixed_point_gradient_matches_central_difference(self):
         import torch
 
