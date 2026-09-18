@@ -628,7 +628,11 @@ def _problem_sha256(payload: CTMRGPayload) -> str:
 
     data = payload.model_dump(
         mode="json",
-        exclude={"iterations", "tolerance", "max_time_ms", "max_mem_mb", "checkpoint_path", "resume_from"},
+        exclude={
+            "iterations", "tolerance", "max_time_ms", "max_mem_mb",
+            "checkpoint_path", "resume_from", "optimizer_checkpoint_path",
+            "optimizer_resume_from",
+        },
     )
     return sha256_json(data)
 

@@ -21,6 +21,7 @@ from .contracts import CHECKPOINT_SCHEMA, CheckpointManifest
 
 _TENSOR_NAME = re.compile(r"tensor_(\d+)$")
 _BOUNDARY_TENSOR_NAME = re.compile(r"boundary_tensor_(\d+)$")
+_OPTIMIZER_TENSOR_NAME = re.compile(r"optimizer_tensor_(\d+)$")
 _CTM_NAMES = ("C1", "C2", "C3", "C4", "T1", "T2", "T3", "T4")
 
 
@@ -206,6 +207,99 @@ def load_boundary_mps_checkpoint(
             raise ValueError("boundary-MPS checkpoint tensor entries are incomplete or non-contiguous")
         host_tensors = [archive[name] for _, name in tensor_entries]
         _validate_boundary_tensors(host_tensors)
+        tensors = [xp.asarray(tensor) for tensor in host_tensors]
+    return manifest, tensors
+
+
+def _validate_optimizer_tensors(tensors: list[Any]) -> None:
+    """Validate optimizer tensor entries without imposing an MPS shape."""
+
+    if not tensors:
+        raise ValueError("an optimizer checkpoint needs at least one tensor")
+    for index, tensor in enumerate(tensors):
+        if getattr(tensor, "ndim", None) is None or int(tensor.ndim) < 1:
+            raise ValueError(f"optimizer_tensor_{index} must have at least one dimension")
+        if any(int(size) <= 0 for size in tensor.shape):
+            raise ValueError(f"optimizer_tensor_{index} dimensions must be positive")
+        host = _to_host(tensor)
+        if not np.all(np.isfinite(host)):
+            raise ValueError(f"optimizer_tensor_{index} contains non-finite values")
+
+
+def save_optimizer_checkpoint(
+    path: str | os.PathLike[str],
+    tensors: list[Any],
+    manifest: CheckpointManifest,
+) -> dict[str, Any]:
+    """Atomically persist a variational optimizer tensor state."""
+
+    _validate_optimizer_tensors(tensors)
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    manifest_dict = manifest.to_dict()
+    metadata = dict(manifest_dict.get("metadata", {}))
+    metadata.setdefault("tensor_count", len(tensors))
+    metadata.setdefault("tensor_shapes", [list(tensor.shape) for tensor in tensors])
+    metadata.setdefault("representation", "ipeps-optimizer-state")
+    manifest_dict["metadata"] = metadata
+    arrays = {
+        f"optimizer_tensor_{index}": _to_host(tensor)
+        for index, tensor in enumerate(tensors)
+    }
+    temporary_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", dir=target.parent, prefix=f".{target.name}.", suffix=".tmp", delete=False
+        ) as handle:
+            temporary_path = handle.name
+            np.savez_compressed(
+                handle,
+                manifest=np.asarray(json.dumps(manifest_dict, sort_keys=True)),
+                **arrays,
+            )
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, target)
+    except Exception:
+        if temporary_path:
+            try:
+                os.unlink(temporary_path)
+            except FileNotFoundError:
+                pass
+        raise
+    return manifest_dict
+
+
+def load_optimizer_checkpoint(
+    path: str | os.PathLike[str],
+    xp: Any = np,
+) -> tuple[dict[str, Any], list[Any]]:
+    """Load and validate a variational optimizer tensor state."""
+
+    source = Path(path)
+    with np.load(source, allow_pickle=False) as archive:
+        if "manifest" not in archive.files:
+            raise ValueError("optimizer checkpoint is missing its manifest")
+        raw_manifest = archive["manifest"].item()
+        manifest = json.loads(str(raw_manifest))
+        if manifest.get("schema") != CHECKPOINT_SCHEMA:
+            raise ValueError("unsupported checkpoint schema")
+        if manifest.get("method") != "ipeps-finite-torus-gradient":
+            raise ValueError("checkpoint method is not ipeps-finite-torus-gradient")
+        if manifest.get("representation") != "ipeps-optimizer-state":
+            raise ValueError("checkpoint representation is not ipeps-optimizer-state")
+        if not manifest.get("resumable", False):
+            raise ValueError("checkpoint is marked non-resumable")
+        tensor_entries: list[tuple[int, str]] = []
+        for name in archive.files:
+            match = _OPTIMIZER_TENSOR_NAME.fullmatch(name)
+            if match:
+                tensor_entries.append((int(match.group(1)), name))
+        tensor_entries.sort()
+        if not tensor_entries or [index for index, _ in tensor_entries] != list(range(len(tensor_entries))):
+            raise ValueError("optimizer checkpoint tensor entries are incomplete or non-contiguous")
+        host_tensors = [archive[name] for _, name in tensor_entries]
+        _validate_optimizer_tensors(host_tensors)
         tensors = [xp.asarray(tensor) for tensor in host_tensors]
     return manifest, tensors
 

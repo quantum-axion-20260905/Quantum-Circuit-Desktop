@@ -11,9 +11,13 @@ from __future__ import annotations
 
 import itertools
 import math
+from datetime import datetime, timezone
 from typing import Any
 
 from ..plugins.models import CTMRGPayload
+from ..provenance import sha256_json
+from .checkpoints import load_optimizer_checkpoint, save_optimizer_checkpoint
+from .contracts import CheckpointManifest
 
 
 def _host(value: Any) -> Any:
@@ -224,6 +228,26 @@ def _normalize_tensors(xp: Any, tensors: list[Any]) -> list[Any]:
     return [tensor / (xp.linalg.norm(tensor) + 1e-30) for tensor in tensors]
 
 
+def _optimizer_request_sha256(payload: CTMRGPayload) -> str:
+    """Hash the scientific optimizer problem, excluding run/checkpoint controls."""
+
+    data = payload.model_dump(
+        mode="json",
+        exclude={
+            "optimization_steps",
+            "optimization_tolerance",
+            "full_update_max_evaluations",
+            "max_time_ms",
+            "max_mem_mb",
+            "checkpoint_path",
+            "resume_from",
+            "optimizer_checkpoint_path",
+            "optimizer_resume_from",
+        },
+    )
+    return sha256_json(data)
+
+
 def run_finite_torus_gradient(
     xp: Any,
     payload: CTMRGPayload,
@@ -237,10 +261,41 @@ def run_finite_torus_gradient(
             f"full-update tensor parameter count {parameter_count} exceeds "
             f"full_update_max_parameters={payload.full_update_max_parameters}"
         )
+    request_sha256 = _optimizer_request_sha256(payload)
     working = _normalize_tensors(xp, [tensor.copy() for tensor in tensors])
     evaluations = 0
     max_evaluations = int(payload.full_update_max_evaluations)
     budget_exhausted = False
+    start_iteration = 0
+    history: list[dict[str, Any]] = []
+    checkpoint_info: dict[str, Any] = {}
+    initial_energy: float | None = None
+
+    if payload.optimizer_resume_from:
+        manifest, restored_tensors = load_optimizer_checkpoint(payload.optimizer_resume_from, xp)
+        if manifest.get("request_sha256") != request_sha256:
+            raise ValueError("optimizer checkpoint does not match the scientific finite-torus problem")
+        if manifest.get("dtype") != payload.dtype:
+            raise ValueError("optimizer checkpoint dtype does not match the requested dtype")
+        metadata = manifest.get("metadata", {})
+        if int(metadata.get("tensor_count", -1)) != len(tensors):
+            raise ValueError("optimizer checkpoint tensor count does not match the request")
+        if any(tuple(restored.shape) != tuple(current.shape) for restored, current in zip(restored_tensors, tensors)):
+            raise ValueError("optimizer checkpoint tensor shapes do not match the request")
+        start_iteration = int(manifest.get("step", 0))
+        if start_iteration > int(payload.optimization_steps):
+            raise ValueError(
+                f"optimizer checkpoint already contains {start_iteration} iterations, "
+                f"but the requested run only allows {payload.optimization_steps}"
+            )
+        raw_history = metadata.get("energy_history", [])
+        if not isinstance(raw_history, list):
+            raise ValueError("optimizer checkpoint energy history is invalid")
+        history = [dict(point) for point in raw_history]
+        evaluations = int(metadata.get("evaluations", 0))
+        initial_energy = float(metadata["initial_energy"])
+        working = _normalize_tensors(xp, [tensor.copy() for tensor in restored_tensors])
+        checkpoint_info = manifest
 
     def evaluate(candidate: list[Any], *, gradient: bool) -> dict[str, Any] | None:
         nonlocal evaluations
@@ -251,12 +306,39 @@ def run_finite_torus_gradient(
         evaluations += 1
         return result
 
+    def save_optimizer_state(iteration: int) -> None:
+        nonlocal checkpoint_info
+        if not payload.optimizer_checkpoint_path:
+            return
+        checkpoint_info = save_optimizer_checkpoint(
+            payload.optimizer_checkpoint_path,
+            working,
+            CheckpointManifest(
+                checkpoint_id=f"finite-torus-gradient-{request_sha256[:12]}-iteration-{iteration}",
+                request_sha256=request_sha256,
+                method="ipeps-finite-torus-gradient",
+                representation="ipeps-optimizer-state",
+                dtype=payload.dtype,
+                device="cuda" if hasattr(xp, "cuda") else "cpu",
+                step=iteration,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                metadata={
+                    "completed_iterations": iteration,
+                    "evaluations": int(evaluations),
+                    "initial_energy": float(initial_energy if initial_energy is not None else 0.0),
+                    "energy_history": [dict(point) for point in history],
+                    "tensor_count": len(working),
+                    "parameter_count": parameter_count,
+                },
+            ),
+        )
+
     current = evaluate(working, gradient=True)
     if current is None:
         raise ValueError("finite-torus-gradient evaluation budget must allow an initial objective")
-    initial_energy = float(current["energy"])
-    history: list[dict[str, Any]] = []
-    for iteration in range(1, int(payload.optimization_steps) + 1):
+    if initial_energy is None:
+        initial_energy = float(current["energy"])
+    for iteration in range(start_iteration + 1, int(payload.optimization_steps) + 1):
         gradients = current["gradients"]
         gradient_norm = float(current["gradient_norm"])
         sweep_start = float(current["energy"])
@@ -296,6 +378,7 @@ def run_finite_torus_gradient(
             "parameter_count": parameter_count,
             "evaluation_budget_exhausted": budget_exhausted,
         })
+        save_optimizer_state(iteration)
         if budget_exhausted or improvement <= float(payload.optimization_tolerance) or gradient_norm <= float(payload.optimization_tolerance):
             break
 
@@ -303,7 +386,7 @@ def run_finite_torus_gradient(
         "tensors": working,
         "iterations": len(history),
         "energy_history": history,
-        "initial_energy": initial_energy,
+        "initial_energy": float(initial_energy),
         "final_energy": float(current["energy"]),
         "final_variance": float(current["energy_variance"]),
         "evaluations": evaluations,
@@ -315,6 +398,12 @@ def run_finite_torus_gradient(
         "materializes_reference_statevector": True,
         "evaluation_budget": max_evaluations,
         "evaluation_budget_exhausted": budget_exhausted,
+        "start_iteration": start_iteration,
+        "request_sha256": request_sha256,
+        "checkpoint": checkpoint_info or {
+            "resumable": False,
+            "reason": "set optimizer_checkpoint_path to persist and optimizer_resume_from to resume the finite-reference update",
+        },
         "converged": bool(
             history
             and not budget_exhausted

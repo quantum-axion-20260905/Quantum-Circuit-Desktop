@@ -63,6 +63,12 @@ covers all four admitted product cell shapes at χ=1/2/4 plus one generic D=2
 points on the RTX 3060; the entangled case is intentionally recorded as
 review-only until the variational full-update gate is complete.
 
+The finite-gradient optimizer checkpoint was also exercised on CUDA: a step-2
+optimizer state resumed at iteration 2 and matched an independent fresh
+six-step run exactly to the recorded `1e-10` comparison threshold. This
+checkpoint is specific to the finite-reference optimizer; unsupported
+infinite-CTMRG optimizer resume requests are rejected before execution.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices

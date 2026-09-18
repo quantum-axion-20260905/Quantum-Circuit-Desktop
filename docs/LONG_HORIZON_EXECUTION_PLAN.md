@@ -298,6 +298,10 @@ but not released:
   passes real/imaginary gradient checks against central differences; its CUDA
   path is verified on the RTX 3060. It is explicitly an initializer/reference,
   not an infinite-lattice CTMRG variational proof.
+- the finite-torus gradient path now has a separate optimizer-state checkpoint
+  format with request/dtype/shape validation, iteration/history/evaluation
+  persistence, and partial-resume equivalence tests; unsupported optimizer
+  checkpoint combinations remain rejected before execution.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
@@ -329,9 +333,9 @@ The next implementation packet is Phase 4 variational research-grade convergence
   regression/reference gate;
 - carry energy/variance/reference error and the new point-to-point observable
   deltas through the shared study/provenance and export APIs;
-- add a separate optimizer-state checkpoint contract before allowing a
-  long-running variational update to resume; contraction-only checkpoint/resume
-  is intentionally accepted today, while optimizer resume is rejected early;
+- extend optimizer-state checkpointing from the finite-reference gradient path
+  to the eventual infinite-CTMRG full-update solver; coordinate/SPSA paths
+  remain explicit experimental modes until their state contracts are defined;
 - compare CTMRG local contractions against finite PEPS/reference product
   states across more than the current nearest-neighbor product gate, including
   small Ising/Heisenberg reference observables;

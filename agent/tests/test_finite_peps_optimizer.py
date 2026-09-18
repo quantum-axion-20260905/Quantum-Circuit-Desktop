@@ -1,5 +1,6 @@
 import math
 import unittest
+from tempfile import TemporaryDirectory
 
 import numpy as np
 
@@ -12,9 +13,12 @@ def _payload() -> CTMRGPayload:
         unit_cell=[1, 1],
         virtual_bond_dim=2,
         dtype="complex128",
+        initial_state="plus",
         full_update_max_parameters=128,
         full_update_max_evaluations=64,
         full_update_step=0.1,
+        environment_bond_dim=1,
+        iterations=1,
         interactions=[IPEPSInteraction(
             left_site=0,
             right_site=0,
@@ -59,6 +63,44 @@ class FinitePEPSOptimizerTests(unittest.TestCase):
         self.assertLess(result["final_energy"], result["initial_energy"] - 3.0)
         self.assertLess(result["final_variance"], 0.01)
         self.assertFalse(result["evaluation_budget_exhausted"])
+
+    def test_finite_torus_gradient_checkpoint_resume_matches_fresh_run(self):
+        from qc_agent.core.ctmrg import run_ctmrg
+
+        with TemporaryDirectory() as directory:
+            checkpoint = f"{directory}/finite-gradient.npz"
+            base = _payload().model_dump(mode="json")
+            partial_payload = CTMRGPayload(**{
+                **base,
+                "optimization": "full-update",
+                "full_update_optimizer": "finite-torus-gradient",
+                "optimization_steps": 2,
+                "optimizer_checkpoint_path": checkpoint,
+            })
+            partial = run_ctmrg(np, partial_payload)
+            self.assertTrue(partial["optimization_diagnostics"]["checkpoint"]["resumable"])
+            self.assertEqual(partial["optimization_diagnostics"]["checkpoint"]["step"], 2)
+
+            resumed_payload = CTMRGPayload(**{
+                **base,
+                "optimization": "full-update",
+                "full_update_optimizer": "finite-torus-gradient",
+                "optimization_steps": 6,
+                "optimizer_checkpoint_path": checkpoint,
+                "optimizer_resume_from": checkpoint,
+            })
+            resumed = run_ctmrg(np, resumed_payload)
+            fresh_payload = CTMRGPayload(**{
+                **base,
+                "optimization": "full-update",
+                "full_update_optimizer": "finite-torus-gradient",
+                "optimization_steps": 6,
+            })
+            fresh = run_ctmrg(np, fresh_payload)
+            resumed_diagnostics = resumed["optimization_diagnostics"]
+            self.assertEqual(resumed_diagnostics["start_iteration"], 2)
+            self.assertAlmostEqual(resumed_diagnostics["final_energy"], fresh["optimization_diagnostics"]["final_energy"], places=10)
+            self.assertAlmostEqual(resumed["energy"], fresh["energy"], places=10)
 
 
 if __name__ == "__main__":

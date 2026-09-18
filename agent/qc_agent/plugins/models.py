@@ -244,6 +244,8 @@ class CTMRGPayload(BaseModel):
     initial_state: Literal["up", "down", "plus", "neel"] = "up"
     checkpoint_path: str | None = Field(default=None, min_length=1, max_length=4096)
     resume_from: str | None = Field(default=None, min_length=1, max_length=4096)
+    optimizer_checkpoint_path: str | None = Field(default=None, min_length=1, max_length=4096)
+    optimizer_resume_from: str | None = Field(default=None, min_length=1, max_length=4096)
     max_time_ms: int = Field(default=120000, ge=100, le=3600000)
     max_mem_mb: float = Field(default=4096, gt=0, le=1048576)
 
@@ -274,6 +276,12 @@ class CTMRGPayload(BaseModel):
         if self.optimization != "none" and (self.checkpoint_path is not None or self.resume_from is not None):
             raise ValueError(
                 "CTMRG optimizer checkpoint/resume is not supported yet; checkpointing currently covers contraction-only runs"
+            )
+        if (self.optimizer_checkpoint_path is not None or self.optimizer_resume_from is not None) and (
+            self.optimization != "full-update" or self.full_update_optimizer != "finite-torus-gradient"
+        ):
+            raise ValueError(
+                "optimizer checkpoint state is currently supported only for full-update finite-torus-gradient"
             )
         expected_tensor_values = (
             cell_sites * int(self.physical_bond_dim) * int(self.virtual_bond_dim) ** 4
