@@ -6,7 +6,8 @@ import unittest
 import numpy as np
 
 from qc_agent.core.ctmrg import run_ctmrg, run_ctmrg_convergence_study
-from qc_agent.plugins.models import CTMRGConvergenceStudyPayload, CTMRGPayload, IPEPSInteraction, PauliTerm
+from qc_agent.core.peps import PEPSRuntime
+from qc_agent.plugins.models import CTMRGConvergenceStudyPayload, CTMRGPayload, IPEPSInteraction, LatticeSpec, PEPSPayload, PauliTerm
 
 
 class CTMRGTests(unittest.TestCase):
@@ -130,6 +131,37 @@ class CTMRGTests(unittest.TestCase):
         self.assertFalse(result["resource_estimate"]["materializes_statevector"])
         self.assertEqual(len(result["correlation_lengths_by_site"]), 4)
         self.assertEqual(len(result["environment_spectrum"]), 4)
+
+    def test_two_by_two_product_ctmrg_matches_independent_finite_peps_reference(self):
+        finite_payload = PEPSPayload(
+            n_qubits=4,
+            terms=[PauliTerm(paulis={0: "Z", 1: "Z"}, coefficient=1.0)],
+            lattice=LatticeSpec(dimensions=[2, 2]),
+            contraction_method="opt_einsum",
+        )
+        finite_runtime = PEPSRuntime(np, finite_payload)
+        flip = np.asarray([[0.0, 1.0], [1.0, 0.0]], dtype=np.complex128)
+        finite_runtime.apply_one_site(1, flip)
+        finite_runtime.apply_one_site(2, flip)
+        finite_reference = finite_runtime._contract_double_layer({0: "Z", 1: "Z"})
+
+        ctmrg = run_ctmrg(np, CTMRGPayload(
+            unit_cell=[2, 2],
+            initial_state="neel",
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=1,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+            environment_bond_dim=2,
+            iterations=2,
+        ))
+        self.assertAlmostEqual(finite_reference, -1.0, places=6)
+        self.assertAlmostEqual(ctmrg["interactions"][0]["value"], finite_reference, places=6)
+        self.assertTrue(ctmrg["reference_validation"]["passed"])
 
     def test_two_by_two_checkpoint_resume_restores_all_environments(self):
         payload = CTMRGPayload(

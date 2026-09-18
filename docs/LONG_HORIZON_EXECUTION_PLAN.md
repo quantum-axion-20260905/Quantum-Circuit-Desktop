@@ -237,6 +237,9 @@ but not released:
   second moment, and variance; D>1 runs explicitly report that this reference
   is unavailable rather than projecting an entangled tensor onto a product
   ansatz.
+- the 2x2 product path has an independent finite-PEPS double-layer cross-check
+  for a nearest-neighbor observable; this remains a declared product/reference
+  gate, not evidence for arbitrary entangled iPEPS.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
