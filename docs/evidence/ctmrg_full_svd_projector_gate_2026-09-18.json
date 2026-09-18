@@ -1,7 +1,7 @@
 {
   "artifact": "ctmrg-full-svd-projector-gate",
   "date": "2026-09-18",
-  "git_revision": "7ea0088",
+  "git_revision": "c8185bc",
   "policy": "full-svd",
   "scope": {
     "physical_bond_dim": 2,
@@ -17,13 +17,13 @@
     "research_gate_status": "passed"
   },
   "ghz_reference": {
-    "passed": false,
-    "energy": -1.200000212110748e-09,
-    "onsite_z": -1.200000212110748e-09,
-    "interaction_zz": 0.0,
+    "passed": true,
+    "energy": 1.0000000000090246,
+    "onsite_z": 9.02450336689826e-12,
+    "interaction_zz": 1.0,
     "research_gate_status": "needs_review",
     "production_ready": false,
-    "reason": "independent analytic GHZ transfer-fixed-point reference failed"
+    "reason": "independent analytic GHZ transfer-fixed-point reference passed; paired virtual-gauge gate remains unresolved"
   },
   "verification": {
     "full_backend_unittest": "140/140 passed",
@@ -34,12 +34,15 @@
       "device": "cuda",
       "virtual_bond_dim": 2,
       "environment_bond_dim": 2,
-      "iterations": 1,
+      "dtype": "complex64",
+      "iterations": 4,
+      "energy": 1.0,
+      "interaction_zz": 1.0,
       "research_gate_status": "needs_review",
       "peak_bytes_estimate": 2688
     }
   },
   "decision": "keep-opt-in-experimental",
-  "next_action": "validate quarter-index ordering and biorthogonal absorption before rerunning the entangled gate",
+  "next_action": "add covariant environment initialization/preconditioning and rerun the paired virtual-gauge gate",
   "resource_note": "bounded CPU reference only; no unrelated high-RAM process was touched"
 }
