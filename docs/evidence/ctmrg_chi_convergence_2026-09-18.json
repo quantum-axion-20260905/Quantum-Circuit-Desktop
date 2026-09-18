@@ -1,0 +1,43 @@
+{
+  "artifact": "ctmrg-chi-sector-convergence-study",
+  "date": "2026-09-18",
+  "git_revision": "a632ced",
+  "verification": {
+    "full_backend_unittest": "145/145 passed",
+    "backend": "CuPy CUDA",
+    "dtype": "complex64",
+    "scope": "bounded random D=2 1x1 and 2x2 iPEPS diagnostics"
+  },
+  "one_by_one_random_d2": {
+    "seed": 20260918,
+    "policy": "symmetry-ensemble",
+    "rows": [
+      {"chi": 2, "iterations": 4, "energy": -0.24955139309167862, "residual": 0.31909575805539636, "converged": false, "energy_abs_range": 0.00797240436077118, "observable_max_abs_range": 0.045789361000061035, "interaction_max_abs_range": 0.053761765360832214},
+      {"chi": 2, "iterations": 8, "energy": -0.27395789325237274, "residual": 0.17994654736275673, "converged": false, "energy_abs_range": 0.039071694016456604, "observable_max_abs_range": 0.045918822288513184, "interaction_max_abs_range": 0.00684712827205658},
+      {"chi": 2, "iterations": 16, "energy": -0.27361999452114105, "residual": 0.19320577347649037, "converged": false, "energy_abs_range": 0.02590721845626831, "observable_max_abs_range": 0.02209135890007019, "interaction_max_abs_range": 0.00381585955619812},
+      {"chi": 3, "iterations": 4, "energy": -0.30610877461731434, "residual": 0.37667711090676625, "converged": false, "energy_abs_range": 0.01687208190560341, "observable_max_abs_range": 0.5532979182898998, "interaction_max_abs_range": 0.5701700001955032},
+      {"chi": 3, "iterations": 8, "energy": -0.32156340777873993, "residual": 0.37907651229775036, "converged": false, "energy_abs_range": 0.34886839985847473, "observable_max_abs_range": 0.3957836329936981, "interaction_max_abs_range": 0.04691523313522339},
+      {"chi": 3, "iterations": 16, "energy": -0.5655393376946449, "residual": 0.24657205973227772, "converged": false, "energy_abs_range": 0.581356093287468, "observable_max_abs_range": 0.0687427818775177, "interaction_max_abs_range": 0.6500988751649857},
+      {"chi": 4, "iterations": 4, "energy": -0.6630731895565987, "residual": 0.27402494838907004, "converged": false, "energy_abs_range": 0.9200726300477982, "observable_max_abs_range": 0.5763195157051086, "interaction_max_abs_range": 0.3437531143426895},
+      {"chi": 4, "iterations": 8, "energy": -0.1247488483786583, "residual": 0.6132914006275905, "converged": false, "energy_abs_range": 0.25997139513492584, "observable_max_abs_range": 0.4071579873561859, "interaction_max_abs_range": 0.14718659222126034},
+      {"chi": 4, "iterations": 16, "energy": -0.16888046450912952, "residual": 0.383590140433811, "converged": false, "energy_abs_range": 0.265529278665781, "observable_max_abs_range": 0.11558634042739868, "interaction_max_abs_range": 0.14994293823838234}
+    ]
+  },
+  "two_by_two_random_d2": {
+    "seed": 20260919,
+    "policy": "symmetry-ensemble",
+    "rows": [
+      {"chi": 2, "iterations": 2, "energy": -0.4410382122267038, "residual": 0.95302554220586, "converged": false, "reference_energy": -0.0004380273811082228, "reference_passed": false, "energy_abs_range": 0.01573582151904701, "observable_max_abs_range": 0.009887725114822388, "interaction_max_abs_range": 0.01893344148993492},
+      {"chi": 2, "iterations": 4, "energy": -0.31600033878348766, "residual": 0.9017740428701212, "converged": false, "reference_energy": -0.0004380273811082228, "reference_passed": false, "energy_abs_range": 0.057254907209426165, "observable_max_abs_range": 0.03177475929260254, "interaction_max_abs_range": 0.05782177858054638},
+      {"chi": 3, "iterations": 2, "energy": -0.5493598151020705, "residual": 0.7575632845239325, "converged": false, "reference_energy": -0.0004380273811082228, "reference_passed": false, "energy_abs_range": 0.19169340413063768, "observable_max_abs_range": 0.23106235265731812, "interaction_max_abs_range": 0.0894945664331317}
+    ]
+  },
+  "decision": "keep-symmetry-ensemble-as-opt-in-diagnostic",
+  "conclusion": [
+    "Random D=2 results are not converged under the bounded chi/iteration sweep.",
+    "Increasing chi does not produce a stable monotone sequence for the current generic boundary fixed-point path.",
+    "The 2x2 finite-periodic reference is materially different and all sampled points remain review-only.",
+    "No generic entangled CTMRG production admission is granted by this packet."
+  ],
+  "next_action": "implement and validate a stronger fixed-point strategy (boundary-MPS/CTMRG sector handling) before raising the research gate"
+}

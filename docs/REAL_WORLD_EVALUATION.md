@@ -177,6 +177,22 @@ while a random 2x2 cell at `χ=2` is not yet converged and has gauge drift about
 `0.247`. The ensemble is therefore a targeted fixed-point strategy for
 degenerate sectors, not a universal replacement for χ-converged CTMRG.
 
+### χ/iteration convergence packet
+
+The follow-up CUDA sweep is recorded in
+`docs/evidence/ctmrg_chi_convergence_2026-09-18.json`. For the random D=2 1x1
+cell, all sampled `χ∈{2,3,4}` / iteration points remained unconverged and
+the energy/observable sequence was not monotone. For the random 2x2 cell,
+`χ=2..3` points also remained unconverged, with large error against the exact
+finite 2x2 torus reference. The convergence-study API now carries the sector
+spread through every point and reports a study-level maximum, so a small
+between-χ energy delta cannot conceal a boundary-sector instability.
+
+Decision: keep `symmetry-ensemble` opt-in and diagnostic-only. Generic
+entangled CTMRG is not admitted as a production solver until a stronger
+boundary-MPS/CTMRG fixed-point path passes residual, χ-convergence,
+finite-reference, and paired-gauge gates together.
+
 The Torch unrolled and implicit full-update paths now have an explicit,
 opt-in optimizer checkpoint contract. A CPU resume-vs-fresh regression matches
 the final energy for both paths; checkpoint manifests bind the state to the

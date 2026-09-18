@@ -49,6 +49,16 @@ features.
 - Current resource rule: GPU experiments stay small and bounded; the agent
   must not inspect, stop, or compete with unrelated high-RAM training jobs.
 
+- The follow-up χ/iteration packet is recorded in
+  `docs/evidence/ctmrg_chi_convergence_2026-09-18.json` at commit `a632ced`.
+  Every sampled random D=2 1x1 and 2x2 CUDA point remained unconverged; χ
+  changes did not form a stable monotone sequence, and the 2x2 finite-torus
+  reference errors stayed large. The convergence-study API now preserves
+  sector policy, sector count, and per-point sector spread. This packet does
+  not widen admission; the next target is a stronger boundary-MPS/CTMRG
+  fixed-point strategy with explicit residual, χ-convergence, and finite-
+  reference gates.
+
 ### Four-step delivery ladder for the active phase
 
 The following ladder is the working sequence. Each step produces a commit and
