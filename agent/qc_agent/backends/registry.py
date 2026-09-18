@@ -7,7 +7,7 @@ from ..core.contracts import CapabilityError
 
 
 Operation = Literal["samples", "selected_amplitudes", "estimate", "simulate", "expectation", "evolve", "ground_state", "dmrg", "peps"]
-MPSMethod = Literal["dmrg", "tebd", "tdvp", "vumps"]
+MPSMethod = Literal["dmrg", "tebd", "tdvp", "vumps", "ctmrg"]
 MethodOperation = Literal["ground_state", "evolve"]
 MethodStatus = Literal["available", "unavailable", "planned"]
 
@@ -123,6 +123,17 @@ def method_catalog(*, gpu_available: bool, tensor_network_available: bool) -> li
             status="planned",
             description="Separate VUMPS interface reserved for uniform/infinite-MPS ground states.",
             limitations=("solver implementation is not available", "no fallback to DMRG"),
+        ),
+        MethodCapability(
+            id="ipeps-ctmrg",
+            method="ctmrg",
+            backend="tensor-network",
+            representation="ipeps",
+            operation="ground_state",
+            available=False,
+            status="planned",
+            description="Infinite-2D iPEPS CTMRG with explicit corner/edge environment convergence.",
+            limitations=("solver implementation is not available", "no fallback to finite boundary-MPS"),
         ),
     ]
 

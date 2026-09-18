@@ -1,6 +1,7 @@
 import json
 import unittest
 
+from qc_agent.backends.preflight import estimate_ctmrg
 from qc_agent.core.contracts import (
     CHECKPOINT_SCHEMA,
     CapabilityError,
@@ -12,6 +13,7 @@ from qc_agent.core.contracts import (
     ResourceBudget,
     TruncationReport,
 )
+from qc_agent.plugins.models import CTMRGPayload
 
 
 class ComputeContractTests(unittest.TestCase):
@@ -66,6 +68,39 @@ class ComputeContractTests(unittest.TestCase):
             created_at="2026-09-17T00:00:00Z",
         )
         self.assertEqual(manifest.to_dict()["schema"], CHECKPOINT_SCHEMA)
+
+    def test_ctmrg_contract_keeps_infinite_geometry_explicit(self):
+        payload = CTMRGPayload(
+            unit_cell=[2, 1],
+            interactions=[
+                {
+                    "left_site": 0,
+                    "right_site": 1,
+                    "displacement": [1, 0],
+                    "left_pauli": "Z",
+                    "right_pauli": "Z",
+                    "coefficient": -1.0,
+                }
+            ],
+        )
+        report = estimate_ctmrg(payload, gpu_free_mb=4096)
+        self.assertTrue(report["feasible"])
+        self.assertEqual(report["representation"], "ipeps")
+        self.assertFalse(report["materializes_statevector"])
+        with self.assertRaises(ValueError):
+            CTMRGPayload(
+                unit_cell=[2, 2],
+                interactions=[
+                    {
+                        "left_site": 0,
+                        "right_site": 4,
+                        "displacement": [1, 0],
+                        "left_pauli": "Z",
+                        "right_pauli": "Z",
+                        "coefficient": -1.0,
+                    }
+                ],
+            )
 
 
 if __name__ == "__main__":

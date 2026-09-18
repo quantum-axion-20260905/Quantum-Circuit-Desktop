@@ -185,6 +185,75 @@ class DMRGPayload(BaseModel):
         return self
 
 
+class IPEPSInteraction(BaseModel):
+    """A translationally repeated two-site interaction in an iPEPS unit cell."""
+
+    left_site: int = Field(ge=0)
+    right_site: int = Field(ge=0)
+    displacement: list[int] = Field(min_length=2, max_length=2)
+    left_pauli: Pauli
+    right_pauli: Pauli
+    coefficient: float
+    label: str | None = None
+
+    @field_validator("coefficient")
+    @classmethod
+    def finite_coefficient(cls, value: float) -> float:
+        if not math.isfinite(value):
+            raise ValueError("iPEPS interaction coefficient must be finite")
+        return value
+
+    @field_validator("displacement")
+    @classmethod
+    def finite_displacement(cls, value: list[int]) -> list[int]:
+        if value[0] == 0 and value[1] == 0:
+            raise ValueError("iPEPS interaction displacement must be non-zero")
+        return [int(value[0]), int(value[1])]
+
+
+class CTMRGPayload(BaseModel):
+    """Bounded infinite-2D iPEPS/CTMRG problem contract.
+
+    The unit cell and repeated interactions are explicit.  This prevents a
+    future solver from silently interpreting a finite lattice Hamiltonian as
+    an infinite system.  The first implementation supports small unit cells;
+    larger cells must pass a new admission contract before being enabled.
+    """
+
+    unit_cell: list[int] = Field(default_factory=lambda: [1, 1], min_length=2, max_length=2)
+    terms: list[PauliTerm] = Field(default_factory=list, max_length=1024)
+    interactions: list[IPEPSInteraction] = Field(min_length=1, max_length=1024)
+    dtype: Literal["complex64", "complex128"] = "complex64"
+    backend: Literal["auto", "tensor-network"] = "auto"
+    physical_bond_dim: int = Field(default=2, ge=1, le=8)
+    environment_bond_dim: int = Field(default=16, ge=1, le=128)
+    iterations: int = Field(default=20, ge=1, le=200)
+    tolerance: float = Field(default=1e-8, gt=0, le=1.0)
+    initial_state: Literal["up", "down", "plus", "neel"] = "up"
+    max_time_ms: int = Field(default=120000, ge=100, le=3600000)
+    max_mem_mb: float = Field(default=4096, gt=0, le=1048576)
+
+    @field_validator("unit_cell")
+    @classmethod
+    def validate_unit_cell(cls, value: list[int]) -> list[int]:
+        if any(size < 1 or size > 2 for size in value):
+            raise ValueError("CTMRG unit-cell dimensions must be between 1 and 2")
+        if math.prod(value) > 4:
+            raise ValueError("CTMRG currently supports at most a 2x2 unit cell")
+        return [int(size) for size in value]
+
+    @model_validator(mode="after")
+    def validate_payload(self):
+        cell_sites = math.prod(self.unit_cell)
+        for term in self.terms:
+            if any(index >= cell_sites for index in term.paulis):
+                raise ValueError("iPEPS onsite term index exceeds the unit-cell site count")
+        for interaction in self.interactions:
+            if interaction.left_site >= cell_sites or interaction.right_site >= cell_sites:
+                raise ValueError("iPEPS interaction site exceeds the unit-cell site count")
+        return self
+
+
 class PEPSPayload(BaseModel):
     """Finite 2D/3D PEPS simple-update evolution with bounded contraction.
 

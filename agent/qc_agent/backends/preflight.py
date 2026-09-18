@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from ..models import PreflightPayload
@@ -226,6 +227,60 @@ def estimate_peps(payload: Any, *, gpu_free_mb: float | None = None) -> dict[str
         "local_double_tensor_states": local_tensor_states,
         "materializes_statevector": False,
         "estimated_contraction_work": contraction_work,
+        "estimated_peak_memory_mb": round(peak_mb, 3),
+        "estimated_time_ms": estimated_ms,
+        "blocking_warnings": blocking_warnings,
+        "warnings": warnings,
+    }
+
+
+def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[str, Any]:
+    """Estimate bounded iPEPS/CTMRG environment cost before CUDA allocation.
+
+    CTMRG cost is controlled by the double-layer virtual dimension and the
+    environment bond dimension, not by a dense ``2**N`` statevector.  The
+    estimate intentionally prices both the unit-cell tensors and enlarged
+    corner/edge environments so a future solver cannot bypass admission by
+    only reporting the physical bond dimension.
+    """
+    cell_sites = math.prod(payload.unit_cell)
+    physical_bond_dim = int(payload.physical_bond_dim)
+    environment_bond_dim = int(payload.environment_bond_dim)
+    double_layer_dim = physical_bond_dim ** 2
+    bytes_per_value = 8 if payload.dtype == "complex64" else 16
+    tensor_values = cell_sites * 4 * max(1, double_layer_dim ** 4)
+    corner_values = 4 * environment_bond_dim * environment_bond_dim
+    edge_values = 4 * environment_bond_dim * double_layer_dim * environment_bond_dim
+    iteration_values = tensor_values + corner_values + edge_values
+    peak_mb = iteration_values * bytes_per_value * 3.0 / (1024 * 1024)
+    work = max(1, int(payload.iterations)) * max(1, cell_sites) * max(1, environment_bond_dim) ** 3 * max(1, double_layer_dim)
+    estimated_ms = int(1 + work / 25_000)
+    warnings: list[str] = [
+        "CTMRG is an experimental infinite-2D path; compare environment-dimension convergence",
+    ]
+    if peak_mb > float(payload.max_mem_mb):
+        warnings.append(f"estimated CTMRG environment memory {peak_mb:.1f} MB exceeds memory budget")
+    if gpu_free_mb is not None and peak_mb > gpu_free_mb * 0.70:
+        warnings.append(f"estimated CTMRG environment memory {peak_mb:.1f} MB exceeds 70% of currently free GPU memory")
+    if estimated_ms > int(payload.max_time_ms):
+        warnings.append(f"estimated CTMRG time {estimated_ms} ms exceeds time budget")
+    blocking_warnings = [warning for warning in warnings if "exceeds" in warning]
+    return {
+        "status": "ready" if not blocking_warnings else "rejected",
+        "feasible": not blocking_warnings,
+        "backend": "tensor-network",
+        "method": "ctmrg-environment-bound",
+        "representation": "ipeps",
+        "unit_cell": list(payload.unit_cell),
+        "unit_cell_sites": cell_sites,
+        "physical_bond_dim": physical_bond_dim,
+        "double_layer_dim": double_layer_dim,
+        "environment_bond_dim": environment_bond_dim,
+        "iterations": int(payload.iterations),
+        "tensor_values": tensor_values,
+        "corner_values": corner_values,
+        "edge_values": edge_values,
+        "materializes_statevector": False,
         "estimated_peak_memory_mb": round(peak_mb, 3),
         "estimated_time_ms": estimated_ms,
         "blocking_warnings": blocking_warnings,

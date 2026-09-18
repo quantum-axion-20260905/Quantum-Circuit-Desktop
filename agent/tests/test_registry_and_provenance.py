@@ -37,10 +37,16 @@ class RegistryTests(unittest.TestCase):
         self.assertFalse(methods["vumps"].available)
         self.assertEqual(methods["tdvp"].status, "planned")
         self.assertEqual(methods["vumps"].status, "planned")
+        self.assertEqual(methods["ctmrg"].id, "ipeps-ctmrg")
+        self.assertEqual(methods["ctmrg"].representation, "ipeps")
+        self.assertFalse(methods["ctmrg"].available)
+        self.assertEqual(methods["ctmrg"].status, "planned")
         with self.assertRaisesRegex(CapabilityError, "fall back"):
             resolve_method_capability("tdvp", gpu_available=True, tensor_network_available=True)
         with self.assertRaisesRegex(CapabilityError, "fall back"):
             resolve_method_capability("vumps", gpu_available=True, tensor_network_available=True)
+        with self.assertRaisesRegex(CapabilityError, "fall back"):
+            resolve_method_capability("ctmrg", gpu_available=True, tensor_network_available=True)
 
     def test_available_mps_method_resolves_without_backend_substitution(self):
         resolved = resolve_method_capability("dmrg", gpu_available=True, tensor_network_available=True)

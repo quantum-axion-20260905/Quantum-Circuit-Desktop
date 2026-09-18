@@ -5,7 +5,7 @@ export type JsonObject = Record<string, unknown>;
 
 export type AgentMethodCapability = {
   id: string;
-  method: "dmrg" | "tebd" | "tdvp" | "vumps";
+  method: "dmrg" | "tebd" | "tdvp" | "vumps" | "ctmrg";
   backend: string;
   representation: string;
   operation: "ground_state" | "evolve";

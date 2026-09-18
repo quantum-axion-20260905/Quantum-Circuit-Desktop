@@ -184,6 +184,22 @@ duplicate tensor contraction, provenance, preflight, checkpoint, or result
 logic. New solver families receive their own reference and acceptance contract
 before being exposed in the UI.
 
+## Phase 4 progress
+
+The first Phase 4 foundation packet is implemented but not released:
+
+- iPEPS unit-cell and translational interaction request validation exists;
+- CTMRG resource preflight prices double-layer tensors and corner/edge
+  environments without dense statevector assumptions;
+- the backend registry exposes CTMRG as planned and rejects accidental solver
+  substitution;
+- contract and preflight tests cover unit-cell bounds, site validation, and
+  statevector-free estimates.
+
+The CTMRG numerical solver, environment checkpoint, reference calculations,
+and frontend controls are still incomplete. They must land and pass their own
+gate before Phase 4 can be called complete or tagged as a release.
+
 ## Current next packet
 
 The next implementation packet is Phase 4 contract design:
@@ -192,8 +208,8 @@ The next implementation packet is Phase 4 contract design:
 - environment checkpoint format;
 - small reference problem set;
 - preflight variables and hard limits;
-- a minimal backend registry entry with no frontend controls until the
-  contract tests pass.
+- a minimal corner/edge environment implementation with no frontend controls
+  until its reference tests pass.
 
 This plan is the source of truth for long-running work. The codebase, release
 notes, and frontend should be updated to match it after every accepted phase.
