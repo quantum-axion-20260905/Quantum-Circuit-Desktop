@@ -53,6 +53,13 @@ The χ-study result now also carries point-to-point energy, local-observable and
 interaction deltas, plus a reference pass summary. This makes environment
 convergence evidence auditable beyond a single energy column.
 
+The same cases can now be replayed through the bounded campaign runner. The
+recorded artifact [ctmrg_gpu_campaign_2026-09-18.json](C:/Users/shaxz/OneDrive/Dokumenty/Quantum-Circuit-Desktop/docs/evidence/ctmrg_gpu_campaign_2026-09-18.json)
+covers all four admitted product cell shapes at χ=1/2/4 plus one generic D=2
+2×2 entangled case. The four product cases pass all three finite-reference
+points on the RTX 3060; the entangled case is intentionally recorded as
+review-only until the variational full-update gate is complete.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices

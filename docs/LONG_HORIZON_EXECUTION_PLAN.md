@@ -289,6 +289,10 @@ but not released:
   correlation-length/reference diagnostics, and a replayable chi study;
   larger geometries remain visibly disabled rather than being presented as
   production infinite-2D support.
+- a standalone bounded GPU campaign runner now records all admitted cell
+  shapes, χ-study histories, hardware/memory snapshots, request/result hashes,
+  git revision, and explicit product-versus-entangled reference outcomes in a
+  versioned JSON artifact.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
