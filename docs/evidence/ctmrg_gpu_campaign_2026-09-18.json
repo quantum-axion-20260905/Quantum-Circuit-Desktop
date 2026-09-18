@@ -2,7 +2,7 @@
   "case_count": 5,
   "cases": [
     {
-      "elapsed_ms": 256.621,
+      "elapsed_ms": 257.287,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11757682688,
@@ -27,11 +27,16 @@
         "dtype": "complex128",
         "environment_bond_dim": 4,
         "full_update_gradient_epsilon": 0.001,
+        "full_update_implicit_damping": 0.5,
+        "full_update_implicit_iterations": 32,
+        "full_update_implicit_tolerance": 1e-06,
         "full_update_max_evaluations": 1024,
         "full_update_max_parameters": 128,
         "full_update_optimizer": "coordinate",
         "full_update_spsa_directions": 4,
         "full_update_step": 0.05,
+        "gauge_validation": false,
+        "gauge_validation_tolerance": 0.0001,
         "initial_state": "up",
         "interactions": [
           {
@@ -79,10 +84,80 @@
         ],
         "virtual_bond_dim": 1
       },
-      "request_sha256": "f7402ae6fa616fc7a27c07424abf62072067c22dcb8276a525063dc527af29c5",
-      "result_sha256": "8826190b9f722fb7fa8f75ae03048209a625ba4af42873cde046a898c8b6fa6b",
+      "request_sha256": "af06544d952122f0abfc48e5054169dc39c67cac3eb607e714490d57f7c41e4e",
+      "result_sha256": "272b178e3f4df0296d7e1aa799fe17ef72150ae560883c3b26c535bf81d71fcb",
       "status": "done",
       "study": {
+        "gauge_conditioning": {
+          "eigenvalue_floor": 1e-12,
+          "legs": [
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "up",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "down",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "left",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "right",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            }
+          ],
+          "limitations": [
+            "this is a conditioning diagnostic, not PEPS canonicalization",
+            "a future preconditioner must pair inverse transforms across every virtual bond",
+            "conditioning does not establish CTMRG gauge invariance or thermodynamic convergence"
+          ],
+          "method": "virtual-leg-gram-spectrum",
+          "mutated_tensors": false,
+          "performed": true,
+          "well_conditioned": true
+        },
         "materializes_statevector": false,
         "method": "ipeps-ctmrg-environment-convergence-study",
         "optimization": "none",
@@ -106,8 +181,10 @@
                 1.0
               ]
             ],
+            "gauge_conditioning_well_conditioned": true,
             "interaction_max_abs_delta": null,
             "observable_max_abs_delta": null,
+            "raw_boundary_basis_residual": 1.000000082640371e-10,
             "reference_max_abs_error": 0.0,
             "reference_name": "finite-product-supercell",
             "reference_passed": true,
@@ -130,7 +207,7 @@
               "reference_sites": 2,
               "tolerance": 1e-05
             },
-            "residual": 1.000000082640371e-10,
+            "residual": 0.0,
             "resource_estimate": {
               "device": "cuda",
               "double_layer_virtual_dim": 1,
@@ -169,8 +246,10 @@
                 9.999999998e-11
               ]
             ],
+            "gauge_conditioning_well_conditioned": true,
             "interaction_max_abs_delta": 0.0,
             "observable_max_abs_delta": 0.0,
+            "raw_boundary_basis_residual": 1.49999999985e-10,
             "reference_max_abs_error": 0.0,
             "reference_name": "finite-product-supercell",
             "reference_passed": true,
@@ -193,7 +272,7 @@
               "reference_sites": 2,
               "tolerance": 1e-05
             },
-            "residual": 1.49999999985e-10,
+            "residual": 9.999999997999999e-11,
             "resource_estimate": {
               "device": "cuda",
               "double_layer_virtual_dim": 1,
@@ -234,8 +313,10 @@
                 1.4602865854856856e-44
               ]
             ],
+            "gauge_conditioning_well_conditioned": true,
             "interaction_max_abs_delta": 0.0,
             "observable_max_abs_delta": 0.0,
+            "raw_boundary_basis_residual": 1.9999999992750016e-10,
             "reference_max_abs_error": 0.0,
             "reference_name": "finite-product-supercell",
             "reference_passed": true,
@@ -258,7 +339,7 @@
               "reference_sites": 2,
               "tolerance": 1e-05
             },
-            "residual": 1.9999999992750016e-10,
+            "residual": 2.9999999994e-10,
             "resource_estimate": {
               "device": "cuda",
               "double_layer_virtual_dim": 1,
@@ -279,9 +360,9 @@
           }
         ],
         "provenance": {
-          "git_revision": "35f4d157c2600ea51943b1204717a1ebeeeecb9c",
-          "request_sha256": "f7402ae6fa616fc7a27c07424abf62072067c22dcb8276a525063dc527af29c5",
-          "result_sha256": "8826190b9f722fb7fa8f75ae03048209a625ba4af42873cde046a898c8b6fa6b"
+          "git_revision": "11a07afcb9694a9fc8a5040730326e8469849451",
+          "request_sha256": "af06544d952122f0abfc48e5054169dc39c67cac3eb607e714490d57f7c41e4e",
+          "result_sha256": "272b178e3f4df0296d7e1aa799fe17ef72150ae560883c3b26c535bf81d71fcb"
         },
         "reference_summary": {
           "consistent_reference": "finite-product-supercell",
@@ -305,7 +386,7 @@
       }
     },
     {
-      "elapsed_ms": 99.534,
+      "elapsed_ms": 104.708,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11757682688,
@@ -330,11 +411,16 @@
         "dtype": "complex128",
         "environment_bond_dim": 4,
         "full_update_gradient_epsilon": 0.001,
+        "full_update_implicit_damping": 0.5,
+        "full_update_implicit_iterations": 32,
+        "full_update_implicit_tolerance": 1e-06,
         "full_update_max_evaluations": 1024,
         "full_update_max_parameters": 128,
         "full_update_optimizer": "coordinate",
         "full_update_spsa_directions": 4,
         "full_update_step": 0.05,
+        "gauge_validation": false,
+        "gauge_validation_tolerance": 0.0001,
         "initial_state": "up",
         "interactions": [
           {
@@ -406,10 +492,136 @@
         ],
         "virtual_bond_dim": 1
       },
-      "request_sha256": "adde230f47cfe0e8bbf861daeacbfa65b4ff318783d44fa8b1be22442d1ed813",
-      "result_sha256": "15ac5e02cbd2a7d717bc5078568d47806e124e1bd88af931e2027db4366a37b5",
+      "request_sha256": "269451cf22c04847cb85970332fde994fc75b48432f8709e6869bcc13f161910",
+      "result_sha256": "4d58575ff7c8b110799801979cdb4173e8458fed970a8b19ddc8f0200f78bc30",
       "status": "done",
       "study": {
+        "gauge_conditioning": {
+          "eigenvalue_floor": 1e-12,
+          "legs": [
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "up",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "down",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "left",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "right",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "up",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 1,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "down",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 1,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "left",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 1,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "right",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 1,
+              "trace": 1.0,
+              "well_conditioned": true
+            }
+          ],
+          "limitations": [
+            "this is a conditioning diagnostic, not PEPS canonicalization",
+            "a future preconditioner must pair inverse transforms across every virtual bond",
+            "conditioning does not establish CTMRG gauge invariance or thermodynamic convergence"
+          ],
+          "method": "virtual-leg-gram-spectrum",
+          "mutated_tensors": false,
+          "performed": true,
+          "well_conditioned": true
+        },
         "materializes_statevector": false,
         "method": "ipeps-ctmrg-environment-convergence-study",
         "optimization": "none",
@@ -437,8 +649,10 @@
                 1.0
               ]
             ],
+            "gauge_conditioning_well_conditioned": true,
             "interaction_max_abs_delta": null,
             "observable_max_abs_delta": null,
+            "raw_boundary_basis_residual": 1.000000082640371e-10,
             "reference_max_abs_error": 0.0,
             "reference_name": "finite-product-supercell",
             "reference_passed": true,
@@ -461,7 +675,7 @@
               "reference_sites": 4,
               "tolerance": 1e-05
             },
-            "residual": 1.000000082640371e-10,
+            "residual": 0.0,
             "resource_estimate": {
               "device": "cuda",
               "double_layer_virtual_dim": 1,
@@ -505,8 +719,10 @@
                 9.999999998e-11
               ]
             ],
+            "gauge_conditioning_well_conditioned": true,
             "interaction_max_abs_delta": 0.0,
             "observable_max_abs_delta": 0.0,
+            "raw_boundary_basis_residual": 1.49999999985e-10,
             "reference_max_abs_error": 0.0,
             "reference_name": "finite-product-supercell",
             "reference_passed": true,
@@ -529,7 +745,7 @@
               "reference_sites": 4,
               "tolerance": 1e-05
             },
-            "residual": 1.49999999985e-10,
+            "residual": 9.999999997999999e-11,
             "resource_estimate": {
               "device": "cuda",
               "double_layer_virtual_dim": 1,
@@ -577,8 +793,10 @@
                 1.4602865854856856e-44
               ]
             ],
+            "gauge_conditioning_well_conditioned": true,
             "interaction_max_abs_delta": 0.0,
             "observable_max_abs_delta": 0.0,
+            "raw_boundary_basis_residual": 1.9999999992750016e-10,
             "reference_max_abs_error": 0.0,
             "reference_name": "finite-product-supercell",
             "reference_passed": true,
@@ -601,7 +819,7 @@
               "reference_sites": 4,
               "tolerance": 1e-05
             },
-            "residual": 1.9999999992750016e-10,
+            "residual": 2.9999999994e-10,
             "resource_estimate": {
               "device": "cuda",
               "double_layer_virtual_dim": 1,
@@ -622,9 +840,9 @@
           }
         ],
         "provenance": {
-          "git_revision": "35f4d157c2600ea51943b1204717a1ebeeeecb9c",
-          "request_sha256": "adde230f47cfe0e8bbf861daeacbfa65b4ff318783d44fa8b1be22442d1ed813",
-          "result_sha256": "15ac5e02cbd2a7d717bc5078568d47806e124e1bd88af931e2027db4366a37b5"
+          "git_revision": "11a07afcb9694a9fc8a5040730326e8469849451",
+          "request_sha256": "269451cf22c04847cb85970332fde994fc75b48432f8709e6869bcc13f161910",
+          "result_sha256": "4d58575ff7c8b110799801979cdb4173e8458fed970a8b19ddc8f0200f78bc30"
         },
         "reference_summary": {
           "consistent_reference": "finite-product-supercell",
@@ -648,7 +866,7 @@
       }
     },
     {
-      "elapsed_ms": 81.975,
+      "elapsed_ms": 95.936,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11757682688,
@@ -673,11 +891,16 @@
         "dtype": "complex128",
         "environment_bond_dim": 4,
         "full_update_gradient_epsilon": 0.001,
+        "full_update_implicit_damping": 0.5,
+        "full_update_implicit_iterations": 32,
+        "full_update_implicit_tolerance": 1e-06,
         "full_update_max_evaluations": 1024,
         "full_update_max_parameters": 128,
         "full_update_optimizer": "coordinate",
         "full_update_spsa_directions": 4,
         "full_update_step": 0.05,
+        "gauge_validation": false,
+        "gauge_validation_tolerance": 0.0001,
         "initial_state": "up",
         "interactions": [
           {
@@ -749,10 +972,136 @@
         ],
         "virtual_bond_dim": 1
       },
-      "request_sha256": "5c7abbde99328a2602d60133cb969c7d3a9a5275033160a738c23beb6649367d",
-      "result_sha256": "59a54c66f202d0b3dc626aa5d86ef4fbbb6fc458f2831fa9d907774279d77ef7",
+      "request_sha256": "deb9ac842e6622474cf9d991b90798731527574b765f5d680ab7bfb4d0bf836e",
+      "result_sha256": "921e71b4cab243ab5a3304e0bf8c0a118b55bc39f9ae8ffbfaf073b364895c15",
       "status": "done",
       "study": {
+        "gauge_conditioning": {
+          "eigenvalue_floor": 1e-12,
+          "legs": [
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "up",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "down",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "left",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "right",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "up",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 1,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "down",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 1,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "left",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 1,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "right",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 1,
+              "trace": 1.0,
+              "well_conditioned": true
+            }
+          ],
+          "limitations": [
+            "this is a conditioning diagnostic, not PEPS canonicalization",
+            "a future preconditioner must pair inverse transforms across every virtual bond",
+            "conditioning does not establish CTMRG gauge invariance or thermodynamic convergence"
+          ],
+          "method": "virtual-leg-gram-spectrum",
+          "mutated_tensors": false,
+          "performed": true,
+          "well_conditioned": true
+        },
         "materializes_statevector": false,
         "method": "ipeps-ctmrg-environment-convergence-study",
         "optimization": "none",
@@ -780,8 +1129,10 @@
                 1.0
               ]
             ],
+            "gauge_conditioning_well_conditioned": true,
             "interaction_max_abs_delta": null,
             "observable_max_abs_delta": null,
+            "raw_boundary_basis_residual": 1.000000082640371e-10,
             "reference_max_abs_error": 0.0,
             "reference_name": "finite-product-supercell",
             "reference_passed": true,
@@ -804,7 +1155,7 @@
               "reference_sites": 4,
               "tolerance": 1e-05
             },
-            "residual": 1.000000082640371e-10,
+            "residual": 0.0,
             "resource_estimate": {
               "device": "cuda",
               "double_layer_virtual_dim": 1,
@@ -848,8 +1199,10 @@
                 9.999999998e-11
               ]
             ],
+            "gauge_conditioning_well_conditioned": true,
             "interaction_max_abs_delta": 0.0,
             "observable_max_abs_delta": 0.0,
+            "raw_boundary_basis_residual": 1.49999999985e-10,
             "reference_max_abs_error": 0.0,
             "reference_name": "finite-product-supercell",
             "reference_passed": true,
@@ -872,7 +1225,7 @@
               "reference_sites": 4,
               "tolerance": 1e-05
             },
-            "residual": 1.49999999985e-10,
+            "residual": 9.999999997999999e-11,
             "resource_estimate": {
               "device": "cuda",
               "double_layer_virtual_dim": 1,
@@ -920,8 +1273,10 @@
                 1.4602865854856856e-44
               ]
             ],
+            "gauge_conditioning_well_conditioned": true,
             "interaction_max_abs_delta": 0.0,
             "observable_max_abs_delta": 0.0,
+            "raw_boundary_basis_residual": 1.9999999992750016e-10,
             "reference_max_abs_error": 0.0,
             "reference_name": "finite-product-supercell",
             "reference_passed": true,
@@ -944,7 +1299,7 @@
               "reference_sites": 4,
               "tolerance": 1e-05
             },
-            "residual": 1.9999999992750016e-10,
+            "residual": 2.9999999994e-10,
             "resource_estimate": {
               "device": "cuda",
               "double_layer_virtual_dim": 1,
@@ -965,9 +1320,9 @@
           }
         ],
         "provenance": {
-          "git_revision": "35f4d157c2600ea51943b1204717a1ebeeeecb9c",
-          "request_sha256": "5c7abbde99328a2602d60133cb969c7d3a9a5275033160a738c23beb6649367d",
-          "result_sha256": "59a54c66f202d0b3dc626aa5d86ef4fbbb6fc458f2831fa9d907774279d77ef7"
+          "git_revision": "11a07afcb9694a9fc8a5040730326e8469849451",
+          "request_sha256": "deb9ac842e6622474cf9d991b90798731527574b765f5d680ab7bfb4d0bf836e",
+          "result_sha256": "921e71b4cab243ab5a3304e0bf8c0a118b55bc39f9ae8ffbfaf073b364895c15"
         },
         "reference_summary": {
           "consistent_reference": "finite-product-supercell",
@@ -991,7 +1346,7 @@
       }
     },
     {
-      "elapsed_ms": 161.904,
+      "elapsed_ms": 195.741,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11757682688,
@@ -1016,11 +1371,16 @@
         "dtype": "complex128",
         "environment_bond_dim": 4,
         "full_update_gradient_epsilon": 0.001,
+        "full_update_implicit_damping": 0.5,
+        "full_update_implicit_iterations": 32,
+        "full_update_implicit_tolerance": 1e-06,
         "full_update_max_evaluations": 1024,
         "full_update_max_parameters": 128,
         "full_update_optimizer": "coordinate",
         "full_update_spsa_directions": 4,
         "full_update_step": 0.05,
+        "gauge_validation": false,
+        "gauge_validation_tolerance": 0.0001,
         "initial_state": "up",
         "interactions": [
           {
@@ -1140,10 +1500,248 @@
         ],
         "virtual_bond_dim": 1
       },
-      "request_sha256": "0cca7328189dc7f0419f9c83e386bc09e84c883a4138ee9366e4ce1c50a6cc63",
-      "result_sha256": "ef65065029d2857d959ba925c918f34aa54b019b727b11fc1fc3db9c1f20691d",
+      "request_sha256": "7b544889bcecafd7f9ff21db5c7a5836c1838a4d744e1fce1ce5bea023009018",
+      "result_sha256": "13a6f055540d858909fe54ffe68257c1460829dfd0a2f6b4d9d2b6190525a082",
       "status": "done",
       "study": {
+        "gauge_conditioning": {
+          "eigenvalue_floor": 1e-12,
+          "legs": [
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "up",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "down",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "left",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "right",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 0,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "up",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 1,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "down",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 1,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "left",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 1,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "right",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 1,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "up",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 2,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "down",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 2,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "left",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 2,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "right",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 2,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "up",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 3,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "down",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 3,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "left",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 3,
+              "trace": 1.0,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 1.0,
+              "dimension": 1,
+              "eigenvalues": [
+                1.0
+              ],
+              "leg": "right",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 1.0,
+              "rank_estimate": 1,
+              "site": 3,
+              "trace": 1.0,
+              "well_conditioned": true
+            }
+          ],
+          "limitations": [
+            "this is a conditioning diagnostic, not PEPS canonicalization",
+            "a future preconditioner must pair inverse transforms across every virtual bond",
+            "conditioning does not establish CTMRG gauge invariance or thermodynamic convergence"
+          ],
+          "method": "virtual-leg-gram-spectrum",
+          "mutated_tensors": false,
+          "performed": true,
+          "well_conditioned": true
+        },
         "materializes_statevector": false,
         "method": "ipeps-ctmrg-environment-convergence-study",
         "optimization": "none",
@@ -1179,8 +1777,10 @@
                 1.0
               ]
             ],
+            "gauge_conditioning_well_conditioned": true,
             "interaction_max_abs_delta": null,
             "observable_max_abs_delta": null,
+            "raw_boundary_basis_residual": 1.000000082640371e-10,
             "reference_max_abs_error": 0.0,
             "reference_name": "finite-product-supercell",
             "reference_passed": true,
@@ -1203,7 +1803,7 @@
               "reference_sites": 4,
               "tolerance": 1e-05
             },
-            "residual": 1.000000082640371e-10,
+            "residual": 0.0,
             "resource_estimate": {
               "device": "cuda",
               "double_layer_virtual_dim": 1,
@@ -1257,8 +1857,10 @@
                 9.999999998e-11
               ]
             ],
+            "gauge_conditioning_well_conditioned": true,
             "interaction_max_abs_delta": 0.0,
             "observable_max_abs_delta": 0.0,
+            "raw_boundary_basis_residual": 1.49999999985e-10,
             "reference_max_abs_error": 0.0,
             "reference_name": "finite-product-supercell",
             "reference_passed": true,
@@ -1281,7 +1883,7 @@
               "reference_sites": 4,
               "tolerance": 1e-05
             },
-            "residual": 1.49999999985e-10,
+            "residual": 9.999999997999999e-11,
             "resource_estimate": {
               "device": "cuda",
               "double_layer_virtual_dim": 1,
@@ -1343,8 +1945,10 @@
                 1.4602865854856856e-44
               ]
             ],
+            "gauge_conditioning_well_conditioned": true,
             "interaction_max_abs_delta": 0.0,
             "observable_max_abs_delta": 0.0,
+            "raw_boundary_basis_residual": 1.9999999992750016e-10,
             "reference_max_abs_error": 0.0,
             "reference_name": "finite-product-supercell",
             "reference_passed": true,
@@ -1367,7 +1971,7 @@
               "reference_sites": 4,
               "tolerance": 1e-05
             },
-            "residual": 1.9999999992750016e-10,
+            "residual": 2.9999999994e-10,
             "resource_estimate": {
               "device": "cuda",
               "double_layer_virtual_dim": 1,
@@ -1388,9 +1992,9 @@
           }
         ],
         "provenance": {
-          "git_revision": "35f4d157c2600ea51943b1204717a1ebeeeecb9c",
-          "request_sha256": "0cca7328189dc7f0419f9c83e386bc09e84c883a4138ee9366e4ce1c50a6cc63",
-          "result_sha256": "ef65065029d2857d959ba925c918f34aa54b019b727b11fc1fc3db9c1f20691d"
+          "git_revision": "11a07afcb9694a9fc8a5040730326e8469849451",
+          "request_sha256": "7b544889bcecafd7f9ff21db5c7a5836c1838a4d744e1fce1ce5bea023009018",
+          "result_sha256": "13a6f055540d858909fe54ffe68257c1460829dfd0a2f6b4d9d2b6190525a082"
         },
         "reference_summary": {
           "consistent_reference": "finite-product-supercell",
@@ -1414,7 +2018,7 @@
       }
     },
     {
-      "elapsed_ms": 331.428,
+      "elapsed_ms": 254.758,
       "gpu_after": {
         "device_id": 0,
         "free_bytes": 11753488384,
@@ -1439,11 +2043,16 @@
         "dtype": "complex128",
         "environment_bond_dim": 4,
         "full_update_gradient_epsilon": 0.001,
+        "full_update_implicit_damping": 0.5,
+        "full_update_implicit_iterations": 32,
+        "full_update_implicit_tolerance": 1e-06,
         "full_update_max_evaluations": 1024,
         "full_update_max_parameters": 128,
         "full_update_optimizer": "coordinate",
         "full_update_spsa_directions": 4,
         "full_update_step": 0.05,
+        "gauge_validation": false,
+        "gauge_validation_tolerance": 0.0001,
         "initial_state": "up",
         "interactions": [
           {
@@ -2012,16 +2621,270 @@
         ],
         "virtual_bond_dim": 2
       },
-      "request_sha256": "6b5ca78eb441b0b2a2fec92a4cba415be999e1453126e0fa16cae44aab5d967a",
-      "result_sha256": "6cff3582af70fd3dff4039dda55e39f8122495deaafc6539ec09f4d1e539bc86",
+      "request_sha256": "4cf0c3781b5f2051a18ac9ba0c0df8fb1de99f164e768987f2aa1b41aef8be7d",
+      "result_sha256": "3435bc001c36e23006e9ea430016855bae250003e65072a01b953ab0f9f0ccef",
       "status": "done",
       "study": {
+        "gauge_conditioning": {
+          "eigenvalue_floor": 1e-12,
+          "legs": [
+            {
+              "condition_number": 25.249999999999996,
+              "dimension": 2,
+              "eigenvalues": [
+                0.04000000000000001,
+                1.01
+              ],
+              "leg": "up",
+              "maximum_eigenvalue": 1.01,
+              "minimum_eigenvalue": 0.04000000000000001,
+              "rank_estimate": 2,
+              "site": 0,
+              "trace": 1.05,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 19.999999999999996,
+              "dimension": 2,
+              "eigenvalues": [
+                0.05000000000000001,
+                1.0
+              ],
+              "leg": "down",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 0.05000000000000001,
+              "rank_estimate": 2,
+              "site": 0,
+              "trace": 1.05,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 19.999999999999996,
+              "dimension": 2,
+              "eigenvalues": [
+                0.05000000000000001,
+                1.0
+              ],
+              "leg": "left",
+              "maximum_eigenvalue": 1.0,
+              "minimum_eigenvalue": 0.05000000000000001,
+              "rank_estimate": 2,
+              "site": 0,
+              "trace": 1.05,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 25.249999999999996,
+              "dimension": 2,
+              "eigenvalues": [
+                0.04000000000000001,
+                1.01
+              ],
+              "leg": "right",
+              "maximum_eigenvalue": 1.01,
+              "minimum_eigenvalue": 0.04000000000000001,
+              "rank_estimate": 2,
+              "site": 0,
+              "trace": 1.05,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 24.755501222493884,
+              "dimension": 2,
+              "eigenvalues": [
+                0.040900000000000006,
+                1.0125
+              ],
+              "leg": "up",
+              "maximum_eigenvalue": 1.0125,
+              "minimum_eigenvalue": 0.040900000000000006,
+              "rank_estimate": 2,
+              "site": 1,
+              "trace": 1.0534,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 19.695481335952845,
+              "dimension": 2,
+              "eigenvalues": [
+                0.05090000000000001,
+                1.0025
+              ],
+              "leg": "down",
+              "maximum_eigenvalue": 1.0025,
+              "minimum_eigenvalue": 0.05090000000000001,
+              "rank_estimate": 2,
+              "site": 1,
+              "trace": 1.0534,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 19.695481335952845,
+              "dimension": 2,
+              "eigenvalues": [
+                0.05090000000000001,
+                1.0025
+              ],
+              "leg": "left",
+              "maximum_eigenvalue": 1.0025,
+              "minimum_eigenvalue": 0.05090000000000001,
+              "rank_estimate": 2,
+              "site": 1,
+              "trace": 1.0534,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 24.755501222493884,
+              "dimension": 2,
+              "eigenvalues": [
+                0.040900000000000006,
+                1.0125
+              ],
+              "leg": "right",
+              "maximum_eigenvalue": 1.0125,
+              "minimum_eigenvalue": 0.040900000000000006,
+              "rank_estimate": 2,
+              "site": 1,
+              "trace": 1.0534,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 23.394495412844034,
+              "dimension": 2,
+              "eigenvalues": [
+                0.04360000000000001,
+                1.02
+              ],
+              "leg": "up",
+              "maximum_eigenvalue": 1.02,
+              "minimum_eigenvalue": 0.04360000000000001,
+              "rank_estimate": 2,
+              "site": 2,
+              "trace": 1.0636,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 18.843283582089548,
+              "dimension": 2,
+              "eigenvalues": [
+                0.05360000000000001,
+                1.01
+              ],
+              "leg": "down",
+              "maximum_eigenvalue": 1.01,
+              "minimum_eigenvalue": 0.05360000000000001,
+              "rank_estimate": 2,
+              "site": 2,
+              "trace": 1.0636,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 18.843283582089548,
+              "dimension": 2,
+              "eigenvalues": [
+                0.05360000000000001,
+                1.01
+              ],
+              "leg": "left",
+              "maximum_eigenvalue": 1.01,
+              "minimum_eigenvalue": 0.05360000000000001,
+              "rank_estimate": 2,
+              "site": 2,
+              "trace": 1.0636,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 23.394495412844034,
+              "dimension": 2,
+              "eigenvalues": [
+                0.04360000000000001,
+                1.02
+              ],
+              "leg": "right",
+              "maximum_eigenvalue": 1.02,
+              "minimum_eigenvalue": 0.04360000000000001,
+              "rank_estimate": 2,
+              "site": 2,
+              "trace": 1.0636,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 21.465696465696464,
+              "dimension": 2,
+              "eigenvalues": [
+                0.048100000000000004,
+                1.0325
+              ],
+              "leg": "up",
+              "maximum_eigenvalue": 1.0325,
+              "minimum_eigenvalue": 0.048100000000000004,
+              "rank_estimate": 2,
+              "site": 3,
+              "trace": 1.0806,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 17.598967297762478,
+              "dimension": 2,
+              "eigenvalues": [
+                0.058100000000000006,
+                1.0225
+              ],
+              "leg": "down",
+              "maximum_eigenvalue": 1.0225,
+              "minimum_eigenvalue": 0.058100000000000006,
+              "rank_estimate": 2,
+              "site": 3,
+              "trace": 1.0806,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 17.598967297762478,
+              "dimension": 2,
+              "eigenvalues": [
+                0.058100000000000006,
+                1.0225
+              ],
+              "leg": "left",
+              "maximum_eigenvalue": 1.0225,
+              "minimum_eigenvalue": 0.058100000000000006,
+              "rank_estimate": 2,
+              "site": 3,
+              "trace": 1.0806,
+              "well_conditioned": true
+            },
+            {
+              "condition_number": 21.465696465696464,
+              "dimension": 2,
+              "eigenvalues": [
+                0.048100000000000004,
+                1.0325
+              ],
+              "leg": "right",
+              "maximum_eigenvalue": 1.0325,
+              "minimum_eigenvalue": 0.048100000000000004,
+              "rank_estimate": 2,
+              "site": 3,
+              "trace": 1.0806,
+              "well_conditioned": true
+            }
+          ],
+          "limitations": [
+            "this is a conditioning diagnostic, not PEPS canonicalization",
+            "a future preconditioner must pair inverse transforms across every virtual bond",
+            "conditioning does not establish CTMRG gauge invariance or thermodynamic convergence"
+          ],
+          "method": "virtual-leg-gram-spectrum",
+          "mutated_tensors": false,
+          "performed": true,
+          "well_conditioned": true
+        },
         "materializes_statevector": false,
         "method": "ipeps-ctmrg-environment-convergence-study",
         "optimization": "none",
         "points": [
           {
-            "converged": false,
+            "converged": true,
             "correlation_length": 0.0,
             "correlation_lengths_by_site": [
               0.0,
@@ -2029,7 +2892,7 @@
               0.0,
               0.0
             ],
-            "energy": 0.30000000000000004,
+            "energy": 0.29999999999946514,
             "energy_abs_delta": null,
             "energy_complete": true,
             "energy_delta": null,
@@ -2051,14 +2914,16 @@
                 1.0
               ]
             ],
+            "gauge_conditioning_well_conditioned": true,
             "interaction_max_abs_delta": null,
             "observable_max_abs_delta": null,
+            "raw_boundary_basis_residual": 1.9999999999,
             "reference_max_abs_error": 0.03531024345375977,
             "reference_name": "finite-periodic-peps-2x2",
             "reference_passed": false,
             "reference_validation": {
               "energy_complete": true,
-              "energy_error": 0.01059238684537589,
+              "energy_error": 0.010592386845910795,
               "energy_second_moment": 0.09837011979480627,
               "energy_variance": 0.0019024890284986135,
               "interaction_max_abs_error": 0.03531024345375977,
@@ -2068,7 +2933,7 @@
                 "compare multiple torus sizes and environment chi before drawing infinite-lattice conclusions"
               ],
               "max_abs_error": 0.03531024345375977,
-              "observable_max_abs_error": 0.0353033815462398,
+              "observable_max_abs_error": 0.03530338155158885,
               "passed": false,
               "performed": true,
               "reference": "finite-periodic-peps-2x2",
@@ -2084,12 +2949,12 @@
               ],
               "tolerance": 1e-05
             },
-            "residual": 0.00020231493319101208,
+            "residual": 0.0,
             "resource_estimate": {
               "device": "cuda",
               "double_layer_virtual_dim": 4,
               "environment_bond_dim_used": 1,
-              "iterations": 3,
+              "iterations": 1,
               "materializes_statevector": false,
               "peak_bytes_estimate": 9984,
               "physical_bond_dim": 2,
@@ -2104,7 +2969,7 @@
             }
           },
           {
-            "converged": false,
+            "converged": true,
             "correlation_length": null,
             "correlation_lengths_by_site": [
               null,
@@ -2112,7 +2977,7 @@
               null,
               null
             ],
-            "energy": 0.3,
+            "energy": 0.2999999999994651,
             "energy_abs_delta": 5.551115123125783e-17,
             "energy_complete": true,
             "energy_delta": -5.551115123125783e-17,
@@ -2123,29 +2988,31 @@
             "environment_spectrum": [
               [
                 1.0,
-                0.9999999997931336
+                0.9999999997931658
               ],
               [
                 1.0,
-                0.99999999979314
+                0.999999999793171
               ],
               [
                 1.0,
-                0.9999999997931427
+                0.9999999997931742
               ],
               [
                 1.0,
-                0.9999999997931428
+                0.9999999997931749
               ]
             ],
+            "gauge_conditioning_well_conditioned": true,
             "interaction_max_abs_delta": 0.0,
             "observable_max_abs_delta": 1.1102230246251565e-16,
+            "raw_boundary_basis_residual": 1.0000000000000002,
             "reference_max_abs_error": 0.03531024345375977,
             "reference_name": "finite-periodic-peps-2x2",
             "reference_passed": false,
             "reference_validation": {
               "energy_complete": true,
-              "energy_error": 0.010592386845375945,
+              "energy_error": 0.01059238684591085,
               "energy_second_moment": 0.09837011979480627,
               "energy_variance": 0.0019024890284986135,
               "interaction_max_abs_error": 0.03531024345375977,
@@ -2155,7 +3022,7 @@
                 "compare multiple torus sizes and environment chi before drawing infinite-lattice conclusions"
               ],
               "max_abs_error": 0.03531024345375977,
-              "observable_max_abs_error": 0.03530338154623991,
+              "observable_max_abs_error": 0.035303381551588964,
               "passed": false,
               "performed": true,
               "reference": "finite-periodic-peps-2x2",
@@ -2171,12 +3038,12 @@
               ],
               "tolerance": 1e-05
             },
-            "residual": 1.9999999985474564,
+            "residual": 4.032002509646304e-10,
             "resource_estimate": {
               "device": "cuda",
               "double_layer_virtual_dim": 4,
               "environment_bond_dim_used": 2,
-              "iterations": 3,
+              "iterations": 1,
               "materializes_statevector": false,
               "peak_bytes_estimate": 21504,
               "physical_bond_dim": 2,
@@ -2192,9 +3059,9 @@
           }
         ],
         "provenance": {
-          "git_revision": "35f4d157c2600ea51943b1204717a1ebeeeecb9c",
-          "request_sha256": "6b5ca78eb441b0b2a2fec92a4cba415be999e1453126e0fa16cae44aab5d967a",
-          "result_sha256": "6cff3582af70fd3dff4039dda55e39f8122495deaafc6539ec09f4d1e539bc86"
+          "git_revision": "11a07afcb9694a9fc8a5040730326e8469849451",
+          "request_sha256": "4cf0c3781b5f2051a18ac9ba0c0df8fb1de99f164e768987f2aa1b41aef8be7d",
+          "result_sha256": "3435bc001c36e23006e9ea430016855bae250003e65072a01b953ab0f9f0ccef"
         },
         "reference_summary": {
           "consistent_reference": "finite-periodic-peps-2x2",
@@ -2236,14 +3103,14 @@
       2
     ]
   ],
-  "created_at": "2026-09-18T06:17:48.988110+00:00",
-  "elapsed_ms": 1155.472,
+  "created_at": "2026-09-18T07:42:44.255724+00:00",
+  "elapsed_ms": 1126.107,
   "environment_bond_dims": [
     1,
     2,
     4
   ],
-  "git_revision": "35f4d157c2600ea51943b1204717a1ebeeeecb9c",
+  "git_revision": "11a07afcb9694a9fc8a5040730326e8469849451",
   "limitations": [
     "campaign is bounded acceptance evidence, not a thermodynamic-limit benchmark",
     "product cases validate the admitted product reference; the generic entangled case is expected to remain review-only until variational full-update is validated",

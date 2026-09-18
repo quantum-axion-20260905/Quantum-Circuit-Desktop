@@ -271,8 +271,9 @@ but not released:
   thermodynamic-limit limitations; disagreement remains `needs_review` instead
   of being hidden as a successful infinite-lattice result.
 - environment-χ studies now expose point-to-point energy, local-observable, and
-  interaction deltas together with a reference summary and pass count, so a
-  study cannot be reduced to an energy-only plot.
+  interaction deltas together with raw boundary-basis residual, virtual-leg
+  conditioning, a reference summary, and pass count, so a study cannot be
+  reduced to an energy-only plot.
 - the lattice domain plugin now builds periodic iPEPS CTMRG payloads for
   Ising, Heisenberg, and XXZ unit cells without putting model logic into the
   numerical core; 1x1 and 2x2 product-limit tests pass the independent

@@ -53,8 +53,9 @@ and keeps the result in `Needs review` instead of presenting a plausible number
 as a converged infinite-lattice result.
 
 The χ-study result now also carries point-to-point energy, local-observable and
-interaction deltas, plus a reference pass summary. This makes environment
-convergence evidence auditable beyond a single energy column.
+interaction deltas, raw basis drift, virtual-leg conditioning, plus a
+reference pass summary. This makes environment convergence evidence auditable
+beyond a single energy column.
 
 The same cases can now be replayed through the bounded campaign runner. The
 recorded artifact [ctmrg_gpu_campaign_2026-09-18.json](C:/Users/shaxz/OneDrive/Dokumenty/Quantum-Circuit-Desktop/docs/evidence/ctmrg_gpu_campaign_2026-09-18.json)
@@ -66,8 +67,10 @@ review-only until the variational full-update gate is complete.
 The finite-gradient optimizer checkpoint was also exercised on CUDA: a step-2
 optimizer state resumed at iteration 2 and matched an independent fresh
 six-step run exactly to the recorded `1e-10` comparison threshold. This
-checkpoint is specific to the finite-reference optimizer; unsupported
-infinite-CTMRG optimizer resume requests are rejected before execution.
+checkpoint is specific to the finite-reference optimizer. The newer Torch
+unrolled and implicit infinite-CTMRG line-search states are also resumable
+under their stricter request/method/history contract; their environments are
+recomputed on resume.
 
 After the objective-seam refactor, a bounded CUDA SPSA run on the D=1 X-X
 product limit used the resident-tensor CTMRG objective for seven evaluations,

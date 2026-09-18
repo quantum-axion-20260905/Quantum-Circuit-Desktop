@@ -1291,6 +1291,7 @@ def run_ctmrg_convergence_study(
     previous_energy: float | None = None
     previous_observables: list[float] | None = None
     previous_interactions: list[float | None] | None = None
+    study_gauge_conditioning: dict[str, Any] | None = None
     for point_index, environment_bond_dim in enumerate(normalized_dims):
         if cancel_cb and cancel_cb():
             raise RuntimeError("job canceled")
@@ -1312,6 +1313,8 @@ def run_ctmrg_convergence_study(
             progress_cb=point_progress,
             cancel_cb=cancel_cb,
         )
+        if study_gauge_conditioning is None:
+            study_gauge_conditioning = dict(result["gauge_conditioning"])
         energy = float(result["energy"])
         observables = [float(item["value"]) for item in result["observables"]]
         interactions = [
@@ -1343,6 +1346,7 @@ def run_ctmrg_convergence_study(
             "observable_max_abs_delta": observable_delta,
             "interaction_max_abs_delta": interaction_delta,
             "residual": float(result["residual"]),
+            "raw_boundary_basis_residual": float(result["raw_boundary_basis_residual"]),
             "converged": bool(result["converged"]),
             "correlation_length": result["correlation_length"],
             "correlation_lengths_by_site": result["correlation_lengths_by_site"],
@@ -1353,6 +1357,9 @@ def run_ctmrg_convergence_study(
             "reference_name": reference.get("reference") if reference.get("performed") else None,
             "reference_passed": bool(reference.get("passed")) if reference.get("performed") else None,
             "reference_max_abs_error": reference.get("max_abs_error"),
+            "gauge_conditioning_well_conditioned": bool(
+                result["gauge_conditioning"].get("well_conditioned", False)
+            ),
             "resource_estimate": result["resource_estimate"],
         })
         previous_energy = energy
@@ -1383,6 +1390,10 @@ def run_ctmrg_convergence_study(
             "performed_points": sum(1 for point in points if point["reference_name"] is not None),
             "passed_points": sum(1 for point in points if point["reference_passed"] is True),
             "max_abs_error": max(reference_errors, default=None),
+        },
+        "gauge_conditioning": study_gauge_conditioning or {
+            "performed": False,
+            "reason": "study has no points",
         },
         "materializes_statevector": False,
         "warnings": [
