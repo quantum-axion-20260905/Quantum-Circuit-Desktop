@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from .models import LatticeSpec, PauliTerm
+from .models import CTMRGPayload, IPEPSInteraction, LatticeHamiltonianPayload, LatticeSpec, PauliTerm
 
 
 def _coordinates(spec: LatticeSpec) -> list[tuple[int, ...]]:
@@ -80,3 +80,75 @@ def build_spin_hamiltonian(spec: LatticeHamiltonianPayload) -> dict:
         if spec.field:
             terms.extend(_term({site: "Z"}, -spec.field, "Z field") for site in range(n))
     return {**graph, "model": spec.model, "coupling": spec.coupling, "field": spec.field, "anisotropy": spec.anisotropy, "n_qubits": n, "terms": [term.model_dump(mode="json") for term in terms]}
+
+
+def build_ctmrg_spin_payload(
+    spec: LatticeHamiltonianPayload,
+    *,
+    initial_state: str = "up",
+    environment_bond_dim: int = 16,
+    iterations: int = 20,
+    tolerance: float = 1e-8,
+) -> CTMRGPayload:
+    """Build a periodic 2D spin model for the bounded iPEPS CTMRG backend.
+
+    The finite-lattice builder above emits explicit finite Pauli terms.  This
+    builder instead emits translationally repeated +x/+y interactions for an
+    infinite unit cell, keeping the domain mapping separate from CTMRG.
+    Dimensions remain bounded by ``CTMRGPayload`` at construction time.
+    """
+
+    if len(spec.dimensions) != 2:
+        raise ValueError("CTMRG spin models require a 2D unit-cell dimensions=[nx, ny]")
+    nx, ny = (int(value) for value in spec.dimensions)
+    cell_sites = nx * ny
+
+    def site(x: int, y: int) -> int:
+        return (x % nx) + nx * (y % ny)
+
+    if spec.model == "ising":
+        bond_components = [("Z", "Z", -float(spec.coupling), "ZZ")]
+        field_pauli = "X"
+    elif spec.model == "heisenberg":
+        bond_components = [(pauli, pauli, float(spec.coupling), f"{pauli}{pauli}") for pauli in ("X", "Y", "Z")]
+        field_pauli = "Z"
+    else:
+        bond_components = [
+            ("X", "X", float(spec.coupling), "XX"),
+            ("Y", "Y", float(spec.coupling), "YY"),
+            ("Z", "Z", float(spec.coupling) * float(spec.anisotropy), "ZZ"),
+        ]
+        field_pauli = "Z"
+
+    interactions: list[IPEPSInteraction] = []
+    for y in range(ny):
+        for x in range(nx):
+            left_site = site(x, y)
+            for right_site, displacement in (
+                (site(x + 1, y), [1, 0]),
+                (site(x, y + 1), [0, 1]),
+            ):
+                for left_pauli, right_pauli, coefficient, label in bond_components:
+                    interactions.append(IPEPSInteraction(
+                        left_site=left_site,
+                        right_site=right_site,
+                        displacement=displacement,
+                        left_pauli=left_pauli,
+                        right_pauli=right_pauli,
+                        coefficient=coefficient,
+                        label=label,
+                    ))
+
+    terms = [
+        _term({site_index: field_pauli}, -float(spec.field), f"{spec.model} field")
+        for site_index in range(cell_sites)
+    ] if spec.field else []
+    return CTMRGPayload(
+        unit_cell=[nx, ny],
+        terms=terms,
+        interactions=interactions,
+        initial_state=initial_state,
+        environment_bond_dim=environment_bond_dim,
+        iterations=iterations,
+        tolerance=tolerance,
+    )

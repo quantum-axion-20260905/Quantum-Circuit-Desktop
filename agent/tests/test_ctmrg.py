@@ -7,7 +7,8 @@ import numpy as np
 
 from qc_agent.core.ctmrg import run_ctmrg, run_ctmrg_convergence_study
 from qc_agent.core.peps import PEPSRuntime
-from qc_agent.plugins.models import CTMRGConvergenceStudyPayload, CTMRGPayload, IPEPSInteraction, LatticeSpec, PEPSPayload, PauliTerm
+from qc_agent.plugins.lattice import build_ctmrg_spin_payload
+from qc_agent.plugins.models import CTMRGConvergenceStudyPayload, CTMRGPayload, IPEPSInteraction, LatticeHamiltonianPayload, LatticeSpec, PEPSPayload, PauliTerm
 
 
 class CTMRGTests(unittest.TestCase):
@@ -162,6 +163,34 @@ class CTMRGTests(unittest.TestCase):
         self.assertAlmostEqual(finite_reference, -1.0, places=6)
         self.assertAlmostEqual(ctmrg["interactions"][0]["value"], finite_reference, places=6)
         self.assertTrue(ctmrg["reference_validation"]["passed"])
+
+    def test_periodic_ising_builder_feeds_ctmrg_without_finite_geometry_leak(self):
+        payload = build_ctmrg_spin_payload(
+            LatticeHamiltonianPayload(dimensions=[2, 2], model="ising", coupling=1.0),
+            initial_state="up",
+            environment_bond_dim=2,
+            iterations=2,
+        )
+        self.assertEqual(payload.unit_cell, [2, 2])
+        self.assertEqual(len(payload.interactions), 8)
+        self.assertTrue(all(item.displacement in ([1, 0], [0, 1]) for item in payload.interactions))
+        result = run_ctmrg(np, payload)
+        self.assertAlmostEqual(result["energy"], -8.0, places=6)
+        self.assertTrue(result["reference_validation"]["passed"])
+        self.assertAlmostEqual(result["energy_variance"], 0.0, places=6)
+
+    def test_periodic_heisenberg_builder_reports_product_limit_reference(self):
+        payload = build_ctmrg_spin_payload(
+            LatticeHamiltonianPayload(dimensions=[1, 1], model="heisenberg", coupling=1.0),
+            initial_state="up",
+            environment_bond_dim=1,
+            iterations=2,
+        )
+        self.assertEqual(len(payload.interactions), 6)
+        result = run_ctmrg(np, payload)
+        self.assertAlmostEqual(result["energy"], 2.0, places=6)
+        self.assertTrue(result["reference_validation"]["passed"])
+        self.assertAlmostEqual(result["energy_variance"], 0.0, places=6)
 
     def test_two_by_two_checkpoint_resume_restores_all_environments(self):
         payload = CTMRGPayload(

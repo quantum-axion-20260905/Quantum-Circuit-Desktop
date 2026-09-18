@@ -247,6 +247,10 @@ but not released:
   with a line search, evaluation budget, gradient diagnostics, and separate
   result method; it is a bridge for small tensors and is still not the
   scalable automatic-differentiation solver required for the release gate.
+- the lattice domain plugin now builds periodic iPEPS CTMRG payloads for
+  Ising, Heisenberg, and XXZ unit cells without putting model logic into the
+  numerical core; 1x1 and 2x2 product-limit tests pass the independent
+  reference gate.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
