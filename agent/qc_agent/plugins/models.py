@@ -387,6 +387,23 @@ class LatticeHamiltonianPayload(LatticeSpec):
         return value
 
 
+class CTMRGSpinModelPayload(LatticeHamiltonianPayload):
+    """Spin-model builder contract for periodic iPEPS unit cells."""
+
+    initial_state: Literal["up", "down", "plus", "neel"] = "up"
+    environment_bond_dim: int = Field(default=16, ge=1, le=128)
+    iterations: int = Field(default=20, ge=1, le=200)
+    tolerance: float = Field(default=1e-8, gt=0, le=1.0)
+
+    @model_validator(mode="after")
+    def validate_ctmrg_geometry(self):
+        if len(self.dimensions) != 2:
+            raise ValueError("CTMRG spin models require a 2D unit-cell dimensions=[nx, ny]")
+        if any(int(size) > 2 for size in self.dimensions):
+            raise ValueError("CTMRG spin model unit-cell dimensions are limited to 2x2")
+        return self
+
+
 class HubbardPayload(LatticeSpec):
     """Spinful Hubbard model on a rectangular lattice.
 

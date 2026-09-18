@@ -22,6 +22,7 @@ class DomainPlugin(Protocol):
 PLUGIN_ACTIONS = (
     "preview_lattice",
     "build_hamiltonian",
+    "build_ctmrg",
     "map_fermions",
     "build_hubbard",
 )

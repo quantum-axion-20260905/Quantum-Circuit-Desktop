@@ -16,6 +16,7 @@ from qc_agent.plugins.lattice import build_spin_hamiltonian, lattice_graph
 from qc_agent.plugins.fermion import map_fermion_terms
 from qc_agent.plugins.materials import build_hubbard_hamiltonian
 from qc_agent.plugins.models import (
+    CTMRGSpinModelPayload,
     ExpectationPayload,
     FermionMappingPayload,
     FermionOperator,
@@ -28,6 +29,7 @@ from qc_agent.plugins.models import (
     PEPSPayload,
     TEBDPayload,
 )
+from qc_agent.plugins.spin_lattice import SpinLatticePlugin
 from qc_agent.plugins.tebd import run_tebd
 
 
@@ -39,6 +41,18 @@ class PhysicsPluginTests(unittest.TestCase):
         self.assertEqual(len(graph["sites"]), 6)
         self.assertEqual(len(graph["edges"]), 7)
         self.assertEqual(len(hamiltonian["terms"]), 13)
+
+    def test_spin_plugin_exposes_periodic_ctmrg_builder_as_domain_action(self):
+        result = SpinLatticePlugin().build_ctmrg(CTMRGSpinModelPayload(
+            dimensions=[2, 2],
+            model="ising",
+            initial_state="up",
+            environment_bond_dim=2,
+            iterations=2,
+        ))
+        self.assertEqual(result["unit_cell"], [2, 2])
+        self.assertEqual(len(result["interactions"]), 8)
+        self.assertEqual(result["initial_state"], "up")
 
     def test_periodic_single_site_axis_does_not_create_self_edge(self):
         graph = lattice_graph(LatticeHamiltonianPayload(dimensions=[1, 2], boundary="periodic"))

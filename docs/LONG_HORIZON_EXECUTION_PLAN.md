@@ -251,6 +251,9 @@ but not released:
   Ising, Heisenberg, and XXZ unit cells without putting model logic into the
   numerical core; 1x1 and 2x2 product-limit tests pass the independent
   reference gate.
+- the spin-lattice plugin exposes that builder as a first-class `build_ctmrg`
+  domain action, keeping future material/chemistry builders on the same
+  plugin seam instead of adding model branches to the solver.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.

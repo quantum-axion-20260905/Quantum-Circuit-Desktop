@@ -9,6 +9,7 @@ from ..plugins.fermion import map_fermion_terms
 from ..plugins.models import (
     FermionMappingPayload,
     HubbardPayload,
+    CTMRGSpinModelPayload,
     LatticeHamiltonianPayload,
     LatticeSpec,
 )
@@ -42,6 +43,12 @@ def preview_lattice(plugin_id: str, payload: LatticeSpec) -> dict[str, Any]:
 def build_hamiltonian(plugin_id: str, payload: LatticeHamiltonianPayload) -> dict[str, Any]:
     plugin = _plugin_or_http(plugin_id)
     return _action_or_http(plugin, "build_hamiltonian")(payload)
+
+
+@router.post("/{plugin_id}/ctmrg")
+def build_ctmrg(plugin_id: str, payload: CTMRGSpinModelPayload) -> dict[str, Any]:
+    plugin = _plugin_or_http(plugin_id)
+    return _action_or_http(plugin, "build_ctmrg")(payload)
 
 
 @router.post("/{plugin_id}/fermion_mapping")
