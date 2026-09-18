@@ -59,6 +59,14 @@ features.
   fixed-point strategy with explicit residual, χ-convergence, and finite-
   reference gates.
 
+- A measured fixed-point control is now available as `environment_damping`.
+  The bounded CUDA packet at
+  `docs/evidence/ctmrg_damped_fixed_point_2026-09-18.json` shows that
+  under-relaxation can lower the random-cell spectrum residual, but it does
+  not reach convergence and can leave a large sector spread. It is therefore
+  an explicit experimental control, not a production admission shortcut; the
+  default remains `1.0` and optimizer paths are unchanged.
+
 ### Four-step delivery ladder for the active phase
 
 The following ladder is the working sequence. Each step produces a commit and

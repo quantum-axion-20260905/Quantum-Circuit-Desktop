@@ -1,0 +1,40 @@
+{
+  "artifact": "ctmrg-damped-fixed-point-update",
+  "date": "2026-09-18",
+  "git_revision": "80fdbeb",
+  "verification": {
+    "full_backend_unittest": "146/146 passed",
+    "cuda_backend": "CuPy",
+    "dtype": "complex64",
+    "scope": "random D=2 1x1 CTMRG fixed-point diagnostic"
+  },
+  "contract": {
+    "field": "environment_damping",
+    "range": "(0, 1]",
+    "default": 1.0,
+    "meaning": "under-relax the resident CTM environment after each directional sweep and renormalize"
+  },
+  "short_sweep": [
+    {"damping": 1.0, "iterations": 64, "residual": 0.10900824137116581, "converged": false, "energy": -0.2518228366971016, "sector_energy_abs_range": 0.026010707360759583},
+    {"damping": 0.75, "iterations": 64, "residual": 0.2138720395396531, "converged": false, "energy": -0.28138238564133644, "sector_energy_abs_range": 0.013232864439487457},
+    {"damping": 0.5, "iterations": 64, "residual": 0.25398031446087976, "converged": false, "energy": -0.26994871720671654, "sector_energy_abs_range": 0.046466343104839325},
+    {"damping": 0.25, "iterations": 64, "residual": 0.08679712859484998, "converged": false, "energy": -0.26110055297613144, "sector_energy_abs_range": 0.03237380087375641},
+    {"damping": 0.1, "iterations": 64, "residual": 0.04737991067192818, "converged": false, "energy": -0.26769711822271347, "sector_energy_abs_range": 0.0245351642580224}
+  ],
+  "long_sweep": [
+    {"damping": 0.1, "iterations": 200, "residual": 0.026331080410519125, "converged": false, "energy": -0.19413403049111366, "sector_energy_abs_range": 0.2023807093501091},
+    {"damping": 0.05, "iterations": 200, "residual": 0.028935799305704724, "converged": false, "energy": -0.17408273369073868, "sector_energy_abs_range": 0.09862805902957916}
+  ],
+  "product_reference": {
+    "damping": 0.25,
+    "energy": 1.5,
+    "reference_passed": true
+  },
+  "decision": "admit-as-explicit-experimental-fixed-point-control",
+  "conclusion": [
+    "Under-relaxation lowers the spectrum residual for the sampled random cell but does not reach the declared convergence tolerance.",
+    "Sector spread can grow while residual decreases, so damping is not a substitute for sector and chi convergence evidence.",
+    "The default remains undamped and the new control is not enabled in optimization or production admission by itself."
+  ],
+  "next_action": "combine damping with a boundary-MPS/transfer-fixed-point strategy and compare against independent finite-cylinder references"
+}

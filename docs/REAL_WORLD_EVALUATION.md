@@ -193,6 +193,17 @@ entangled CTMRG is not admitted as a production solver until a stronger
 boundary-MPS/CTMRG fixed-point path passes residual, χ-convergence,
 finite-reference, and paired-gauge gates together.
 
+### Damped fixed-point update
+
+The CTMRG contract now exposes an opt-in `environment_damping` control. Its
+bounded CUDA evidence is recorded in
+`docs/evidence/ctmrg_damped_fixed_point_2026-09-18.json`. For a random D=2
+cell, damping `0.1` reduced the reported spectrum residual from `0.109` to
+`0.047` at 64 iterations and to `0.026` at 200 iterations, but the solver
+still did not converge and the sector spread became large. The result is
+useful as a fixed-point diagnostic and is forwarded through the spin-lattice
+plugin; it is not enabled as an optimizer or production policy.
+
 The Torch unrolled and implicit full-update paths now have an explicit,
 opt-in optimizer checkpoint contract. A CPU resume-vs-fresh regression matches
 the final energy for both paths; checkpoint manifests bind the state to the
