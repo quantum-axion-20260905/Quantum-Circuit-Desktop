@@ -99,6 +99,29 @@ def mps_expectation_from_tensors(cp: Any, tensors: list[Any], terms: Iterable[An
     return output
 
 
+def structured_observables(terms: Iterable[Any], values: Iterable[float]) -> list[dict[str, Any]]:
+    """Return named observable evidence without coupling callers to Pauli models.
+
+    The result is deliberately JSON-shaped so DMRG, TEBD and PEPS can expose
+    the same research artifact contract. A missing label remains identifiable
+    through its canonical sparse Pauli string.
+    """
+    output: list[dict[str, Any]] = []
+    for index, (term, value) in enumerate(zip(terms, values)):
+        paulis = {str(qubit): str(pauli) for qubit, pauli in sorted(term.paulis.items())}
+        label = getattr(term, "label", None) or " ".join(
+            f"{pauli}{qubit}" for qubit, pauli in sorted(term.paulis.items())
+        ) or "I"
+        output.append({
+            "index": index,
+            "label": str(label),
+            "paulis": paulis,
+            "coefficient": float(getattr(term, "coefficient", 1.0)),
+            "value": float(value),
+        })
+    return output
+
+
 def _sparse_pauli_action(index: int, n_qubits: int, paulis: dict[int, str]) -> tuple[int, complex]:
     target = index
     phase = 1 + 0j

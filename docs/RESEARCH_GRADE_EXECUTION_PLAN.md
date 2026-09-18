@@ -1,11 +1,12 @@
 # Research-grade execution plan
 
-Status: Phase 2 acceptance gate passed for the declared finite open-2D scope;
-the result is released as `v0.7.0`.
+Status: Phase 3 acceptance gate passed for the declared spin-lattice scope;
+the result is released as `v0.7.1`.
 
-Current completed slice: **Phase 2, finite 2D boundary-MPS 1.0**. Phase 1 is
-complete and released as `v0.6.0`. Phase 2 is released as `v0.7.0` within the
-finite open rectangular 2D limits documented below.
+Current completed slice: **Phase 3, spin-lattice vertical slice**. Phase 1 is
+complete and released as `v0.6.0`; Phase 2 is released as `v0.7.0`; Phase 3 is
+released as `v0.7.1` within the bounded MPS and finite open-2D limits
+documented below.
 
 This is the operational plan for turning Quantum Circuit Desktop into a
 reliable tensor-network research workbench. It is intentionally narrower than
@@ -259,6 +260,18 @@ fresh project using only the desktop workflow and the exported artifact.
 Release target: `v0.7.x` maintenance release if Phase 2 and Phase 3 land
 together; otherwise keep the phase in the `v0.7` train.
 
+Phase 3 gate status: **passed in `v0.7.1`**.
+
+- [x] Ising, Heisenberg, and XXZ builders use one spin-lattice plugin contract.
+- [x] DMRG/TEBD and finite-2D boundary-MPS selection share preflight evidence.
+- [x] Bounded studies preserve successful, failed, and canceled point evidence.
+- [x] Energy range, half-range numerical uncertainty, truncation, and norm
+  diagnostics are visible.
+- [x] Structured observables, provenance, replay history, and JSON artifact
+  export are connected end to end.
+- [x] Live desktop workflow and bounded CUDA smoke tests reproduce the
+  documented spin-lattice slice.
+
 ### Phase 4 — CTMRG/iPEPS and full-update 2D
 
 Only start after Phases 1–3 pass their gates. This is the first genuinely
@@ -345,7 +358,7 @@ and export a bounded research calculation.
 The only active implementation phase should be:
 
 1. Phase 2: complete finite 2D boundary-MPS gate — done in `v0.7.0`.
-2. Phase 3: close the spin-lattice vertical slice.
+2. Phase 3: close the spin-lattice vertical slice — done in `v0.7.1`.
 3. Phase 4: CTMRG/iPEPS.
 4. Phase 5: symmetry/high entanglement.
 5. Phase 6: bounded 3D.

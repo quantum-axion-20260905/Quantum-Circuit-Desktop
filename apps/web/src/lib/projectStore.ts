@@ -1,6 +1,7 @@
 import type { CircuitIrV1 } from "../ir/ir";
 import type { ExperimentRecord } from "./runHistory";
 import { invokeDesktop, isDesktop } from "./desktop";
+import { buildPhysicsStudyManifest, type PhysicsStudyMode, type PhysicsStudyRow } from "./physicsStudy";
 
 const BACKEND_BASE_URL = "http://127.0.0.1:8000/api";
 const DEFAULT_PROJECT_NAME = "Default Project";
@@ -107,46 +108,39 @@ export async function syncExperimentRecord(record: ExperimentRecord): Promise<vo
 }
 
 export type PhysicsStudySyncInput = {
-  mode: "dmrg" | "tebd" | "peps";
-  startedAt?: string;
-  rows: Array<{
-    label: string;
-    parameters: string;
-    status: "queued" | "running" | "done" | "failed" | "canceled";
-    result?: Record<string, unknown>;
-    error?: string;
-  }>;
-  nQubits?: number;
+  mode: PhysicsStudyMode;
+  startedAt: string;
+  finishedAt?: string;
+  rows: PhysicsStudyRow[];
+  nQubits: number;
+  configuration: JsonObject;
 };
 
 /** Persist one aggregate convergence campaign alongside its point-level Runs. */
 export async function syncPhysicsStudy(input: PhysicsStudySyncInput): Promise<void> {
-  const rows = input.rows.map(({ label, parameters, status, result, error }) => ({ label, parameters, status, result: result ?? {}, error: error ?? "" }));
-  const status = rows.some((row) => row.status === "failed")
+  const finishedAt = input.finishedAt ?? new Date().toISOString();
+  const manifest = buildPhysicsStudyManifest({
+    mode: input.mode,
+    nQubits: input.nQubits,
+    startedAt: input.startedAt,
+    finishedAt,
+    configuration: input.configuration,
+    rows: input.rows,
+  });
+  const summary = manifest.summary as JsonObject;
+  const status = Number(summary.failed ?? 0) > 0
     ? "failed"
-    : rows.some((row) => row.status === "canceled")
+    : Number(summary.canceled ?? 0) > 0
       ? "canceled"
       : "done";
-  const finishedAt = new Date().toISOString();
   const study = {
     kind: `${input.mode}-convergence`,
     label: `Physics · ${input.mode.toUpperCase()} convergence study`,
     status,
-    started_at: input.startedAt ?? finishedAt,
+    started_at: input.startedAt,
     finished_at: finishedAt,
-    request: {
-      source: "physics",
-      kind: "convergence",
-      mode: input.mode,
-      n_qubits: input.nQubits ?? null,
-      points: rows.map(({ label, parameters }) => ({ label, parameters })),
-    },
-    result: {
-      completed: rows.filter((row) => row.status === "done").length,
-      failed: rows.filter((row) => row.status === "failed").length,
-      canceled: rows.filter((row) => row.status === "canceled").length,
-      points: rows,
-    },
+    request: manifest,
+    result: manifest,
   };
   if (isDesktop()) {
     await invokeDesktop("record_study", { study });

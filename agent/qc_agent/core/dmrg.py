@@ -14,7 +14,7 @@ from ..plugins.models import DMRGPayload, GroundStatePayload
 from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, ResearchResult
 from .ground_state import exact_ground_state
 from .mps_runtime import MPSRuntime, pauli_operator
-from .observables import mps_expectation_from_tensors
+from .observables import mps_expectation_from_tensors, structured_observables
 
 
 def _left_environment(xp: Any, tensors: list[Any], site: int, term: Any) -> Any:
@@ -543,10 +543,7 @@ def run_dmrg(
         "energy_variance": energy_variance,
         "energy_std": energy_std,
         "exact_cross_check": exact_cross_check,
-        "observables": [
-            {"label": term.label, "coefficient": term.coefficient, "value": value}
-            for term, value in zip(observables, values)
-        ],
+        "observables": structured_observables(observables, values),
         "history": history,
         "discarded_weight": runtime.discarded_weight,
         "norm2": runtime.norm2(),

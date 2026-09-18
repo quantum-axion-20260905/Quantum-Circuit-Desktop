@@ -154,6 +154,23 @@ class UnifiedApiTests(unittest.TestCase):
         self.assertEqual(current["status"], "done")
         self.assertEqual(sum(current["artifacts"]["result"]["counts"].values()), 4)
         self.assertIn("problem_sha256", current["artifacts"]["result"]["provenance"])
+        self.assertIn("preflight", current["artifacts"]["result"])
+
+    def test_structured_observable_contract_is_named_and_sparse(self):
+        from types import SimpleNamespace
+        from qc_agent.core.observables import structured_observables
+
+        result = structured_observables(
+            [
+                SimpleNamespace(paulis={1: "Z", 0: "X"}, coefficient=-0.5, label="bond"),
+                SimpleNamespace(paulis={}, coefficient=1.0, label=None),
+            ],
+            [0.25, 1.0],
+        )
+        self.assertEqual(result[0]["label"], "bond")
+        self.assertEqual(result[0]["paulis"], {"0": "X", "1": "Z"})
+        self.assertEqual(result[0]["coefficient"], -0.5)
+        self.assertEqual(result[1]["label"], "I")
 
 
 if __name__ == "__main__":

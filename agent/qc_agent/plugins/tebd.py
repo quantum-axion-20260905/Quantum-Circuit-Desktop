@@ -5,6 +5,7 @@ import time
 from typing import Any
 
 from ..core.mps_runtime import MPSRuntime, pauli_operator
+from ..core.observables import structured_observables
 from ..models import TNGate, TNPayload
 from .models import TEBDPayload
 
@@ -142,10 +143,12 @@ def run_tebd(
         },
         "times": times,
         "energies": energies,
+        "observables": structured_observables(observables, values[-1]),
         "expectations": [
             {
                 "time": t,
                 "values": point,
+                "observable_values": structured_observables(observables, point),
                 "energy": energy,
                 "norm2": norm,
                 "norm_drift": drift,

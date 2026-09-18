@@ -10,7 +10,7 @@ from ..plugins.lattice import lattice_graph
 from ..plugins.models import PEPSPayload
 from .boundary_mps import checkpoint_path_for_operator, contract_boundary_mps
 from .contracts import ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
-from .observables import statevector_expectation
+from .observables import statevector_expectation, structured_observables
 from .mps_runtime import pauli_operator
 
 try:
@@ -387,8 +387,9 @@ def run_peps(
         "norm2": runtime.norm2(),
         "times": times,
         "energies": energies,
+        "observables": structured_observables(observables, values[-1]),
         "expectations": [
-            {"time": moment, "values": point, "energy": energy}
+            {"time": moment, "values": point, "observable_values": structured_observables(observables, point), "energy": energy}
             for moment, point, energy in zip(times, values, energies)
         ],
         "warnings": warnings,

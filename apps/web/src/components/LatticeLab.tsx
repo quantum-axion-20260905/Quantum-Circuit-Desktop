@@ -11,7 +11,8 @@ import { syncPhysicsStudy } from "../lib/projectStore";
 import { Button } from "../ui";
 import { ComputeProgress } from "./ComputeProgress";
 import { EnergyChart, LatticeCanvas } from "./LatticeVisuals";
-import { buildPhysicsStudyVariants, type PhysicsStudyMode } from "../lib/physicsStudy";
+import { buildPhysicsStudyManifest, buildPhysicsStudyVariants, type PhysicsStudyMode } from "../lib/physicsStudy";
+import type { JsonObject } from "../lib/agent";
 import { PhysicsConvergenceStudy, type PhysicsStudyRow } from "./PhysicsConvergenceStudy";
 import { ConvergenceDiagnostics } from "./ConvergenceDiagnostics";
 
@@ -64,13 +65,19 @@ export function LatticeLab() {
   const retryRef = React.useRef<(() => void) | null>(null);
   const [studyMode, setStudyMode] = React.useState<PhysicsStudyMode>("dmrg");
   const [studyRows, setStudyRows] = React.useState<PhysicsStudyRow[]>([]);
+  const [studyManifest, setStudyManifest] = React.useState<JsonObject | null>(null);
   const studySyncPendingRef = React.useRef(false);
   const studyStartedAtRef = React.useRef<string | null>(null);
+  const studyConfigurationRef = React.useRef<JsonObject>({});
 
   React.useEffect(() => {
     if (busy !== null || !studySyncPendingRef.current || studyRows.length === 0 || studyRows.some((row) => row.status === "queued" || row.status === "running")) return;
     studySyncPendingRef.current = false;
-    void syncPhysicsStudy({ mode: studyMode, startedAt: studyStartedAtRef.current ?? undefined, rows: studyRows, nQubits: hamiltonian?.n_qubits ?? nQubits }).catch(() => undefined);
+    const finishedAt = new Date().toISOString();
+    const startedAt = studyStartedAtRef.current ?? finishedAt;
+    const manifest = buildPhysicsStudyManifest({ mode: studyMode, startedAt, finishedAt, rows: studyRows, nQubits: hamiltonian?.n_qubits ?? nQubits, configuration: studyConfigurationRef.current });
+    setStudyManifest(manifest);
+    void syncPhysicsStudy({ mode: studyMode, startedAt, finishedAt, rows: studyRows, nQubits: hamiltonian?.n_qubits ?? nQubits, configuration: studyConfigurationRef.current }).catch(() => undefined);
   }, [busy, hamiltonian?.n_qubits, nQubits, studyMode, studyRows]);
   const updateJob = React.useCallback((job: AsyncJob) => setJobProgress(job), []);
   const cancelJob = React.useCallback(async () => {
@@ -245,7 +252,16 @@ export function LatticeLab() {
       truncationCutoff: 0,
     });
 
-    setStudyMode(mode); setStudyRows(variants.map((variant, index) => ({ id: `${mode}-${Date.now()}-${index}`, label: variant.label, parameters: variant.parameters, status: "queued" })));
+    setStudyMode(mode);
+    setStudyManifest(null);
+    studyConfigurationRef.current = {
+      lattice: material === "spin" ? payload : null,
+      model: material === "spin" ? model : material,
+      hamiltonian_parameters: material === "spin" ? { coupling, field, anisotropy } : { hopping, onsite_u: onsiteU, chemical_potential: chemicalPotential },
+      terms: hamiltonian.terms,
+      solver_controls: { bond_dim: bondDim, boundary_bond_dim: boundaryBondDim, sweeps, steps, dt, truncation_cutoff: 0 },
+    };
+    setStudyRows(variants.map((variant, index) => ({ id: `${mode}-${Date.now()}-${index}`, label: variant.label, parameters: variant.parameters, status: "queued", request: variant.payload })));
     studySyncPendingRef.current = true;
     studyStartedAtRef.current = new Date().toISOString();
     setBusy("study"); setError(null); setJobProgress(null); setCanceling(false); cancelRequestedRef.current = false;
@@ -260,7 +276,7 @@ export function LatticeLab() {
           : mode === "tebd"
             ? await runTEBD(variant.payload, updateJob)
             : await runPEPS(variant.payload, updateJob);
-        setStudyRows((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, status: "done", result } : row));
+        setStudyRows((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, status: "done", request: variant.payload, result } : row));
         setLatestOutput(result);
         if (mode === "dmrg") setDmrgResult(result);
         if (mode === "tebd") setTebdResult(result);
@@ -269,7 +285,7 @@ export function LatticeLab() {
       } catch (e: unknown) {
         const canceled = cancelRequestedRef.current;
         const message = canceled ? "Job user tomonidan bekor qilindi." : errorText(e);
-        setStudyRows((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, status: canceled ? "canceled" : "failed", error: message } : row));
+        setStudyRows((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, status: canceled ? "canceled" : "failed", request: variant.payload, error: message } : row));
         addExperiment({ label: `Physics · ${mode.toUpperCase()} convergence · ${variant.label}`, source: request.source, kind: request.kind, status: canceled ? "canceled" : "failed", request, error: message });
         if (canceled) break;
       }
@@ -283,6 +299,10 @@ export function LatticeLab() {
   const trajectoryResult = pepsResult ?? tebdResult;
   const energies = trajectoryResult && Array.isArray(trajectoryResult.energies) ? trajectoryResult.energies.map(Number).filter(Number.isFinite) : [];
   const warningList = trajectoryResult && Array.isArray(trajectoryResult.warnings) ? trajectoryResult.warnings.map(String) : [];
+  const evidenceResult = pepsResult ?? dmrgResult ?? tebdResult ?? energyResult;
+  const observableRows = evidenceResult && Array.isArray(evidenceResult.observables)
+    ? evidenceResult.observables.filter((value): value is Record<string, unknown> => typeof value === "object" && value !== null).slice(0, 24)
+    : [];
   const tebdReady = hamiltonian?.tebd_ready ?? true;
   const pepsEligible = material === "spin" && dimension > 1 && siteCount <= 64;
 
@@ -314,7 +334,8 @@ export function LatticeLab() {
       {hamiltonian ? <details style={{ marginTop: 16, color: "#94a3b8", fontSize: 12 }}><summary style={{ cursor: "pointer" }}>Inspect sparse terms</summary><pre style={{ maxHeight: 180, overflow: "auto", background: "#0b1225", padding: 12, borderRadius: 10 }}>{JSON.stringify(hamiltonian.terms.slice(0, 12), null, 2)}</pre></details> : null}
     </section>
     <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 18, marginTop: 18 }}><div style={card}><div style={{ fontWeight: 700 }}>Energy and ground state</div><p style={{ color: "#64748b", fontSize: 12, lineHeight: 1.5 }}>Use MPS for the current circuit, DMRG for a variational ground state, or exact diagonalization as a small-system check.</p><div style={{ display: "flex", gap: 14, alignItems: "end", flexWrap: "wrap" }}><label style={fieldStyle}>Bond dimension<input type="number" min={1} max={64} value={bondDim} onChange={(e) => setBondDim(Math.max(1, Math.min(64, Number(e.target.value) || 1)))} style={input} /></label><label style={fieldStyle}>DMRG sweeps<input type="number" min={1} max={64} value={sweeps} onChange={(e) => setSweeps(Math.max(1, Math.min(64, Number(e.target.value) || 1)))} style={fieldStyle} /></label><Button variant="accent" onClick={() => void runEnergy()} disabled={busy !== null || !hamiltonian || hamiltonian.n_qubits !== nQubits}>{busy === "energy" ? "Running…" : "Evaluate energy"}</Button><Button variant="primary" onClick={() => void runVariationalGround()} disabled={busy !== null || !hamiltonian}>{busy === "dmrg" ? "Optimizing…" : "DMRG ground state"}</Button><Button variant="ghost" onClick={() => void runGround()} disabled={busy !== null || !hamiltonian || hamiltonian.n_qubits > 12}>{busy === "ground" ? "Diagonalizing…" : "Exact ground state"}</Button></div><div style={{ display: "flex", gap: 28, flexWrap: "wrap", alignItems: "baseline", marginTop: 22 }}>{energy != null ? <div style={{ fontSize: 30, fontWeight: 750, color: "#67e8f9" }}>{Number(energy).toFixed(7)}<span style={{ fontSize: 13, color: "#64748b", marginLeft: 8 }}>MPS energy</span></div> : null}{dmrgEnergy != null ? <div style={{ fontSize: 30, fontWeight: 750, color: "#7dd3fc" }}>{Number(dmrgEnergy).toFixed(7)}<span style={{ fontSize: 13, color: "#64748b", marginLeft: 8 }}>DMRG ground</span></div> : null}{groundEnergy != null ? <div style={{ fontSize: 30, fontWeight: 750, color: "#f0abfc" }}>{Number(groundEnergy).toFixed(7)}<span style={{ fontSize: 13, color: "#64748b", marginLeft: 8 }}>exact ground</span></div> : null}</div></div><div style={card}><div style={{ fontWeight: 700 }}>TEBD / PEPS evolution</div><p style={{ color: "#64748b", fontSize: 12, lineHeight: 1.5 }}>Choose the evolution backend that matches the geometry and problem size.</p>{hamiltonian && !tebdReady ? <div style={{ color: "#fbbf24", fontSize: 12, marginBottom: 12 }}>This Hamiltonian has Jordan–Wigner parity strings longer than the safe 64-locality limit; TEBD is disabled.</div> : null}{hamiltonian && tebdReady && hamiltonian.terms.some((term) => Object.keys(term.paulis).length > 2) ? <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 12 }}>Parity strings use a CX network; compare bond-dimension and time-step convergence.</div> : null}<div style={{ display: "flex", gap: 14, alignItems: "end", flexWrap: "wrap" }}><label style={fieldStyle}>dt<input type="number" step="any" value={dt} onChange={(e) => setDt(Number(e.target.value) || 0.01)} style={input} /></label><label style={fieldStyle}>Steps<input type="number" min={1} max={10000} value={steps} onChange={(e) => setSteps(Math.max(1, Math.min(10000, Number(e.target.value) || 1)))} style={input} /></label><label style={fieldStyle}>PEPS contraction<select value={pepsContraction} onChange={(e) => setPepsContraction(e.target.value as PEPSContraction)} style={input}><option value="auto">Auto · double-layer</option><option value="boundary-mps">Boundary-MPS · 2D open</option></select></label>{pepsContraction === "boundary-mps" ? <label style={fieldStyle}>Environment χ<input type="number" min={1} max={64} value={boundaryBondDim} onChange={(e) => setBoundaryBondDim(Math.max(1, Math.min(64, Number(e.target.value) || 1)))} style={input} /></label> : null}<Button variant="danger" onClick={() => void runEvolution()} disabled={busy !== null || !hamiltonian || hamiltonian.n_qubits !== nQubits || !tebdReady}>{busy === "tebd" ? "Evolving…" : "Run TEBD"}</Button><Button variant="secondary" onClick={() => void runNativePEPS()} disabled={busy !== null || !hamiltonian || !pepsEligible || hamiltonian.n_qubits !== nQubits || (pepsContraction === "boundary-mps" && (dimension !== 2 || boundary !== "open"))}>{busy === "peps" ? "Evolving…" : "Run native PEPS"}</Button></div>{pepsContraction === "boundary-mps" && (dimension !== 2 || boundary !== "open") ? <div style={{ color: "#fbbf24", fontSize: 12, marginTop: 10 }}>Boundary-MPS requires an open 2D lattice; choose Auto for 3D or periodic geometry.</div> : null}{pepsEligible ? <div style={{ color: "#64748b", fontSize: 12, marginTop: 10 }}>2D/3D spin lattice · bounded double-layer contraction · boundary-MPS environment χ is explicit · up to 64 sites</div> : null}{tebdResult ? <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 18, fontSize: 12 }}><div><span style={{ color: "#64748b" }}>TEBD norm</span><br /><strong>{Number(tebdResult.norm2 ?? 0).toFixed(6)}</strong></div><div><span style={{ color: "#64748b" }}>TEBD bond</span><br /><strong>{String(tebdResult.bond_dim_used ?? "—")}</strong></div><div><span style={{ color: "#64748b" }}>TEBD discarded</span><br /><strong>{Number(tebdResult.discarded_weight ?? 0).toExponential(2)}</strong></div></div> : null}{pepsResult ? <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginTop: 12, fontSize: 12 }}><div><span style={{ color: "#64748b" }}>PEPS norm</span><br /><strong>{Number(pepsResult.norm2 ?? 0).toFixed(6)}</strong></div><div><span style={{ color: "#64748b" }}>PEPS bond</span><br /><strong>{String(pepsResult.bond_dim_used ?? "—")}</strong></div><div><span style={{ color: "#64748b" }}>PEPS discarded</span><br /><strong>{Number(pepsResult.discarded_weight ?? 0).toExponential(2)}</strong></div></div> : null}</div></section>
-    <PhysicsConvergenceStudy mode={studyMode} rows={studyRows} running={busy === "study"} disabled={!hamiltonian || busy !== null} availableModes={["dmrg", ...(tebdReady ? ["tebd" as const] : []), ...(pepsEligible ? ["peps" as const] : [])]} onModeChange={setStudyMode} onRun={() => void runConvergenceStudy(studyMode)} />
+    <PhysicsConvergenceStudy mode={studyMode} rows={studyRows} manifest={studyManifest} running={busy === "study"} disabled={!hamiltonian || busy !== null} availableModes={["dmrg", ...(tebdReady ? ["tebd" as const] : []), ...(pepsEligible ? ["peps" as const] : [])]} onModeChange={setStudyMode} onRun={() => void runConvergenceStudy(studyMode)} />
+    {observableRows.length ? <section style={{ ...card, marginTop: 18 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}><div><div style={{ fontWeight: 700 }}>Structured observables</div><div style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>Named Pauli expectations are stored with the run artifact and provenance.</div></div><div style={{ color: "#67e8f9", fontSize: 12 }}>{observableRows.length}{evidenceResult && Array.isArray(evidenceResult.observables) && evidenceResult.observables.length > observableRows.length ? " shown" : " observables"}</div></div><div style={{ overflowX: "auto", marginTop: 14 }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ color: "#64748b", textAlign: "left" }}><th style={{ padding: "8px 10px" }}>Label</th><th style={{ padding: "8px 10px" }}>Pauli support</th><th style={{ padding: "8px 10px" }}>Coefficient</th><th style={{ padding: "8px 10px" }}>Value</th></tr></thead><tbody>{observableRows.map((row, index) => <tr key={`${String(row.label ?? "observable")}-${index}`} style={{ borderTop: "1px solid #1e293b" }}><td style={{ padding: "8px 10px", color: "#e0f2fe" }}>{String(row.label ?? `Observable ${index + 1}`)}</td><td style={{ padding: "8px 10px", color: "#94a3b8" }}>{row.paulis && typeof row.paulis === "object" ? Object.entries(row.paulis as Record<string, unknown>).map(([qubit, pauli]) => `${String(pauli)}${qubit}`).join(" · ") || "I" : "—"}</td><td style={{ padding: "8px 10px" }}>{Number(row.coefficient ?? 1).toFixed(4)}</td><td style={{ padding: "8px 10px", color: "#67e8f9" }}>{Number(row.value ?? 0).toFixed(8)}</td></tr>)}</tbody></table></div></section> : null}
     {pepsResult ? <ConvergenceDiagnostics result={pepsResult as AgentResult} /> : null}
     {jobProgress ? <ComputeProgress job={jobProgress} dark onCancel={() => void cancelJob()} canceling={canceling} onRetry={() => retryRef.current?.()} retrying={busy !== null} /> : null}
     {energies.length ? <section style={{ ...card, marginTop: 18 }}><div style={{ fontWeight: 700, marginBottom: 12 }}>Energy trajectory</div><EnergyChart values={energies} />{warningList.length ? <div style={{ color: "#fbbf24", fontSize: 12, marginTop: 12 }}>{warningList.join(" · ")}</div> : null}</section> : null}

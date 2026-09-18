@@ -2,16 +2,10 @@
 
 import React from "react";
 import { Button, Card, Metric, MetricGrid } from "../ui";
-import type { PhysicsStudyMode } from "../lib/physicsStudy";
+import type { JsonObject } from "../lib/agent";
+import { studyDiscardedWeight, studyEnergy, summarizePhysicsStudy, type PhysicsStudyMode, type PhysicsStudyRow } from "../lib/physicsStudy";
 
-export type PhysicsStudyRow = {
-  id: string;
-  label: string;
-  parameters: string;
-  status: "queued" | "running" | "done" | "failed" | "canceled";
-  result?: Record<string, unknown>;
-  error?: string;
-};
+export type { PhysicsStudyRow } from "../lib/physicsStudy";
 
 type Props = {
   mode: PhysicsStudyMode;
@@ -21,51 +15,25 @@ type Props = {
   availableModes?: PhysicsStudyMode[];
   onModeChange: (mode: PhysicsStudyMode) => void;
   onRun: () => void;
+  manifest?: JsonObject | null;
 };
-
-function numberValue(value: unknown): number | null {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function energyValue(result: Record<string, unknown> | undefined): number | null {
-  if (!result) return null;
-  const direct = numberValue(result.ground_energy ?? result.energy);
-  if (direct != null) return direct;
-  const energies = Array.isArray(result.energies) ? result.energies.map(numberValue).filter((value): value is number => value != null) : [];
-  return energies.length ? energies[energies.length - 1] : null;
-}
-
-function discardedValue(result: Record<string, unknown> | undefined): number | null {
-  const researchResult = result?.research_result;
-  if (researchResult && typeof researchResult === "object") {
-    const truncation = (researchResult as Record<string, unknown>).truncation;
-    if (truncation && typeof truncation === "object") {
-      const value = numberValue((truncation as Record<string, unknown>).discarded_weight);
-      if (value != null) return value;
-    }
-  }
-  return numberValue(result?.discarded_weight);
-}
-
-function normDrift(result: Record<string, unknown> | undefined): number | null {
-  const norm = numberValue(result?.norm2);
-  return norm == null ? null : Math.abs(norm - 1);
-}
 
 function modeLabel(mode: PhysicsStudyMode) {
   return mode === "dmrg" ? "DMRG" : mode === "tebd" ? "TEBD" : "PEPS";
 }
 
-export function PhysicsConvergenceStudy({ mode, rows, running, disabled = false, availableModes = ["dmrg", "tebd", "peps"], onModeChange, onRun }: Props) {
-  const completed = rows.filter((row) => row.status === "done");
-  const energies = completed.map((row) => energyValue(row.result)).filter((value): value is number => value != null);
-  const discarded = completed.map((row) => discardedValue(row.result)).filter((value): value is number => value != null);
-  const normDrifts = completed.map((row) => normDrift(row.result)).filter((value): value is number => value != null);
-  const spread = energies.length > 1 ? Math.max(...energies) - Math.min(...energies) : null;
-  const maxDiscarded = discarded.length ? Math.max(...discarded) : null;
-  const maxNormDrift = normDrifts.length ? Math.max(...normDrifts) : null;
-  const stable = spread != null && maxDiscarded != null && maxNormDrift != null && spread <= 1e-4 && maxDiscarded <= 1e-4 && maxNormDrift <= 1e-4;
+export function PhysicsConvergenceStudy({ mode, rows, running, disabled = false, availableModes = ["dmrg", "tebd", "peps"], onModeChange, onRun, manifest }: Props) {
+  const summary = summarizePhysicsStudy(rows);
+  const downloadManifest = () => {
+    if (!manifest || typeof window === "undefined") return;
+    const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `physics-${mode}-study.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
   return <Card className="qc-study-card">
     <div className="qc-diagnostics-header">
@@ -76,22 +44,24 @@ export function PhysicsConvergenceStudy({ mode, rows, running, disabled = false,
       <div className="qc-study-actions">
         {(["dmrg", "tebd", "peps"] as PhysicsStudyMode[]).map((candidate) => <Button key={candidate} variant={candidate === mode ? "accent" : "secondary"} onClick={() => onModeChange(candidate)} disabled={running || disabled || !availableModes.includes(candidate)}>{modeLabel(candidate)}</Button>)}
         <Button variant="accent" onClick={onRun} disabled={disabled || running || !availableModes.includes(mode)}>{running ? "Studying…" : "Run bounded study"}</Button>
+        {manifest ? <Button variant="secondary" onClick={downloadManifest} disabled={running}>Export artifact</Button> : null}
       </div>
     </div>
     {rows.length > 0 ? <>
       <MetricGrid>
-        <Metric label="Completed" value={`${completed.length}/${rows.length}`} />
-        <Metric label="Energy spread" value={spread == null ? "—" : spread.toExponential(2)} tone={spread != null && spread <= 1e-4 ? "success" : "warning"} />
-        <Metric label="Max discarded" value={maxDiscarded == null ? "—" : maxDiscarded.toExponential(2)} tone={maxDiscarded != null && maxDiscarded <= 1e-4 ? "success" : "warning"} />
-        <Metric label="Max ‖norm²−1‖" value={maxNormDrift == null ? "—" : maxNormDrift.toExponential(2)} tone={maxNormDrift != null && maxNormDrift <= 1e-4 ? "success" : "warning"} />
-        <Metric label="Verdict" value={stable ? "Stable at tested points" : completed.length ? "Needs review" : "Not run"} tone={stable ? "success" : "warning"} />
+        <Metric label="Completed" value={`${summary.completed}/${rows.length}`} />
+        <Metric label="Energy range" value={summary.energy_range == null ? "—" : summary.energy_range.toExponential(2)} tone={summary.energy_range != null && summary.energy_range <= 1e-4 ? "success" : "warning"} />
+        <Metric label="Numerical uncertainty" value={summary.energy_half_range == null ? "—" : `±${summary.energy_half_range.toExponential(2)}`} tone={summary.energy_half_range != null && summary.energy_half_range <= 5e-5 ? "success" : "warning"} />
+        <Metric label="Max discarded" value={summary.max_discarded_weight == null ? "—" : summary.max_discarded_weight.toExponential(2)} tone={summary.max_discarded_weight != null && summary.max_discarded_weight <= 1e-4 ? "success" : "warning"} />
+        <Metric label="Max ‖norm²−1‖" value={summary.max_norm_drift == null ? "—" : summary.max_norm_drift.toExponential(2)} tone={summary.max_norm_drift != null && summary.max_norm_drift <= 1e-4 ? "success" : "warning"} />
+        <Metric label="Verdict" value={summary.verdict === "stable" ? "Stable at tested points" : summary.verdict === "incomplete" ? "Incomplete / review" : summary.verdict === "needs_review" ? "Needs review" : "Not run"} tone={summary.verdict === "stable" ? "success" : "warning"} />
       </MetricGrid>
       <div className="qc-study-table" role="table" aria-label={`${modeLabel(mode)} convergence points`}>
         <div className="qc-study-row qc-study-head" role="row"><span>Point</span><span>Energy</span><span>Norm²</span><span>Discarded</span><span>Status</span></div>
         {rows.map((row) => {
-          const energy = energyValue(row.result);
-          const norm = numberValue(row.result?.norm2);
-          const lost = discardedValue(row.result);
+          const energy = studyEnergy(row.result);
+          const norm = row.result?.norm2 == null ? null : Number(row.result.norm2);
+          const lost = studyDiscardedWeight(row.result);
           return <div className="qc-study-row" role="row" key={row.id}>
             <span><strong>{row.label}</strong><small>{row.parameters}</small></span>
             <span>{energy == null ? "—" : energy.toFixed(8)}</span>

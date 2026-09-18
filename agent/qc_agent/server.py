@@ -83,7 +83,7 @@ from .api.contracts import AsyncBudget, AsyncKind, AsyncSubmission
 from .metrics import metrics
 
 
-app = FastAPI(title="Quantum Compute Agent", version="0.7.0")
+app = FastAPI(title="Quantum Compute Agent", version="0.7.1")
 cors_origins = [
     origin.strip()
     for origin in os.environ.get(
@@ -1194,6 +1194,13 @@ def _async_compute(kind: AsyncKind, payload: Any, resolved: str, job: Any) -> di
     check_active()
     if kind in ("sweep", "cross_validate") and isinstance(result.get("provenance"), dict):
         return {"metrics": {"backend": result.get("backend"), "resolved_backend": resolved}, "artifacts": {"result": result}}
+    # The synchronous routes already return their admission report. Preserve
+    # the same evidence in the durable async result so a study point can be
+    # reproduced and audited without reading transient job logs.
+    if isinstance(result, dict) and "preflight" not in result:
+        preflight_log = next((entry for entry in reversed(job.logs) if entry.get("event") == "preflight"), None)
+        if preflight_log is not None:
+            result["preflight"] = {key: value for key, value in preflight_log.items() if key not in {"t", "event"}}
     result = _with_run_provenance(
         result,
         payload,

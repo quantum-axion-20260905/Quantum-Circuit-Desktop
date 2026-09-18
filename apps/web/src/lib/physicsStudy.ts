@@ -2,6 +2,30 @@ import type { JsonObject, PauliTerm } from "./agent";
 
 export type PhysicsStudyMode = "dmrg" | "tebd" | "peps";
 
+export type PhysicsStudyStatus = "queued" | "running" | "done" | "failed" | "canceled";
+
+export type PhysicsStudyRow = {
+  id: string;
+  label: string;
+  parameters: string;
+  status: PhysicsStudyStatus;
+  request?: JsonObject;
+  result?: JsonObject;
+  error?: string;
+};
+
+export type PhysicsStudySummary = {
+  completed: number;
+  failed: number;
+  canceled: number;
+  pending: number;
+  energy_range: number | null;
+  energy_half_range: number | null;
+  max_discarded_weight: number | null;
+  max_norm_drift: number | null;
+  verdict: "stable" | "needs_review" | "incomplete" | "not_run";
+};
+
 export type PhysicsStudyVariant = {
   label: string;
   parameters: string;
@@ -37,6 +61,122 @@ function isOpen2DLattice(lattice: JsonObject | undefined): boolean {
   return Array.isArray(dimensions)
     && dimensions.length === 2
     && lattice?.boundary !== "periodic";
+}
+
+function numeric(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function studyEnergy(result: JsonObject | undefined): number | null {
+  if (!result) return null;
+  const direct = numeric(result.ground_energy ?? result.energy);
+  if (direct != null) return direct;
+  const energies = Array.isArray(result.energies) ? result.energies.map(numeric).filter((value): value is number => value != null) : [];
+  return energies.length ? energies[energies.length - 1] : null;
+}
+
+export function studyDiscardedWeight(result: JsonObject | undefined): number | null {
+  if (!result) return null;
+  const researchResult = result.research_result;
+  if (researchResult && typeof researchResult === "object") {
+    const truncation = (researchResult as JsonObject).truncation;
+    if (truncation && typeof truncation === "object") {
+      const value = numeric((truncation as JsonObject).discarded_weight);
+      if (value != null) return value;
+    }
+  }
+  return numeric(result.discarded_weight);
+}
+
+export function studyNormDrift(result: JsonObject | undefined): number | null {
+  const norm = numeric(result?.norm2);
+  return norm == null ? null : Math.abs(norm - 1);
+}
+
+export function summarizePhysicsStudy(rows: PhysicsStudyRow[]): PhysicsStudySummary {
+  const completed = rows.filter((row) => row.status === "done");
+  const energies = completed.map((row) => studyEnergy(row.result)).filter((value): value is number => value != null);
+  const discarded = completed.map((row) => studyDiscardedWeight(row.result)).filter((value): value is number => value != null);
+  const normDrifts = completed.map((row) => studyNormDrift(row.result)).filter((value): value is number => value != null);
+  const energyRange = energies.length > 1 ? Math.max(...energies) - Math.min(...energies) : null;
+  const maxDiscarded = discarded.length ? Math.max(...discarded) : null;
+  const maxNormDrift = normDrifts.length ? Math.max(...normDrifts) : null;
+  const pending = rows.filter((row) => row.status === "queued" || row.status === "running").length;
+  const failed = rows.filter((row) => row.status === "failed").length;
+  const canceled = rows.filter((row) => row.status === "canceled").length;
+  const stable = completed.length >= 2
+    && failed === 0
+    && canceled === 0
+    && pending === 0
+    && energyRange != null
+    && maxDiscarded != null
+    && maxNormDrift != null
+    && energyRange <= 1e-4
+    && maxDiscarded <= 1e-4
+    && maxNormDrift <= 1e-4;
+  return {
+    completed: completed.length,
+    failed,
+    canceled,
+    pending,
+    energy_range: energyRange,
+    energy_half_range: energyRange == null ? null : energyRange / 2,
+    max_discarded_weight: maxDiscarded,
+    max_norm_drift: maxNormDrift,
+    verdict: rows.length === 0 ? "not_run" : pending > 0 || failed > 0 || canceled > 0 ? "incomplete" : stable ? "stable" : "needs_review",
+  };
+}
+
+function pointUncertainty(row: PhysicsStudyRow): JsonObject {
+  const result = row.result;
+  const energy = studyEnergy(result);
+  const energyStd = numeric(result?.energy_std);
+  const energyVariance = numeric(result?.energy_variance);
+  const discarded = studyDiscardedWeight(result);
+  const normDrift = studyNormDrift(result);
+  const preflight = result?.preflight;
+  return {
+    energy: energy ?? null,
+    energy_std: energyStd,
+    energy_variance: energyVariance,
+    discarded_weight: discarded,
+    norm_drift: normDrift,
+    preflight_feasible: preflight && typeof preflight === "object" ? (preflight as JsonObject).feasible ?? null : null,
+  };
+}
+
+export function buildPhysicsStudyManifest(input: {
+  mode: PhysicsStudyMode;
+  nQubits: number;
+  startedAt: string;
+  finishedAt: string;
+  configuration: JsonObject;
+  rows: PhysicsStudyRow[];
+}): JsonObject {
+  const summary = summarizePhysicsStudy(input.rows);
+  return {
+    schema: "quantum-circuit/physics-study-v1",
+    domain: "spin-lattice",
+    source: "physics",
+    kind: "convergence",
+    mode: input.mode,
+    n_qubits: input.nQubits,
+    started_at: input.startedAt,
+    finished_at: input.finishedAt,
+    configuration: input.configuration,
+    summary,
+    points: input.rows.map((row) => ({
+      point_id: row.id,
+      label: row.label,
+      parameters: row.parameters,
+      status: row.status,
+      request: row.request ?? {},
+      result: row.result ?? null,
+      uncertainty: pointUncertainty(row),
+      error: row.error ?? null,
+    })),
+  };
 }
 
 /**

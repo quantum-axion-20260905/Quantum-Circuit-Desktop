@@ -483,10 +483,11 @@ Status at the architecture-freeze checkpoint:
 - [x] complete M1 1D core hardening;
 - [x] implement M2 finite boundary-MPS within declared limits.
 
-The next implementation unit is **Phase 3 spin-lattice vertical-slice
-hardening**. No CTMRG, 3D, or chemistry implementation should be started by
-copying finite PEPS code; each must define its own representation, result,
-checkpoint, reference, and acceptance contracts first.
+Phase 3 spin-lattice vertical-slice hardening is complete in `v0.7.1`. The
+next implementation unit is **Phase 4 CTMRG/iPEPS**. No CTMRG, 3D, or
+chemistry implementation should be started by copying finite PEPS code; each
+must define its own representation, result, checkpoint, reference, and
+acceptance contracts first.
 
 Progress is tracked in this document by updating the backend status matrix and
 milestone exit criteria after each tested module. This file is the authoritative
