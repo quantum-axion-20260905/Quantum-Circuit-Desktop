@@ -148,6 +148,28 @@ class ComputeContractTests(unittest.TestCase):
         self.assertEqual(report["estimated_full_update_evaluations"], 37)
         self.assertEqual(report["full_update_optimizer"], "spsa-gradient")
 
+    def test_ctmrg_finite_torus_gradient_budget_and_reference_mode_are_explicit(self):
+        payload = CTMRGPayload(
+            optimization="full-update",
+            full_update_optimizer="finite-torus-gradient",
+            optimization_steps=3,
+            full_update_max_evaluations=32,
+            interactions=[{
+                "left_site": 0,
+                "right_site": 0,
+                "displacement": [1, 0],
+                "left_pauli": "Z",
+                "right_pauli": "Z",
+                "coefficient": 1.0,
+            }],
+        )
+        report = estimate_ctmrg(payload, gpu_free_mb=4096)
+        self.assertTrue(report["feasible"])
+        self.assertEqual(report["estimated_full_update_evaluations"], 16)
+        self.assertEqual(report["full_update_optimizer"], "finite-torus-gradient")
+        self.assertTrue(report["optimization_materializes_reference_statevector"])
+        self.assertTrue(any("finite reference statevector" in warning for warning in report["warnings"]))
+
     def test_ctmrg_convergence_is_a_first_class_async_kind(self):
         submission = AsyncSubmission(
             kind="ctmrg_convergence",

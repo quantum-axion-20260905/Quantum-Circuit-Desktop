@@ -293,6 +293,11 @@ but not released:
   shapes, χ-study histories, hardware/memory snapshots, request/result hashes,
   git revision, and explicit product-versus-entangled reference outcomes in a
   versioned JSON artifact.
+- a bounded analytic finite-torus tensor-gradient optimizer now contracts an
+  exact four-site reference, reports finite-reference energy/variance, and
+  passes real/imaginary gradient checks against central differences; its CUDA
+  path is verified on the RTX 3060. It is explicitly an initializer/reference,
+  not an infinite-lattice CTMRG variational proof.
 
 The CTMRG solver now supports one-site, 2-site checkerboard, and bounded 2x2
 periodic cells with imported tensors and multi-environment checkpoint/resume.
@@ -316,8 +321,10 @@ The next implementation packet is Phase 4 variational research-grade convergence
 - run recorded GPU χ/iteration campaigns for each admitted 1x1–2x2 cell shape,
   using the new finite-torus references and checkpoint/resume evidence rather
   than relying only on isolated smoke tests;
-- replace the bounded coordinate baseline with scalable gradient/automatic
-  differentiation or an equivalent research-validated full-update solver;
+- lift the validated finite-torus analytic gradient seam to the infinite CTMRG
+  objective with scalable automatic differentiation or an equivalent
+  research-validated full-update solver; retain the finite path as a permanent
+  regression/reference gate;
 - carry energy/variance/reference error and the new point-to-point observable
   deltas through the shared study/provenance and export APIs;
 - compare CTMRG local contractions against finite PEPS/reference product

@@ -594,6 +594,10 @@ def run_full_update(xp: Any, payload: CTMRGPayload, tensors: list[Any]) -> dict[
 
     from .ctmrg import run_ctmrg  # lazy import avoids the optimizer/core cycle
 
+    if payload.full_update_optimizer == "finite-torus-gradient":
+        from .finite_peps_optimizer import run_finite_torus_gradient
+
+        return run_finite_torus_gradient(xp, payload, tensors)
     if payload.full_update_optimizer == "finite-difference-gradient":
         return _run_finite_difference_full_update(xp, payload, tensors, run_ctmrg)
     if payload.full_update_optimizer == "spsa-gradient":

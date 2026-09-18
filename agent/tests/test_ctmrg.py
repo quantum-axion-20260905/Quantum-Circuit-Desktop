@@ -476,6 +476,39 @@ class CTMRGTests(unittest.TestCase):
         self.assertLess(diagnostics["final_energy"], diagnostics["initial_energy"])
         self.assertTrue(any("finite-difference-gradient" in warning for warning in result["warnings"]))
 
+    def test_finite_torus_gradient_full_update_is_explicit_and_reference_checked(self):
+        result = run_ctmrg(np, CTMRGPayload(
+            unit_cell=[1, 1],
+            virtual_bond_dim=2,
+            dtype="complex128",
+            initial_state="plus",
+            optimization="full-update",
+            full_update_optimizer="finite-torus-gradient",
+            optimization_steps=6,
+            full_update_step=0.1,
+            full_update_max_parameters=128,
+            full_update_max_evaluations=64,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=-1.0)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=0.0,
+            )],
+            environment_bond_dim=2,
+            iterations=3,
+        ))
+        diagnostics = result["optimization_diagnostics"]
+        self.assertEqual(result["method"], "ipeps-full-update-finite-torus-gradient-ctmrg")
+        self.assertEqual(diagnostics["optimizer"], "finite-torus-gradient")
+        self.assertEqual(diagnostics["gradient_backend"], "analytic-finite-torus-reverse-contraction")
+        self.assertLess(diagnostics["final_energy"], -3.9)
+        self.assertTrue(diagnostics["materializes_reference_statevector"])
+        self.assertTrue(result["reference_validation"]["passed"])
+        self.assertTrue(any("finite-torus-gradient" in warning for warning in result["warnings"]))
+
     def test_spsa_full_update_uses_parameter_independent_objective_budget(self):
         result = run_ctmrg(np, CTMRGPayload(
             initial_state="plus",

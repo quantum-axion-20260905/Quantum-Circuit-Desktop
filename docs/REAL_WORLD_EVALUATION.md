@@ -33,8 +33,10 @@ For a 2×2 PEPS smoke study, the UI compared `χ=2`, `χ=4` and `χ=4, dt/2`; it
 
 ## Phase 4 CTMRG/iPEPS evidence
 
-The bounded CTMRG path was exercised directly on the RTX 3060 with no dense
-statevector allocation:
+The bounded CTMRG path was exercised directly on the RTX 3060 without an
+unbounded statevector allocation. The finite-reference gradient row below is
+the explicit exception: it materializes only the admitted four-site reference
+vector and labels that fact in the result:
 
 | Case | Configuration | Result | Interpretation |
 | --- | --- | --- | --- |
@@ -42,6 +44,7 @@ statevector allocation:
 | Canonical D=2 GHZ iPEPS | `complex128`, `χ=2`, 16 iterations | `E=0.9999963`, `<Z>=-3.7e-6`, `<ZZ>=1.0`, analytic GHZ reference passed, correlation length unresolved | One named entangled transfer fixed point is validated; the degeneracy correctly prevents a finite ξ claim. |
 | Generic D=2 iPEPS | `complex128`, `χ=2`, 3 iterations | CTMRG `E=0.4457706`; exact 2×2 torus reference `E=0.7112282`; max error `0.5033`; reference failed | This is useful diagnostic evidence, not a production answer. The current infinite-environment approximation needs larger χ/iterations and broader validation. |
 | Generic D=2, 2×2 unit-cell iPEPS | RTX 3060 GPU, `complex128`, `χ=2`, 3 iterations | `E=0.3000`, independent finite 2×2 periodic reference performed; max error `0.03531`; reference failed | The multi-site reference path works on CUDA without a statevector and correctly keeps this entangled result in review. |
+| D=2 finite-reference gradient update | RTX 3060 GPU, `complex128`, 6 steps, 13 objective evaluations | exact finite 2×2 objective `-3.9994893`, variance `1.02e-3`; CTMRG per-cell `E=-0.9998723`; finite reference passed | A real analytic tensor gradient is now validated for the bounded four-site reference. It is an initializer/reference path, not an infinite-lattice full-update claim. |
 | D=1 SPSA full-update | `complex128`, one deterministic direction, 16 steps, 49 objective evaluations | energy `0 → -1.1999990`; known D=1 product reference `-1.2` | The parameter-independent update can reach a declared product limit without a statevector; its stochastic-gradient convergence flag remains explicit and it is still a non-AD baseline. |
 
 The generic entangled cases are intentionally recorded as failed reference

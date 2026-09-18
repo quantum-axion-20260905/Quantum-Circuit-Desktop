@@ -848,6 +848,7 @@ def run_ctmrg(
         )
     converged = bool(residual <= float(payload.tolerance))
     result_method = (
+        "ipeps-full-update-finite-torus-gradient-ctmrg" if payload.optimization == "full-update" and payload.full_update_optimizer == "finite-torus-gradient" else
         "ipeps-full-update-gradient-ctmrg" if payload.optimization == "full-update" and payload.full_update_optimizer == "finite-difference-gradient" else
         "ipeps-full-update-spsa-ctmrg" if payload.optimization == "full-update" and payload.full_update_optimizer == "spsa-gradient" else
         "ipeps-full-update-ctmrg" if payload.optimization == "full-update" else
@@ -865,7 +866,9 @@ def run_ctmrg(
     if payload.optimization == "simple-update":
         warnings.append("simple-update is an imaginary-time entangled-tensor baseline; compare it against the bounded full-update path before treating energies as variational evidence")
     elif payload.optimization == "full-update":
-        if payload.full_update_optimizer == "finite-difference-gradient":
+        if payload.full_update_optimizer == "finite-torus-gradient":
+            warnings.append("finite-torus-gradient optimizes an exact bounded 2x2 periodic reference objective; it is not an infinite-lattice variational proof")
+        elif payload.full_update_optimizer == "finite-difference-gradient":
             warnings.append("finite-difference-gradient full-update is a bounded gradient estimate; it is not automatic differentiation and does not scale to large tensors")
         elif payload.full_update_optimizer == "spsa-gradient":
             warnings.append("SPSA full-update uses two deterministic simultaneous-perturbation evaluations per step; it is a scalable approximate gradient baseline, not automatic differentiation or a variational convergence proof")
@@ -895,6 +898,8 @@ def run_ctmrg(
     }
     limitations = [
         (
+            "finite-torus-gradient optimizes a bounded exact 2x2 reference objective and does not establish infinite-lattice convergence"
+            if payload.optimization == "full-update" and payload.full_update_optimizer == "finite-torus-gradient" else
             "full-update is a bounded experimental optimization path and is not a scalable automatic-differentiation or full ground-state solver"
             if payload.optimization == "full-update" else
             "no environment-feedback full ground-state optimization"

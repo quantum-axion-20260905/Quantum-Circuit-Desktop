@@ -270,6 +270,13 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
             evaluations_per_parameter = 0
             directions = int(getattr(payload, "full_update_spsa_directions", 4))
             estimated_full_update_evaluations = 1 + int(getattr(payload, "optimization_steps", 1)) * (2 * directions + 4)
+        elif optimizer == "finite-torus-gradient":
+            # The analytic finite-reference objective shares one gradient
+            # evaluation with each accepted step and tries up to four bounded
+            # line-search candidates.  Its four-site reference vector is an
+            # explicit, separately admitted validation mode.
+            evaluations_per_parameter = 0
+            estimated_full_update_evaluations = 1 + int(getattr(payload, "optimization_steps", 1)) * 5
         else:
             evaluations_per_parameter = 4 if optimizer == "finite-difference-gradient" else 4
             estimated_full_update_evaluations = 1 + int(getattr(payload, "optimization_steps", 1)) * min(complex_parameters, max_parameters) * evaluations_per_parameter
@@ -293,6 +300,10 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
             warnings.append(
                 f"full-update tensor parameter count {complex_parameters} exceeds full_update_max_parameters={payload.full_update_max_parameters}"
             )
+        if getattr(payload, "full_update_optimizer", "coordinate") == "finite-torus-gradient":
+            warnings.append("finite-torus-gradient uses an explicitly bounded 4-site finite reference statevector; it is not an infinite-lattice CTMRG objective")
+            if virtual_bond_dim > 2:
+                warnings.append("finite-torus-gradient requires virtual_bond_dim<=2")
         if estimated_full_update_evaluations is not None and estimated_full_update_evaluations > int(getattr(payload, "full_update_max_evaluations", 512)):
             warnings.append(
                 f"full-update estimated evaluations {estimated_full_update_evaluations} exceed full_update_max_evaluations={payload.full_update_max_evaluations}"
@@ -303,7 +314,7 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         warnings.append(f"estimated CTMRG environment memory {peak_mb:.1f} MB exceeds 70% of currently free GPU memory")
     if estimated_ms > int(payload.max_time_ms):
         warnings.append(f"estimated CTMRG time {estimated_ms} ms exceeds time budget")
-    blocking_warnings = [warning for warning in warnings if "exceeds" in warning or "current CTMRG solver supports" in warning or "product-coordinate-descent optimization requires" in warning or "full-update tensor parameter count" in warning or "full-update estimated evaluations" in warning]
+    blocking_warnings = [warning for warning in warnings if "exceeds" in warning or "current CTMRG solver supports" in warning or "product-coordinate-descent optimization requires" in warning or "full-update tensor parameter count" in warning or "full-update estimated evaluations" in warning or "finite-torus-gradient requires" in warning]
     return {
         "status": "ready" if not blocking_warnings else "rejected",
         "feasible": not blocking_warnings,
@@ -322,6 +333,7 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         "corner_values": corner_values,
         "edge_values": edge_values,
         "materializes_statevector": False,
+        "optimization_materializes_reference_statevector": getattr(payload, "full_update_optimizer", None) == "finite-torus-gradient",
         "estimated_peak_memory_mb": round(peak_mb, 3),
         "estimated_time_ms": estimated_ms,
         "full_update_optimizer": getattr(payload, "full_update_optimizer", None),
