@@ -271,6 +271,10 @@ class CTMRGPayload(BaseModel):
     @model_validator(mode="after")
     def validate_payload(self):
         cell_sites = math.prod(self.unit_cell)
+        if self.optimization != "none" and (self.checkpoint_path is not None or self.resume_from is not None):
+            raise ValueError(
+                "CTMRG optimizer checkpoint/resume is not supported yet; checkpointing currently covers contraction-only runs"
+            )
         expected_tensor_values = (
             cell_sites * int(self.physical_bond_dim) * int(self.virtual_bond_dim) ** 4
         )

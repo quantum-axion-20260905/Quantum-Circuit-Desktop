@@ -672,6 +672,21 @@ class CTMRGTests(unittest.TestCase):
                 }],
             )
 
+    def test_optimizer_checkpoint_resume_is_rejected_until_state_contract_exists(self):
+        with self.assertRaisesRegex(ValueError, "optimizer checkpoint/resume"):
+            CTMRGPayload(
+                optimization="full-update",
+                checkpoint_path="optimizer.npz",
+                interactions=[{
+                    "left_site": 0,
+                    "right_site": 0,
+                    "displacement": [1, 0],
+                    "left_pauli": "Z",
+                    "right_pauli": "Z",
+                    "coefficient": 1.0,
+                }],
+            )
+
     def test_environment_dimension_convergence_study_is_bounded_and_replayable(self):
         payload = CTMRGPayload(
             initial_state="plus",

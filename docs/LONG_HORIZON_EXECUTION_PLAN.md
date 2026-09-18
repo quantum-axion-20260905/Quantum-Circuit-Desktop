@@ -329,6 +329,9 @@ The next implementation packet is Phase 4 variational research-grade convergence
   regression/reference gate;
 - carry energy/variance/reference error and the new point-to-point observable
   deltas through the shared study/provenance and export APIs;
+- add a separate optimizer-state checkpoint contract before allowing a
+  long-running variational update to resume; contraction-only checkpoint/resume
+  is intentionally accepted today, while optimizer resume is rejected early;
 - compare CTMRG local contractions against finite PEPS/reference product
   states across more than the current nearest-neighbor product gate, including
   small Ising/Heisenberg reference observables;
