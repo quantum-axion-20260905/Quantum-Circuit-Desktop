@@ -19,6 +19,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+# Keep the diagnostic runner usable both as ``python tools/...`` from the
+# agent directory and through an installed/module entry point.  This is a
+# tooling-path fix only; it does not alter the numerical gate or its policy.
+_AGENT_ROOT = Path(__file__).resolve().parents[1]
+if str(_AGENT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_AGENT_ROOT))
+
 from qc_agent.core.ctmrg_autodiff import differentiable_ctmrg_energy
 from qc_agent.core.ctmrg_gauge import paired_virtual_gauge
 from qc_agent.plugins.models import CTMRGPayload, IPEPSInteraction

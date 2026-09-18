@@ -253,6 +253,14 @@ full-update/checkpoint cases, and the complete agent suite passes `150/150`.
 This is a runtime reliability fix, not evidence that generic entangled CTMRG
 has been promoted beyond its current `needs_review` gate.
 
+The next bounded GPU gradient-gate rerun also keeps the scientific boundary
+honest. With `differentiable-eigh`, the selected complex128 gradient error is
+about `2.05e-9`, while the paired virtual-gauge energy drift is still about
+`6.91e-3` versus the `1e-4` admission tolerance. The truncation derivative is
+therefore improved, but the generic entangled optimizer remains diagnostic
+only; the complete result is preserved in
+`docs/evidence/ctmrg_gradient_gate_rerun_2026-09-18.json`.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices

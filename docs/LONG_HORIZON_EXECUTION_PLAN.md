@@ -102,6 +102,14 @@ features.
   `150/150` on the RTX 3060 environment. Evidence is recorded in
   `docs/evidence/ctmrg_autodiff_runtime_2026-09-18.json`.
 
+- The rerun of the bounded GPU gradient gate now executes directly from
+  `agent/tools` and remains `needs_review`: `differentiable-eigh` reduces the
+  complex128 selected-gradient error to about `2.05e-9`, but paired
+  virtual-gauge drift remains about `6.91e-3` against a `1e-4` gate. This is
+  measurable progress in the truncation derivative, not permission to promote
+  the entangled optimizer. The full artifact is
+  `docs/evidence/ctmrg_gradient_gate_rerun_2026-09-18.json`.
+
 ### Four-step delivery ladder for the active phase
 
 The following ladder is the working sequence. Each step produces a commit and
