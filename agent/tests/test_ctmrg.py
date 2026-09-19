@@ -2095,6 +2095,15 @@ class CTMRGTests(unittest.TestCase):
         )
         self.assertTrue(width_two_chi_four["gauge_covariance_passed"])
         self.assertTrue(width_two_chi_four["tracked_frame_gauge_covariance_passed"])
+        self.assertTrue(all(point["dense_transfer_spectrum"]["performed"] for point in study["points"]))
+        self.assertTrue(all(
+            point["dense_transfer_spectrum"]["transported_passed"]
+            for point in study["points"]
+        ))
+        self.assertTrue(all(
+            point["dense_transfer_spectrum"]["raw_relative_delta"] > 1e-3
+            for point in study["points"]
+        ))
         self.assertFalse(study["research_gate_summary"]["production_ready"])
 
     def test_plus_state_has_unit_x_expectation(self):

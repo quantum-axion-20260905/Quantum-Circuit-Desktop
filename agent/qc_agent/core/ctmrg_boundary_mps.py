@@ -273,6 +273,76 @@ def _validate_physical_frame(
     return matrix
 
 
+def _dense_transfer_matrix(
+    tensors: list[np.ndarray],
+    unit_cell: list[int] | tuple[int, int],
+    *,
+    width: int,
+    left_boundary: np.ndarray,
+    right_boundary: np.ndarray,
+) -> np.ndarray:
+    """Build a tiny exact row-period transfer matrix for width one or two."""
+
+    cell_x, cell_y = (int(value) for value in unit_cell)
+    if int(width) not in (1, 2):
+        raise ValueError("dense boundary transfer reference is limited to width 1 or 2")
+    virtual = int(tensors[0].shape[1])
+    double_virtual = virtual * virtual
+    ones = np.ones((double_virtual,), dtype=np.complex128)
+    dimension = double_virtual ** int(width)
+    period = np.eye(dimension, dtype=np.complex128)
+    for row_index in range(cell_y):
+        row = [
+            _row_mpo(
+                _double_layer(tensors[(x % cell_x) + cell_x * (row_index % cell_y)]),
+                x=x,
+                width=int(width),
+                ones=ones,
+                left_boundary=left_boundary,
+                right_boundary=right_boundary,
+            )
+            for x in range(int(width))
+        ]
+        if int(width) == 1:
+            transfer = row[0][0, 0]
+        else:
+            transfer = np.einsum(
+                "ria,rjb->abij",
+                row[0][0],
+                row[1][:, 0],
+                optimize=True,
+            ).reshape(dimension, dimension)
+        period = transfer @ period
+    return period
+
+
+def _dense_transfer_spectrum_report(
+    tensors: list[np.ndarray],
+    unit_cell: list[int] | tuple[int, int],
+    *,
+    width: int,
+    left_boundary: np.ndarray,
+    right_boundary: np.ndarray,
+) -> dict[str, Any]:
+    matrix = _dense_transfer_matrix(
+        tensors,
+        unit_cell,
+        width=width,
+        left_boundary=left_boundary,
+        right_boundary=right_boundary,
+    )
+    eigenvalues = np.linalg.eigvals(matrix)
+    dominant = max((float(abs(value)) for value in eigenvalues), default=0.0)
+    return {
+        "performed": True,
+        "method": "dense-finite-cylinder-row-period-spectrum",
+        "width": int(width),
+        "dimension": int(matrix.shape[0]),
+        "dominant_eigenvalue_abs": dominant,
+        "eigenvalue_count": int(eigenvalues.size),
+    }
+
+
 def contract_patch(
     tensors: list[Any],
     unit_cell: list[int] | tuple[int, int],
@@ -1128,6 +1198,48 @@ def run_boundary_mps_transfer_gauge_covariance_study(
                 bond_left_unframe=left_unframe,
                 bond_right_unframe=right_unframe,
             )
+            if int(width) <= 2:
+                dense_base = _dense_transfer_spectrum_report(
+                    normalized_tensors,
+                    unit_cell,
+                    width=width,
+                    left_boundary=np.ones((4,), dtype=np.complex128),
+                    right_boundary=np.ones((4,), dtype=np.complex128),
+                )
+                dense_raw = _dense_transfer_spectrum_report(
+                    gauged_tensors,
+                    unit_cell,
+                    width=width,
+                    left_boundary=np.ones((4,), dtype=np.complex128),
+                    right_boundary=np.ones((4,), dtype=np.complex128),
+                )
+                dense_transported = _dense_transfer_spectrum_report(
+                    gauged_tensors,
+                    unit_cell,
+                    width=width,
+                    left_boundary=transported["left"],
+                    right_boundary=transported["right"],
+                )
+                base_spectrum = float(dense_base["dominant_eigenvalue_abs"])
+                raw_spectrum = float(dense_raw["dominant_eigenvalue_abs"])
+                transported_spectrum = float(dense_transported["dominant_eigenvalue_abs"])
+                dense_spectrum = {
+                    "performed": True,
+                    "base": dense_base,
+                    "raw_gauge_negative_control": dense_raw,
+                    "transported_gauge": dense_transported,
+                    "raw_relative_delta": abs(raw_spectrum - base_spectrum) / max(base_spectrum, 1e-30),
+                    "transported_relative_delta": abs(transported_spectrum - base_spectrum) / max(base_spectrum, 1e-30),
+                    "transported_passed": bool(
+                        abs(transported_spectrum - base_spectrum) / max(base_spectrum, 1e-30)
+                        <= float(gauge_tolerance)
+                    ),
+                }
+            else:
+                dense_spectrum = {
+                    "performed": False,
+                    "reason": "dense reference is bounded to width <= 2 to avoid materializing a large transfer matrix",
+                }
             base_rayleigh = float(base["cycle_reports"][-1]["transfer_rayleigh_quotient"]["abs"])
             raw_rayleigh = float(raw["cycle_reports"][-1]["transfer_rayleigh_quotient"]["abs"])
             covariant_rayleigh = float(covariant["cycle_reports"][-1]["transfer_rayleigh_quotient"]["abs"])
@@ -1182,6 +1294,7 @@ def run_boundary_mps_transfer_gauge_covariance_study(
                 "tracked_frame_relative_patch_delta": float(tracked_delta),
                 "transported_relative_frame_rayleigh_delta": float(rayleigh_delta),
                 "tracked_frame_relative_frame_rayleigh_delta": float(tracked_rayleigh_delta),
+                "dense_transfer_spectrum": dense_spectrum,
                 "gauge_covariance_passed": passed,
                 "tracked_frame_gauge_covariance_passed": tracked_passed,
             })

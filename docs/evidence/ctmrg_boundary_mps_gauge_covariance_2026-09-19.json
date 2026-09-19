@@ -62,6 +62,9 @@
     "point_count": 4,
     "passed_points": 3,
     "tracked_frame_passed_points": 4,
+    "dense_transfer_spectrum_widths": [1, 2],
+    "dense_transported_spectrum_passed_points": 4,
+    "dense_raw_spectrum_is_non_invariant": true,
     "raw_control_is_non_invariant": true,
     "low_chi_truncation_remains_review_only": true,
     "full_regression": "203/203"

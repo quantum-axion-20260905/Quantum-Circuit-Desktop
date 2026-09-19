@@ -125,6 +125,13 @@ features.
   is a finite-cylinder covariant truncation seam, not yet the generic CTMRG
   retained-subspace policy required for promotion.
 
+- A bounded dense row-period transfer-spectrum reference is now included for
+  width 1–2. It avoids the frame-dependent Euclidean Rayleigh diagnostic and
+  shows machine-precision transported-gauge spectral invariance on the random
+  D=2 grid, while the raw all-ones control shifts. The reference is explicitly
+  capped at width 2 so it cannot become an unpriced state/materialization
+  shortcut.
+
 - The optional Torch/CuPy autodiff runtime now has a deterministic Windows
   import seam: CuPy is primed before Torch in the standalone autodiff test
   module, matching the production server's CUDA loading order. This closes a

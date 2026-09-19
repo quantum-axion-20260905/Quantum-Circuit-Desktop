@@ -777,6 +777,14 @@ grid it reduces the ordinary width 2/chi 1 replay delta from `2.87e-1` to
 3/4 result visible. This is a tested covariant truncation seam for the
 finite-cylinder instrument, not yet a generic CTMRG retained-subspace policy.
 
+The same packet now includes a bounded dense row-period transfer-spectrum
+reference for width 1 and 2. It reports the dominant eigenvalue magnitude
+without MPS truncation: the raw all-ones gauged control is non-invariant, while
+the transported gauge is invariant to machine precision on all four points.
+This replaces the frame-dependent Rayleigh value as the primary small-width
+spectral evidence, while deliberately refusing to scale the dense reference
+to larger widths.
+
 ### Current Phase 4 disposition
 
 The bounded dynamic boundary capability is complete as an opt-in research
