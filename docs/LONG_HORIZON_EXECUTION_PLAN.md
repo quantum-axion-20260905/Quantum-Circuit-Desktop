@@ -125,6 +125,16 @@ features.
   `1e-4` gate. It remains outside optimizer/production paths; the measurement
   is recorded in `docs/evidence/ctmrg_gauge_preconditioner_effect_2026-09-19.json`.
 
+- Phase 4 C1 is now closed: the baseline CTMRG environment map is versioned as
+  `ctmrg-half-density-v1` or
+  `ctmrg-full-svd-biorthogonal-v1`, with explicit virtual-leg, corner, edge,
+  fused-edge, directional-order, and gauge-convention metadata. Results,
+  research envelopes, and checkpoints carry the map; resume rejects a map
+  mismatch. The contract passes `152/152` tests and is recorded in
+  `docs/evidence/ctmrg_environment_contract_2026-09-19.json`. This freezes the
+  baseline identity but does not yet prove gauge covariance; C2 is the next
+  candidate-map implementation.
+
 ### Four-step delivery ladder for the active phase
 
 The following ladder is the working sequence. Each step produces a commit and

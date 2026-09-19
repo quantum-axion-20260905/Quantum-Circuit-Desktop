@@ -66,6 +66,11 @@ not inspected, stopped, or competed with.
 
 ### Packet A — freeze the gauge and environment contracts
 
+Status: **passed on 2026-09-19**. The baseline map identity and ordering are
+implemented in `agent/qc_agent/core/ctmrg_environment.py`; synchronous results,
+research envelopes, and CTMRG checkpoints now carry the map, and resume rejects
+a mismatched map. Evidence: `docs/evidence/ctmrg_environment_contract_2026-09-19.json`.
+
 Deliverables:
 
 - document the exact virtual-leg transform for ket, bra, incoming, and
@@ -85,6 +90,9 @@ Acceptance:
 - an environment-map mismatch is rejected or reported, never silently mixed.
 
 ### Packet B — implement one covariant candidate
+
+Status: **next active packet**. The baseline contract is frozen; the candidate
+must attach to it without changing the default map.
 
 Implement exactly one candidate first, selected from the existing numerical
 seams after a small derivation:

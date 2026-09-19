@@ -13,6 +13,36 @@ from qc_agent.plugins.models import CTMRGConvergenceStudyPayload, CTMRGPayload, 
 
 
 class CTMRGTests(unittest.TestCase):
+    def test_environment_map_contract_is_versioned_and_projector_specific(self):
+        from qc_agent.core.ctmrg_environment import environment_map_for, validate_environment_map
+
+        baseline = environment_map_for("half-density")
+        full_svd = environment_map_for("full-svd")
+        self.assertEqual(baseline.schema, "quantum-circuit/ctmrg-environment-map-v1")
+        self.assertEqual(baseline.map_id, "ctmrg-half-density-v1")
+        self.assertEqual(full_svd.map_id, "ctmrg-full-svd-biorthogonal-v1")
+        self.assertEqual(baseline.virtual_leg_order, ("physical", "up", "down", "left", "right"))
+        self.assertEqual(baseline.edge_order, ("T1", "T2", "T3", "T4"))
+        validate_environment_map(baseline.to_dict(), baseline)
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            validate_environment_map(baseline.to_dict(), full_svd)
+
+        payload = CTMRGPayload(
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+            environment_bond_dim=1,
+            iterations=1,
+        )
+        result = run_ctmrg(np, payload)
+        self.assertEqual(result["environment_map"]["map_id"], baseline.map_id)
+        self.assertEqual(result["research_result"]["details"]["environment_map"], baseline.to_dict())
+
     def test_full_svd_projector_preserves_the_declared_product_limit(self):
         payload = CTMRGPayload(
             ctmrg_projector="full-svd",
@@ -692,6 +722,10 @@ class CTMRGTests(unittest.TestCase):
             checkpoint_path = os.path.join(directory, "ctmrg-2x2.npz")
             partial = run_ctmrg(np, payload.model_copy(update={"checkpoint_path": checkpoint_path}))
             self.assertEqual(partial["checkpoint"]["metadata"]["environment_count"], 4)
+            self.assertEqual(
+                partial["checkpoint"]["metadata"]["environment_map"]["map_id"],
+                "ctmrg-half-density-v1",
+            )
             resumed = run_ctmrg(np, payload.model_copy(update={
                 "iterations": 4,
                 "resume_from": checkpoint_path,
@@ -1077,6 +1111,7 @@ class CTMRGTests(unittest.TestCase):
             partial = run_ctmrg(np, payload.model_copy(update={"checkpoint_path": checkpoint_path}))
             self.assertTrue(os.path.exists(checkpoint_path))
             self.assertEqual(partial["checkpoint"]["schema"], "quantum-circuit/checkpoint-v1")
+            self.assertEqual(partial["checkpoint"]["metadata"]["environment_map"]["schema"], "quantum-circuit/ctmrg-environment-map-v1")
             resumed = run_ctmrg(np, payload.model_copy(update={
                 "iterations": 4,
                 "resume_from": checkpoint_path,

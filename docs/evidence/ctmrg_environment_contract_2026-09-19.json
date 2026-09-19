@@ -1,0 +1,39 @@
+{
+  "artifact": "ctmrg-environment-map-contract",
+  "date": "2026-09-19",
+  "status": "passed",
+  "scope": "Phase 4 C1 contract and baseline checkpoint seam",
+  "maps": [
+    {
+      "map_id": "ctmrg-half-density-v1",
+      "projector_policy": "half-density",
+      "schema": "quantum-circuit/ctmrg-environment-map-v1"
+    },
+    {
+      "map_id": "ctmrg-full-svd-biorthogonal-v1",
+      "projector_policy": "full-svd",
+      "schema": "quantum-circuit/ctmrg-environment-map-v1"
+    }
+  ],
+  "contract": {
+    "virtual_leg_order": ["physical", "up", "down", "left", "right"],
+    "corner_order": ["C1", "C2", "C3", "C4"],
+    "edge_order": ["T1", "T2", "T3", "T4"],
+    "fused_edge_order": ["boundary", "ket", "bra", "boundary"],
+    "directional_update_order": ["left", "right", "top", "bottom"],
+    "gauge_convention": "paired-inverse-transpose-virtual-bonds-v1"
+  },
+  "verification": {
+    "focused_tests": "3/3 passed",
+    "full_agent_suite": "152/152 passed",
+    "result_contains_environment_map": true,
+    "research_result_contains_environment_map": true,
+    "checkpoint_contains_environment_map": true,
+    "mismatched_checkpoint_map_rejected": true
+  },
+  "limitations": [
+    "This freezes the baseline identity and ordering; it does not claim gauge covariance.",
+    "The covariant candidate remains the next Phase 4 C2 packet.",
+    "Generic entangled CTMRG remains needs_review."
+  ]
+}

@@ -29,6 +29,7 @@ from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, 
 from .ctmrg_admission import ctmrg_research_gate
 from .ctmrg_reference import analytic_ghz_reference, finite_periodic_peps_reference, finite_product_reference
 from .ctmrg_gauge import pairwise_virtual_gauge_preconditioner, virtual_leg_conditioning_report
+from .ctmrg_environment import environment_map_for, validate_environment_map
 from .ctmrg_projectors import (
     full_svd_projectors,
     standard_full_svd_projectors,
@@ -1343,6 +1344,7 @@ def run_ctmrg(
         raise ValueError("the current CTMRG solver supports unit_cell dimensions no larger than 2x2")
 
     started = time.perf_counter()
+    environment_map = environment_map_for(payload.ctmrg_projector)
     if payload.environment_sector_policy == "symmetry-ensemble" and _environment_seed is None:
         ensemble_tensors = _build_tensors(xp, payload) if tensors is None else list(tensors)
         single_payload = payload.model_copy(update={
@@ -1486,6 +1488,7 @@ def run_ctmrg(
         if manifest.get("dtype") != payload.dtype:
             raise ValueError("CTMRG checkpoint dtype does not match the requested dtype")
         metadata = manifest.get("metadata", {})
+        validate_environment_map(metadata.get("environment_map"), environment_map)
         for name, expected in (
             ("physical_bond_dim", payload.physical_bond_dim),
             ("virtual_bond_dim", payload.virtual_bond_dim),
@@ -1537,6 +1540,7 @@ def run_ctmrg(
                     "environment_bond_dim": int(payload.environment_bond_dim),
                     "unit_cell": list(unit_cell),
                     "environment_count": len(environments),
+                    "environment_map": environment_map.to_dict(),
                 },
             ),
         )
@@ -1879,6 +1883,7 @@ def run_ctmrg(
             "ctmrg_projector": payload.ctmrg_projector,
             "environment_sector_policy": payload.environment_sector_policy,
             "environment_damping": float(payload.environment_damping),
+            "environment_map": environment_map.to_dict(),
             "environment_shapes": [[list(item.shape) for item in env.tensors()] for env in environments],
             "optimization": (
                 {key: value for key, value in optimization_info.items() if key not in {"states", "tensors"}}
@@ -1900,6 +1905,7 @@ def run_ctmrg(
         "method": result_method,
         "representation": "ipeps",
         "ctmrg_projector": payload.ctmrg_projector,
+        "environment_map": environment_map.to_dict(),
         "environment_sector_policy": payload.environment_sector_policy,
         "environment_damping": float(payload.environment_damping),
         "unit_cell": unit_cell,
