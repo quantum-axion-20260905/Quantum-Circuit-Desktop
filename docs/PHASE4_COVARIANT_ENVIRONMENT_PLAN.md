@@ -140,6 +140,12 @@ unchanged. The next C2 iteration must target environment transport or a
 minimal-canonical reduced-boundary construction rather than adding another
 local tensor-only heuristic.
 
+A bounded 2x2 baseline campaign is also recorded. Both half-density and
+full-SVD execute with the declared site ordering, and the resident-environment
+transport gate passes, but paired-gauge deltas remain `0.068--0.203` at
+`chi=2`; this confirms the limitation is not only a 1x1 ordering bug.
+Evidence: `docs/evidence/ctmrg_2x2_gauge_baseline_2026-09-19.json`.
+
 Implement exactly one candidate first, selected from the existing numerical
 seams after a small derivation:
 

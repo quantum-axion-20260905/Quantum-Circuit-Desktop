@@ -1,0 +1,63 @@
+{
+  "artifact": "ctmrg-2x2-gauge-baseline",
+  "date": "2026-09-19",
+  "revision": "pending-commit",
+  "scope": {
+    "unit_cell": [2, 2],
+    "virtual_bond_dim": 2,
+    "environment_bond_dim": 2,
+    "iterations": 3,
+    "dtype": "complex128",
+    "seeds": [17, 29]
+  },
+  "verification": {
+    "bounded_cpu_run": true,
+    "environment_transport_gate": true,
+    "finite_reference_available": true,
+    "ram_heavy_process_touched": false
+  },
+  "results": [
+    {
+      "seed": 17,
+      "projector": "half-density",
+      "energy": 0.011479659364671366,
+      "residual": 5.292417856739284e-06,
+      "raw_boundary_basis_residual": 2.0,
+      "paired_gauge_delta": 0.10377234713774096,
+      "paired_gauge_gate": false,
+      "research_status": "needs_review"
+    },
+    {
+      "seed": 17,
+      "projector": "full-svd",
+      "energy": 0.004368763382368648,
+      "residual": 3.077642417093074e-05,
+      "raw_boundary_basis_residual": 2.0,
+      "paired_gauge_delta": 0.20311481844651735,
+      "paired_gauge_gate": false,
+      "research_status": "needs_review"
+    },
+    {
+      "seed": 29,
+      "projector": "half-density",
+      "energy": -0.01831344092407973,
+      "residual": 3.7432313920726656e-06,
+      "raw_boundary_basis_residual": 1.999985891451419,
+      "paired_gauge_delta": 0.06821761154834512,
+      "paired_gauge_gate": false,
+      "research_status": "needs_review"
+    },
+    {
+      "seed": 29,
+      "projector": "full-svd",
+      "energy": -0.0063798763770167135,
+      "residual": 4.0142683146226656e-05,
+      "raw_boundary_basis_residual": 2.0,
+      "paired_gauge_delta": 0.14614236601835978,
+      "paired_gauge_gate": false,
+      "research_status": "needs_review"
+    }
+  ],
+  "conclusion": "The 2x2 ordering path executes for both baseline projectors, but neither projector passes the paired-gauge gate at chi=2. The explicit environment transport remains algebraically exact while truncated fixed-point covariance is unresolved.",
+  "next_action": "derive a boundary-map truncation with independent left/right metrics before any 2x2 production admission"
+}
