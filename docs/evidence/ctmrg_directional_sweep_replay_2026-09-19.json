@@ -1,12 +1,13 @@
 {
   "artifact": "ctmrg-directional-bilinear-sweep-covariance-replay",
   "date": "2026-09-19",
-  "revision": "028a387",
+  "revision": "bb68eff",
   "scope": "Phase 4 tracked retained-basis diagnostic after the directional K-map seam",
   "method": {
     "replay": "one bounded left/right/top/bottom one-site sweep",
     "initial_pair": "resident environment and explicitly transported gauged environment",
     "move": "actual biorthogonal-bilinear CTMRG move implementation",
+    "basis_transport": "split primal corner basis K.P and dual edge basis K^(-T).P",
     "admission": "diagnostic-only; no production promotion from this report"
   },
   "cpu_complex128": {
@@ -70,6 +71,7 @@
   "suite": {
     "agent_unittest": "160/160 passed",
     "focused_bilinear_test": "passed",
+    "split_basis_transport_seam": "passed on CPU complex128 and CUDA complex64 bounded probes",
     "gpu_memory_policy": "bounded chi=2 probe only; no large sweep"
   },
   "decision": "retain-as-diagnostic-seam",

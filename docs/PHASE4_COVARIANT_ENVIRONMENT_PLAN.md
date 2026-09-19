@@ -369,6 +369,12 @@ result. It executes the real one-site bilinear move sequence from an explicitly
 transported resident environment and records factor-map, projector, moved-edge,
 and contraction deltas before/after each direction.
 
+Commit `bb68eff` adds the explicit split-basis primitive used by that replay:
+the primal corner form `K·P` and dual edge form `K⁻ᵀ·P` are carried as separate
+objects with independent rule and conditioning diagnostics. This is the
+correct architectural seam for a tracked state, but it is not yet wired into
+the production move or retained-subspace selector.
+
 - CPU complex128 canonical GHZ: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - CPU random D=2 seeds 17/29/41: replay remains red, with maximum factor error
