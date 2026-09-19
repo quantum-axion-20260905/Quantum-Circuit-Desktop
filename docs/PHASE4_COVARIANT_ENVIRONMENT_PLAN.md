@@ -383,6 +383,14 @@ state, but it remains `validated_prototype_not_integrated` until normalization,
 damping, retained-subspace selection, checkpointing, and 2x2 semantics are
 implemented.
 
+The bounded replacement probe also closes two tempting shortcuts: damping
+values `0.25, 0.5, 0.75, 1.0` leave at least one random-seed drift above
+`1e-4`, and half-density/full-SVD with pairwise or diagonal preconditioning
+remain above the gate. The next required candidate is therefore a genuine
+covariant reduced-boundary selector, not another local normalization or
+conditioning heuristic. Evidence:
+`docs/evidence/ctmrg_phase4_replacement_probe_2026-09-19.json`.
+
 - CPU complex128 canonical GHZ: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - CPU random D=2 seeds 17/29/41: replay remains red, with maximum factor error

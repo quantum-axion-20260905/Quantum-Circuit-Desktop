@@ -1,0 +1,28 @@
+{
+  "artifact": "ctmrg-phase4-replacement-strategy-probe",
+  "date": "2026-09-19",
+  "scope": "bounded alternatives after raw bilinear sweep failure",
+  "fixtures": "random D=2 complex128 seeds 17/29/41, 1x1, chi=2",
+  "damping_probe": {
+    "iterations": 6,
+    "paired_gauge_max_abs_delta_by_seed": {
+      "0.25": [0.001791780142062169, 0.010964428356515444, 0.013483805212554465],
+      "0.5": [0.013163679759060937, 0.002753184354245085, 0.0029322741140267207],
+      "0.75": [0.006421388692459423, 0.00011472209092314861, 0.003495208037297047],
+      "1.0": [0.0010552419711481742, 0.0006650122564965961, 0.0002007261131184157]
+    },
+    "decision": "rejected; no damping value passes all three 1e-4 gates"
+  },
+  "preconditioner_probe": {
+    "iterations": 6,
+    "paired_gauge_max_abs_delta_by_policy": {
+      "half-density/pairwise-polar-balance": [0.04413765504387275, 0.00992601319298328, 0.011876057482746862],
+      "half-density/diagonal-bond-balance": [0.00847213879932393, 0.013308048435281303, 0.026555458682435362],
+      "full-svd/pairwise-polar-balance": [0.5657169287507451, 0.005639288746973357, 0.16902325849959066],
+      "full-svd/diagonal-bond-balance": [25.464176935440623, 0.04776371719774128, 0.07503016219774128]
+    },
+    "decision": "rejected; conditioning/preconditioning does not replace covariant retained-subspace selection"
+  },
+  "conclusion": "The unresolved Phase 4 failure is structural: local damping, full-SVD selection, and virtual-leg preconditioning do not provide a generic gauge-covariant truncated fixed point. The validated split primal/dual replay remains the correct next implementation seam, but it needs a genuine covariant retained-subspace selector before production admission.",
+  "next_action": "derive and implement one bounded covariant reduced-boundary selector with explicit rank, condition, discarded-weight, and transfer-gap gates"
+}
