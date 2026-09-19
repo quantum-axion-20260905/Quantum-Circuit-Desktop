@@ -1507,6 +1507,16 @@ def run_ctmrg(
                 ensemble_result["warnings"].append(
                     f"virtual-gauge validation exceeded tolerance: max observable/energy delta {gauge_validation['max_abs_delta']:.3e}"
                 )
+                if payload.ctmrg_projector == "biorthogonal-bilinear":
+                    ensemble_result["converged"] = False
+                    ensemble_result["fixed_point_classification"] = _fixed_point_classification(
+                        projector=payload.ctmrg_projector,
+                        converged=False,
+                        correlation_length=ensemble_result.get("correlation_length"),
+                    )
+                    ensemble_result["warnings"].append(
+                        "biorthogonal-bilinear fixed-point status is not admitted as converged while its paired-gauge probe fails"
+                    )
             ensemble_result["research_gate"] = ctmrg_research_gate(
                 payload,
                 converged=bool(ensemble_result["converged"]),
@@ -1515,9 +1525,22 @@ def run_ctmrg(
                 optimization_info=None,
             )
             ensemble_result["research_result"]["metrics"]["gauge_validation_max_abs_delta"] = gauge_validation.get("max_abs_delta")
+            ensemble_result["research_result"]["metrics"]["fixed_point_classification"] = ensemble_result.get(
+                "fixed_point_classification",
+                "unconverged",
+            )
             ensemble_result["research_result"]["warnings"] = list(ensemble_result["warnings"])
+            ensemble_result["research_result"]["convergence"]["converged"] = bool(ensemble_result["converged"])
+            ensemble_result["research_result"]["convergence"]["classification"] = ensemble_result.get(
+                "fixed_point_classification",
+                "unconverged",
+            )
             ensemble_result["research_result"]["convergence"]["warnings"] = list(ensemble_result["warnings"])
             ensemble_result["research_result"]["details"]["gauge_validation"] = gauge_validation
+            ensemble_result["research_result"]["details"]["fixed_point_classification"] = ensemble_result.get(
+                "fixed_point_classification",
+                "unconverged",
+            )
             ensemble_result["research_result"]["details"]["research_gate"] = ensemble_result["research_gate"]
         ensemble_result["time_ms"] = round((time.perf_counter() - started) * 1000, 3)
         return ensemble_result

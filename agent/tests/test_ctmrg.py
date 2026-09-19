@@ -135,10 +135,30 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(result["research_gate"]["status"], "needs_review")
         self.assertFalse(result["research_gate"]["production_ready"])
         self.assertFalse(result["converged"])
-        self.assertEqual(result["fixed_point_classification"], "degenerate-needs-review")
-        self.assertEqual(result["research_result"]["convergence"]["classification"], "degenerate-needs-review")
+        self.assertEqual(result["fixed_point_classification"], "unconverged")
+        self.assertEqual(result["research_result"]["convergence"]["classification"], "unconverged")
         self.assertTrue(any("paired-gauge probe fails" in warning for warning in result["warnings"]))
         self.assertTrue(any("no principled discarded-weight estimate" in warning for warning in result["warnings"]))
+
+    def test_fixed_point_classification_distinguishes_unresolved_bilinear_gap(self):
+        from qc_agent.core.ctmrg import _fixed_point_classification
+
+        self.assertEqual(
+            _fixed_point_classification(
+                projector="biorthogonal-bilinear",
+                converged=False,
+                correlation_length=None,
+            ),
+            "degenerate-needs-review",
+        )
+        self.assertEqual(
+            _fixed_point_classification(
+                projector="biorthogonal-bilinear",
+                converged=False,
+                correlation_length=0.5,
+            ),
+            "unconverged",
+        )
 
     def test_symmetry_sector_ensemble_restores_ghz_gauge_gate(self):
         tensor_data: list[list[float]] = []
@@ -180,6 +200,42 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(result["research_gate"]["gates"]["virtual_gauge"]["passed"])
         self.assertFalse(result["research_gate"]["production_ready"])
         self.assertGreater(result["environment_sector_spread"]["observable_max_abs_range"], 1.0)
+
+    def test_bilinear_symmetry_ensemble_does_not_hide_gauge_failure(self):
+        tensor_data: list[list[float]] = []
+        for physical in range(2):
+            for up in range(2):
+                for down in range(2):
+                    for left in range(2):
+                        for right in range(2):
+                            tensor_data.append([
+                                float(physical == up == down == left == right),
+                                0.0,
+                            ])
+        result = run_ctmrg(np, CTMRGPayload(
+            ctmrg_projector="biorthogonal-bilinear",
+            environment_sector_policy="symmetry-ensemble",
+            virtual_bond_dim=2,
+            dtype="complex128",
+            tensor_data=tensor_data,
+            environment_bond_dim=2,
+            iterations=4,
+            gauge_validation=True,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+        ))
+        self.assertFalse(result["converged"])
+        self.assertEqual(result["fixed_point_classification"], "unconverged")
+        self.assertEqual(result["research_result"]["convergence"]["classification"], "unconverged")
+        self.assertFalse(result["research_gate"]["production_ready"])
+        self.assertTrue(any("paired-gauge probe fails" in warning for warning in result["warnings"]))
 
     def test_pairwise_preconditioner_preserves_finite_reference_and_reports_candidate(self):
         from qc_agent.core.ctmrg_gauge import paired_virtual_gauge, pairwise_virtual_gauge_preconditioner

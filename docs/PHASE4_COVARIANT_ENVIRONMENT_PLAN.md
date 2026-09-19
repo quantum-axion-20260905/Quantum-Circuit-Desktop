@@ -135,6 +135,8 @@ diagnostic rather than being treated as a sufficient invariant criterion.
 Unresolved transfer degeneracy is classified explicitly as
 `degenerate-needs-review`; ordinary residual/gauge failure is classified as
 `unconverged`.
+The same guard is applied after symmetry-sector aggregation, so an ensemble
+cannot hide a failed paired-gauge probe behind a sector-wise small residual.
 
 The bounded random D=2 gate improved for seeds 17/29/41: seeds 29 and 41
 pass the declared `1e-4` paired-gauge tolerance, while seed 17 remains at
