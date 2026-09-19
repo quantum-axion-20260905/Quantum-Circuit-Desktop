@@ -724,7 +724,11 @@ transfer-gap, retained-shape, reference, and research-gate records. It is
 deliberately not an ensemble average and never chooses a physically preferred
 sector automatically. CPU regression is now `193/193`; the bounded CUDA
 complex64 endpoint smoke with seeds `[null, 1]` passed preflight and provenance,
-while both points correctly remained `needs_review`.
+while both points correctly remained `needs_review`. The study admission also
+now prices the full sequential point count instead of admitting only the
+single-point estimate, and rejects the request when the aggregate estimate
+exceeds the caller's time budget. The CPU regression is `194/194` after this
+budgeting fix.
 
 ### Current Phase 4 disposition
 
