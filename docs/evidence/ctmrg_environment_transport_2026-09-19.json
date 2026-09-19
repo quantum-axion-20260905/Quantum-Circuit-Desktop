@@ -1,7 +1,7 @@
 {
   "artifact": "ctmrg-explicit-environment-transport",
   "date": "2026-09-19",
-  "revision": "working-tree",
+  "revision": "56cbf1d",
   "scope": "Phase 4 C2 algebraic covariant transport primitive",
   "convention": {
     "virtual_tensor_gauge": "up/left=G^-T, down/right=G",
