@@ -37,9 +37,14 @@
       {"seed": 17, "residual": 3.6664262271779435e-06, "gauge_delta": 0.00031709598293903907, "gauge_passed": false},
       {"seed": 29, "residual": 3.756776942309692e-06, "gauge_delta": 5.1478102152474614e-05, "gauge_passed": true},
       {"seed": 41, "residual": 3.268625889285559e-06, "gauge_delta": 6.0464985711411456e-05, "gauge_passed": true}
+    ],
+    "cross-boundary-similarity-eigen": [
+      {"seed": 17, "residual": 3.386707353758567e-05, "gauge_delta": 0.24493353411840457, "gauge_passed": false},
+      {"seed": 29, "residual": 4.073433740758858e-06, "gauge_delta": 0.05597336339646883, "gauge_passed": false},
+      {"seed": 41, "residual": 5.5729301853268964e-06, "gauge_delta": 0.1668984538178016, "gauge_passed": false}
     ]
   },
   "decision": "retain-raw-opt-in-only",
-  "conclusion": "QR-based retained-subspace choices are materially worse. SVD balancing and the leading singular subspace of the cross-boundary object L @ R.T change numerical residuals but do not improve paired-gauge drift. No alternate subspace construction is admitted; the next strategy must change the reduced-boundary object itself rather than only its internal basis normalization.",
+  "conclusion": "QR-based retained-subspace choices are materially worse. SVD balancing and the leading singular subspace of the cross-boundary object L @ R.T change numerical residuals but do not improve paired-gauge drift. The similarity-eigenvector construction is materially worse as well. No alternate subspace construction is admitted; the next strategy must track directional boundary-basis gauge state through the sweep instead of selecting a projector from one local corner pair.",
   "resource_note": "CPU-only bounded comparison; no GPU or RAM-heavy sweep"
 }
