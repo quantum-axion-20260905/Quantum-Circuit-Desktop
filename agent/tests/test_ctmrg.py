@@ -911,6 +911,109 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(loaded.shape_manifest(), environment.shape_manifest())
         self.assertTrue(all(np.array_equal(actual, expected) for actual, expected in zip(loaded.tensors(), environment.tensors())))
 
+    def test_dynamic_multi_site_checkpoint_roundtrip_preserves_site_order_and_digests(self):
+        from qc_agent.core.checkpoints import load_dynamic_ctm_checkpoint, save_dynamic_ctm_checkpoint
+        from qc_agent.core.contracts import CheckpointManifest
+        from qc_agent.core.ctmrg_dynamic import BoundaryDimensions, DynamicCTMEnvironment
+
+        environments: list[DynamicCTMEnvironment] = []
+        for site in range(4):
+            dimensions = BoundaryDimensions(top=1, left=1, bottom=1, right=1)
+            values = [np.asarray([[[complex(site + index + 1)]]]) for index in range(4)]
+            environments.append(DynamicCTMEnvironment(
+                C1=values[0].reshape(1, 1),
+                C2=values[1].reshape(1, 1),
+                C3=values[2].reshape(1, 1),
+                C4=values[3].reshape(1, 1),
+                T1=values[0],
+                T2=values[1],
+                T3=values[2],
+                T4=values[3],
+                dimensions=dimensions,
+            ))
+        manifest = CheckpointManifest(
+            checkpoint_id="dynamic-multi-test",
+            request_sha256=hashlib.sha256(b"dynamic-multi-test").hexdigest(),
+            method="ipeps-ctmrg-contraction",
+            representation="ipeps-dynamic-boundary",
+            dtype="complex128",
+            device="cpu",
+            step=7,
+            created_at="2026-09-19T00:00:00Z",
+        )
+        with TemporaryDirectory() as directory:
+            path = os.path.join(directory, "dynamic-multi.npz")
+            saved = save_dynamic_ctm_checkpoint(path, environments, manifest)
+            loaded_manifest, loaded = load_dynamic_ctm_checkpoint(path, np)
+
+        self.assertIsInstance(loaded, list)
+        self.assertEqual(saved["metadata"]["dynamic_boundary_site_order"], [0, 1, 2, 3])
+        self.assertEqual(len(saved["metadata"]["dynamic_boundary_digests"]), 4)
+        self.assertEqual(loaded_manifest["metadata"]["dynamic_boundary_digests"], saved["metadata"]["dynamic_boundary_digests"])
+        self.assertEqual([item.shape_manifest() for item in loaded], [item.shape_manifest() for item in environments])
+        self.assertTrue(all(
+            np.array_equal(actual, expected)
+            for actual_environment, expected_environment in zip(loaded, environments)
+            for actual, expected in zip(actual_environment.tensors(), expected_environment.tensors())
+        ))
+
+    def test_dynamic_runner_checkpoint_resume_recomputes_cell_observable(self):
+        from qc_agent.core.checkpoints import load_dynamic_ctm_checkpoint, save_dynamic_ctm_checkpoint
+        from qc_agent.core.contracts import CheckpointManifest
+        from qc_agent.core.ctmrg import _double_layer, _initialize_environment, _interaction_expectation_cell
+        from qc_agent.core.ctmrg_dynamic import (
+            BoundaryDimensions,
+            DynamicCTMEnvironment,
+            run_dynamic_ctmrg_cell,
+        )
+
+        tensors: list[np.ndarray] = []
+        environments: list[DynamicCTMEnvironment] = []
+        for _ in range(4):
+            tensor = np.zeros((2, 2, 2, 2, 2), dtype=np.complex128)
+            tensor[0, 0, 0, 0, 0] = 1.0
+            tensors.append(tensor)
+            layer = _double_layer(np, tensor)
+            base = _initialize_environment(np, layer, 2, regularizer=1e-9)
+            environments.append(DynamicCTMEnvironment(*base.tensors(), dimensions=BoundaryDimensions.uniform(2)))
+        result, final = run_dynamic_ctmrg_cell(
+            np,
+            tensors,
+            environments,
+            (2, 2),
+            requested_dim=1,
+            iterations=2,
+        )
+        manifest = CheckpointManifest(
+            checkpoint_id="dynamic-runner-resume-test",
+            request_sha256=hashlib.sha256(b"dynamic-runner-resume-test").hexdigest(),
+            method="ipeps-ctmrg-contraction",
+            representation="ipeps-dynamic-boundary",
+            dtype="complex128",
+            device="cpu",
+            step=2,
+            created_at="2026-09-19T00:00:00Z",
+        )
+        with TemporaryDirectory() as directory:
+            path = os.path.join(directory, "dynamic-runner.npz")
+            save_dynamic_ctm_checkpoint(path, final, manifest)
+            _, resumed = load_dynamic_ctm_checkpoint(path, np)
+
+        self.assertIsInstance(resumed, list)
+        resumed_interaction = _interaction_expectation_cell(
+            np,
+            resumed,
+            tensors,
+            0,
+            1,
+            [1, 0],
+            "Z",
+            "Z",
+        )
+        self.assertTrue(result["energy_complete"])
+        self.assertAlmostEqual(result["norm"], 1.0, places=8)
+        self.assertAlmostEqual(resumed_interaction, 1.0, places=8)
+
     def test_dynamic_covariant_move_emits_rectangular_projection_shapes(self):
         from qc_agent.core.ctmrg_dynamic import apply_dynamic_covariant_bilinear_move
 
