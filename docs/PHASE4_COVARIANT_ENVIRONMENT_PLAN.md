@@ -516,6 +516,15 @@ unchanged; the new type is intentionally not silently substituted into old
 runs. Three additional shape-contract tests keep the full regression at
 `172/172`.
 
+Commit `b123152` completes the checkpoint side of this seam with separate
+`save_dynamic_ctm_checkpoint`/`load_dynamic_ctm_checkpoint` functions. The
+dynamic format has its own representation id, persists the directional shape
+manifest, and verifies a canonical SHA-256 digest before reconstructing the
+state. A round-trip test covers tensor values, dimensions, and digest
+agreement; the full regression is now `173/173`. The dynamic state still has
+no public move kernel, so checkpoint support alone does not promote it to a
+solver capability.
+
 - For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - For comparison, CPU random D=2 seeds 17/29/41 on the raw candidate: replay remains red, with maximum factor error

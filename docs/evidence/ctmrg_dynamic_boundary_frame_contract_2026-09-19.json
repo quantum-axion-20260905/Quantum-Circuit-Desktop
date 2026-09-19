@@ -15,14 +15,17 @@
     "rank_policy": "estimate rank from a relative singular floor and retain min(requested_dim, rank)",
     "rank_deficiency_policy": "return an explicitly reduced rectangular frame; never use a pseudoinverse",
     "biorthogonal_rule": "P.T @ Q = I",
-    "fixed_chi_admission": false
+    "fixed_chi_admission": false,
+    "checkpoint_representation": "ipeps-dynamic-boundary",
+    "checkpoint_shape_digest": "sha256(canonical shape manifest)"
   },
   "tests": {
     "full_rank_equivalence": true,
     "rank_one_reduction": true,
     "empty_sector_rejection": true,
     "rectangular_environment_shape_contract": true,
-    "full_regression": "172/172"
+    "dynamic_checkpoint_roundtrip": true,
+    "full_regression": "173/173"
   },
   "interpretation": "The dynamic retained-sector selector is a tested reusable contract for the next rectangular environment state. It is not yet wired into the square fixed-chi CTMRG move and does not change public solver admission."
 }
