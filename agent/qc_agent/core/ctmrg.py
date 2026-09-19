@@ -2068,6 +2068,22 @@ def run_ctmrg(
                     "it does not replace the fresh-initialization paired-gauge admission gate",
                     "a passing result isolates initialization drift but does not prove truncated fixed-point covariance",
                 ]
+                fresh_delta = gauge_validation.get("max_abs_delta")
+                transported_delta = transported_gauge_validation.get("max_abs_delta")
+                transported_gauge_validation["comparison"] = {
+                    "fresh_max_abs_delta": fresh_delta,
+                    "transported_max_abs_delta": transported_delta,
+                    "fresh_passed": bool(gauge_validation.get("passed", False)),
+                    "transported_passed": bool(transported_gauge_validation.get("passed", False)),
+                    "initialization_sensitive": bool(
+                        not gauge_validation.get("passed", False)
+                        and transported_gauge_validation.get("passed", False)
+                    ),
+                    "transported_improvement_ratio": (
+                        float(transported_delta) / max(float(fresh_delta), 1e-30)
+                        if fresh_delta is not None and transported_delta is not None else None
+                    ),
+                }
                 warnings.append(
                     "biorthogonal-bilinear transported-environment gauge probe is diagnostic-only; fresh paired-gauge validation remains the admission gate"
                 )

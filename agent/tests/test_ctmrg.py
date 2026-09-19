@@ -139,6 +139,7 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(result["research_result"]["convergence"]["classification"], "unconverged")
         self.assertTrue(result["transported_gauge_validation"]["performed"])
         self.assertTrue(result["transported_gauge_validation"]["passed"])
+        self.assertTrue(result["transported_gauge_validation"]["comparison"]["initialization_sensitive"])
         self.assertTrue(any("paired-gauge probe fails" in warning for warning in result["warnings"]))
         self.assertTrue(any("no principled discarded-weight estimate" in warning for warning in result["warnings"]))
 
