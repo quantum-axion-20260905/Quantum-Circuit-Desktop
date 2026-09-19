@@ -1,7 +1,7 @@
 {
   "artifact": "ctmrg-diagonal-bond-balance-candidate",
   "date": "2026-09-19",
-  "revision": "37262cd",
+  "revision": "f19973d",
   "scope": {
     "unit_cell": [1, 1],
     "physical_bond_dim": 2,
