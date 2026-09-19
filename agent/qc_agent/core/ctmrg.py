@@ -30,9 +30,11 @@ from .ctmrg_admission import ctmrg_research_gate
 from .ctmrg_reference import analytic_ghz_reference, finite_periodic_peps_reference, finite_product_reference
 from .ctmrg_gauge import (
     diagonal_bond_balance_preconditioner,
+    directional_boundary_gauge_map,
     pairwise_virtual_gauge_preconditioner,
     paired_virtual_gauge_matrices,
     transport_ctm_environment,
+    transport_directional_bilinear_projector_pair,
     virtual_leg_conditioning_report,
 )
 from .ctmrg_environment import environment_map_for, validate_environment_map
@@ -973,6 +975,143 @@ def _environment_contraction(xp: Any, env: CTMEnvironment, local_tensor: Any) ->
         env.T4,
         local_tensor,
     )
+
+
+def _directional_boundary_factors(
+    xp: Any,
+    environment: CTMEnvironment,
+    double_layer: Any,
+    direction: str,
+) -> tuple[Any, Any, Any]:
+    """Build one absorbed corner pair and grown edge in solver index order."""
+
+    d2 = int(double_layer.shape[0])
+    if direction == "left":
+        first = xp.einsum("ab,buc->auc", environment.C1, environment.T1).reshape(-1, environment.T1.shape[2])
+        second = xp.einsum("gh,hdi->gdi", environment.C4, environment.T3).reshape(-1, environment.T3.shape[2])
+        grown = xp.einsum("alg,udlr->augdr", environment.T4, double_layer)
+        grown = xp.transpose(grown, (0, 1, 4, 2, 3)).reshape(first.shape[0], d2, second.shape[0])
+    elif direction == "right":
+        first = xp.einsum("ce,buc->eub", environment.C2, environment.T1).reshape(-1, environment.T1.shape[0])
+        second = xp.einsum("im,hdi->mdh", environment.C3, environment.T3).reshape(-1, environment.T3.shape[0])
+        grown = xp.einsum("erm,udlr->eumdl", environment.T2, double_layer)
+        grown = xp.transpose(grown, (0, 1, 4, 2, 3)).reshape(first.shape[0], d2, second.shape[0])
+    elif direction == "top":
+        first = xp.einsum("ab,alg->blg", environment.C1, environment.T4).reshape(-1, environment.T4.shape[2])
+        second = xp.einsum("ce,erm->crm", environment.C2, environment.T2).reshape(-1, environment.T2.shape[2])
+        grown = xp.einsum("buc,udlr->bcdlr", environment.T1, double_layer)
+        grown = xp.transpose(grown, (0, 3, 2, 1, 4)).reshape(first.shape[0], d2, second.shape[0])
+    elif direction == "bottom":
+        first = xp.transpose(xp.einsum("gh,alg->hal", environment.C4, environment.T4), (0, 2, 1)).reshape(-1, environment.T4.shape[0])
+        second = xp.einsum("im,erm->ire", environment.C3, environment.T2).reshape(-1, environment.T2.shape[0])
+        grown = xp.einsum("hdi,udlr->hiulr", environment.T3, double_layer)
+        grown = xp.transpose(grown, (0, 3, 2, 1, 4)).reshape(first.shape[0], d2, second.shape[0])
+    else:
+        raise ValueError(f"unsupported directional boundary factor {direction!r}")
+    return first, second, grown
+
+
+def _directional_boundary_transport_validation(
+    xp: Any,
+    environment: CTMEnvironment,
+    gauged_environment: CTMEnvironment,
+    layer: Any,
+    gauged_layer: Any,
+    virtual_gauges: tuple[Any, Any, Any, Any],
+    boundary_dim: int,
+) -> dict[str, Any]:
+    """Validate the four one-site absorption transport rules on real factors."""
+
+    directions = ("left", "right", "top", "bottom")
+    reports: list[dict[str, Any]] = []
+    for direction in directions:
+        first, second, grown = _directional_boundary_factors(xp, environment, layer, direction)
+        gauged_first, gauged_second, gauged_grown = _directional_boundary_factors(
+            xp, gauged_environment, gauged_layer, direction
+        )
+        maps = directional_boundary_gauge_map(
+            xp,
+            virtual_gauges,
+            boundary_dim=int(boundary_dim),
+            direction=direction,
+        )
+        predicted_grown = xp.einsum(
+            "ab,bic,oi,dc->aod",
+            maps["grown_row"],
+            grown,
+            maps["grown_middle"],
+            maps["grown_col"],
+        )
+        transported_left, transported_right, projector_report = transport_directional_bilinear_projector_pair(
+            xp,
+            first,
+            second,
+            virtual_gauges,
+            boundary_dim=int(boundary_dim),
+            direction=direction,
+        )
+        original_projection = xp.einsum("ia,idj,jb->adb", first, grown, second)
+        transported_projection = xp.einsum(
+            "ia,idj,jb->adb",
+            transported_left,
+            gauged_grown,
+            transported_right,
+        )
+        expected_projection = xp.einsum(
+            "oi,aid->aod",
+            maps["grown_middle"],
+            original_projection,
+        )
+
+        def relative_error(actual: Any, expected: Any) -> float:
+            scale = max(_max_abs(xp, expected), 1e-30)
+            return float(_host(xp.linalg.norm(actual - expected))) / scale
+
+        corner_left_error = relative_error(gauged_first, maps["corner_left"] @ first)
+        corner_right_error = relative_error(gauged_second, maps["corner_right"] @ second)
+        grown_error = relative_error(gauged_grown, predicted_grown)
+        projected_error = relative_error(transported_projection, expected_projection)
+        tolerance = 1e-6 if "64" in str(first.dtype) else 1e-10
+        reports.append({
+            "direction": direction,
+            "corner_left_relative_error": corner_left_error,
+            "corner_right_relative_error": corner_right_error,
+            "grown_edge_relative_error": grown_error,
+            "projected_edge_relative_error": projected_error,
+            "projector_transport": projector_report,
+            "tolerance": tolerance,
+            "passed": bool(
+                corner_left_error <= tolerance
+                and corner_right_error <= tolerance
+                and grown_error <= tolerance
+                and projected_error <= tolerance
+                and projector_report.get("passed", False)
+            ),
+        })
+    return {
+        "performed": True,
+        "method": "directional-boundary-factor-and-bilinear-projector-transport",
+        "boundary_dim": int(boundary_dim),
+        "directions": reports,
+        "maximum_relative_error": max(
+            (
+                max(
+                    float(item["corner_left_relative_error"]),
+                    float(item["corner_right_relative_error"]),
+                    float(item["grown_edge_relative_error"]),
+                    float(item["projected_edge_relative_error"]),
+                )
+                for item in reports
+            ),
+            default=0.0,
+        ),
+        "passed": bool(all(item["passed"] for item in reports)),
+        "limitations": [
+            "this validates one-site absorption transport on a resident environment",
+            "it does not select a retained subspace or prove a converged truncated fixed point",
+            "the fresh paired-gauge fixed-point gate remains separate",
+        ],
+    }
 
 
 def _term_expectation(xp: Any, env: CTMEnvironment, tensor: Any, term: PauliTerm) -> float:
@@ -1961,6 +2100,10 @@ def run_ctmrg(
         "performed": False,
         "reason": "not run for this request",
     }
+    directional_boundary_transport_validation: dict[str, Any] = {
+        "performed": False,
+        "reason": "not run for this request",
+    }
     if bool(getattr(payload, "gauge_validation", False)):
         if int(payload.virtual_bond_dim) <= 1:
             gauge_validation["reason"] = "virtual_bond_dim=1 has no non-trivial virtual gauge probe"
@@ -2044,6 +2187,15 @@ def run_ctmrg(
                 virtual_bond_dim=int(payload.virtual_bond_dim),
             )
             if payload.ctmrg_projector == "biorthogonal-bilinear":
+                directional_boundary_transport_validation = _directional_boundary_transport_validation(
+                    xp,
+                    environments[0],
+                    transported_environments[0],
+                    layers[0],
+                    gauged_layers[0],
+                    paired_virtual_gauge_matrices(xp, tensors[0]),
+                    boundary_dim=int(environments[0].C1.shape[0]),
+                )
                 transported_gauged_result = run_ctmrg(
                     xp,
                     probe_payload,
@@ -2201,6 +2353,7 @@ def run_ctmrg(
             "gauge_validation": gauge_validation,
             "environment_transport_validation": environment_transport_validation,
             "transported_gauge_validation": transported_gauge_validation,
+            "directional_boundary_transport_validation": directional_boundary_transport_validation,
             "gauge_conditioning": gauge_conditioning,
             "gauge_preconditioning": gauge_preconditioning,
             "research_gate": research_gate,
@@ -2246,6 +2399,7 @@ def run_ctmrg(
         "gauge_validation": gauge_validation,
         "environment_transport_validation": environment_transport_validation,
         "transported_gauge_validation": transported_gauge_validation,
+        "directional_boundary_transport_validation": directional_boundary_transport_validation,
         "gauge_conditioning": gauge_conditioning,
         "gauge_preconditioning": gauge_preconditioning,
         "research_gate": research_gate,

@@ -140,6 +140,12 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(result["transported_gauge_validation"]["performed"])
         self.assertTrue(result["transported_gauge_validation"]["passed"])
         self.assertTrue(result["transported_gauge_validation"]["comparison"]["initialization_sensitive"])
+        self.assertTrue(result["directional_boundary_transport_validation"]["performed"])
+        self.assertTrue(result["directional_boundary_transport_validation"]["passed"])
+        self.assertEqual(
+            len(result["directional_boundary_transport_validation"]["directions"]),
+            4,
+        )
         self.assertTrue(any("paired-gauge probe fails" in warning for warning in result["warnings"]))
         self.assertTrue(any("no principled discarded-weight estimate" in warning for warning in result["warnings"]))
 
