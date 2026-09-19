@@ -101,6 +101,28 @@
     "passed": true,
     "interpretation": "The bounded public 2x2 covariant path preserves normalized onsite and horizontal Z tensor-product observables through one real periodic sweep on CPU and CUDA. Raw boundary entries can differ by an internal retained-basis frame and remain diagnostic. Full fixed-point interaction covariance, fresh gauge invariance, and convergence remain open gates; the bounded checkpoint frame manifest is now covered."
   },
+  "longer_sweep_campaign": {
+    "unit_cell": [2, 2],
+    "cpu_complex128": {
+      "iterations": [2, 4, 8, 16],
+      "residual": [1.5999536e-05, 1.5999024e-05, 1.59980001e-05, 1.59959525e-05],
+      "fresh_gauge_drift": [0.00848149795, 0.0219246597, 0.00153400184, 1.48100813e-05],
+      "onsite_replay_abs_error": [1.27675648e-15, 3.71924713e-15, 1.52655666e-15, 4.72e-16],
+      "interaction_replay_abs_error": [2.01227923e-16, 1.52655666e-16, 1.42247325e-16, 5.03e-16],
+      "raw_component_relative_error": [1.20568709, 1.23742576, 1.23738297, 1.23738],
+      "converged": [false, false, false, false]
+    },
+    "cuda_complex64": {
+      "iterations": [2, 4, 8],
+      "residual": [1.63312245e-05, 1.62115282e-05, 1.63892344e-05],
+      "fresh_gauge_drift": [0.00848145783, 0.0219247285, 0.00153413042],
+      "onsite_replay_abs_error": [1.15e-07, 1.34e-07, 6.15e-08],
+      "interaction_replay_abs_error": [4.84e-08, 3.73e-08, 5.96e-08],
+      "raw_component_relative_error": [1.20569, 1.23743, 1.23738],
+      "converged": [false, false, false]
+    },
+    "interpretation": "Longer sweeps reduce finite-iteration paired-gauge drift but do not remove the approximately 1.6e-5 invariant residual floor; the next work must change fixed-point initialization, normalization, or convergence control rather than relax replay tolerances."
+  },
   "regression": {
     "command": "python -m unittest discover -s tests -p 'test_*.py'",
     "passed": true,

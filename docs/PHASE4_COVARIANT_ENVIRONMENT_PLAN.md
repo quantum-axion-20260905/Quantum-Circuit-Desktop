@@ -438,6 +438,14 @@ covariance and convergence remain separate gates. The next implementation is
 therefore fixed-point/longer-sweep validation, not a looser raw-component
 tolerance.
 
+The bounded longer-sweep campaign confirms that the remaining gate is
+algorithmic rather than a missing replay tolerance. CPU complex128 2x2 at 16
+iterations reduces fresh-gauge drift to `1.48e-5`, but the invariant residual
+still plateaus at `1.5996e-5`; CUDA complex64 at 2/4/8 iterations remains near
+`1.6e-5` as well. All bounded onsite and `Z⊗Z` replays stay green while the
+fixed-point classification remains `converged=false`. Evidence for this
+campaign is stored alongside the selector record.
+
 This closes the local retained-boundary covariance seam, not Phase 4
 admission. Fresh paired-gauge drift at four iterations is still
 `2.51e-3--4.96e-3` on the three CPU random seeds and `1.15e-2` on the bounded
