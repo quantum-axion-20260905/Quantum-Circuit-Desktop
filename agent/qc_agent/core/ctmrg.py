@@ -1425,6 +1425,7 @@ def run_ctmrg(
     progress_cb: Any = None,
     cancel_cb: Any = None,
     tensors: list[Any] | None = None,
+    initial_environments: list[CTMEnvironment] | None = None,
     _environment_seed: int | None = None,
 ) -> dict[str, Any]:
     """Run bounded one-site or two-site checkerboard CTMRG contraction.
@@ -1434,6 +1435,12 @@ def run_ctmrg(
     candidate through the public ``tensor_data`` request field. This avoids a
     GPU-to-host round trip for every variational objective evaluation while
     preserving the public request contract for ordinary jobs.
+
+    ``initial_environments`` is a bounded internal diagnostic seam.  It lets
+    gauge-validation code start from an explicitly transported resident
+    environment without exposing an unchecked environment object through the
+    public request contract.  Checkpoint resume and symmetry-sector assembly
+    remain separate initialization policies.
     """
 
     unit_cell = list(payload.unit_cell)
@@ -1442,6 +1449,10 @@ def run_ctmrg(
 
     started = time.perf_counter()
     environment_map = environment_map_for(payload.ctmrg_projector)
+    if initial_environments is not None and payload.resume_from:
+        raise ValueError("initial_environments cannot be combined with CTMRG checkpoint resume")
+    if initial_environments is not None and payload.environment_sector_policy != "single":
+        raise ValueError("initial_environments are supported only for a single CTMRG environment policy")
     if payload.environment_sector_policy == "symmetry-ensemble" and _environment_seed is None:
         ensemble_tensors = _build_tensors(xp, payload) if tensors is None else list(tensors)
         single_payload = payload.model_copy(update={
@@ -1599,7 +1610,30 @@ def run_ctmrg(
         )
     layers = [_double_layer(xp, tensor) for tensor in tensors]
     chi = int(payload.environment_bond_dim)
-    environments = [_initialize_environment(xp, layer, chi, sector_seed=_environment_seed) for layer in layers]
+    if initial_environments is None:
+        environments = [_initialize_environment(xp, layer, chi, sector_seed=_environment_seed) for layer in layers]
+        initial_environment_source = "deterministic-seed"
+    else:
+        if len(initial_environments) != len(layers):
+            raise ValueError("initial_environments count does not match the CTMRG unit cell")
+        environments = []
+        for index, environment in enumerate(initial_environments):
+            expected_shapes = (
+                (chi, chi),
+                (chi, chi),
+                (chi, chi),
+                (chi, chi),
+                (chi, int(layers[index].shape[0]), chi),
+                (chi, int(layers[index].shape[0]), chi),
+                (chi, int(layers[index].shape[0]), chi),
+                (chi, int(layers[index].shape[0]), chi),
+            )
+            if tuple(tuple(int(size) for size in value.shape) for value in environment.tensors()) != expected_shapes:
+                raise ValueError(f"initial_environments[{index}] shapes do not match the CTMRG request")
+            if any(not bool(_host(xp.all(xp.isfinite(value)))) for value in environment.tensors()):
+                raise ValueError(f"initial_environments[{index}] contains non-finite values")
+            environments.append(CTMEnvironment(*(_copy(value) for value in environment.tensors())))
+        initial_environment_source = "provided-internal"
     problem_sha256 = _problem_sha256(payload)
     points: list[ConvergencePoint] = []
     discarded_total = 0.0
@@ -1922,6 +1956,10 @@ def run_ctmrg(
         "performed": False,
         "reason": "disabled by request",
     }
+    transported_gauge_validation: dict[str, Any] = {
+        "performed": False,
+        "reason": "not run for this request",
+    }
     if bool(getattr(payload, "gauge_validation", False)):
         if int(payload.virtual_bond_dim) <= 1:
             gauge_validation["reason"] = "virtual_bond_dim=1 has no non-trivial virtual gauge probe"
@@ -2004,6 +2042,34 @@ def run_ctmrg(
                 tolerance=float(payload.gauge_validation_tolerance),
                 virtual_bond_dim=int(payload.virtual_bond_dim),
             )
+            if payload.ctmrg_projector == "biorthogonal-bilinear":
+                transported_gauged_result = run_ctmrg(
+                    xp,
+                    probe_payload,
+                    tensors=gauged_tensors,
+                    initial_environments=transported_environments,
+                )
+                transported_gauge_validation = gauge_validation_result(
+                    {
+                        "energy": float(energy),
+                        "observables": structured_observables(payload.terms, onsite_values),
+                        "interactions": [
+                            {"value": value}
+                            for value in interaction_values
+                        ],
+                    },
+                    transported_gauged_result,
+                    tolerance=float(payload.gauge_validation_tolerance),
+                    virtual_bond_dim=int(payload.virtual_bond_dim),
+                )
+                transported_gauge_validation["limitations"] = [
+                    "this diagnostic starts from the explicitly transported resident environment",
+                    "it does not replace the fresh-initialization paired-gauge admission gate",
+                    "a passing result isolates initialization drift but does not prove truncated fixed-point covariance",
+                ]
+                warnings.append(
+                    "biorthogonal-bilinear transported-environment gauge probe is diagnostic-only; fresh paired-gauge validation remains the admission gate"
+                )
             if not gauge_validation["passed"]:
                 warnings.append(
                     f"virtual-gauge validation exceeded tolerance: max observable/energy delta {gauge_validation['max_abs_delta']:.3e}"
@@ -2100,6 +2166,7 @@ def run_ctmrg(
         limitations=limitations,
         details={
             "initial_state": payload.initial_state,
+            "initial_environment_source": initial_environment_source,
             "ctmrg_projector": payload.ctmrg_projector,
             "environment_sector_policy": payload.environment_sector_policy,
             "environment_damping": float(payload.environment_damping),
@@ -2116,6 +2183,7 @@ def run_ctmrg(
             "reference_validation": reference_validation,
             "gauge_validation": gauge_validation,
             "environment_transport_validation": environment_transport_validation,
+            "transported_gauge_validation": transported_gauge_validation,
             "gauge_conditioning": gauge_conditioning,
             "gauge_preconditioning": gauge_preconditioning,
             "research_gate": research_gate,
@@ -2130,6 +2198,7 @@ def run_ctmrg(
         "environment_map": environment_map.to_dict(),
         "environment_sector_policy": payload.environment_sector_policy,
         "environment_damping": float(payload.environment_damping),
+        "initial_environment_source": initial_environment_source,
         "unit_cell": unit_cell,
         "unit_cell_sites": len(tensors),
         "tensor_source": (
@@ -2159,6 +2228,7 @@ def run_ctmrg(
         "reference_validation": reference_validation,
         "gauge_validation": gauge_validation,
         "environment_transport_validation": environment_transport_validation,
+        "transported_gauge_validation": transported_gauge_validation,
         "gauge_conditioning": gauge_conditioning,
         "gauge_preconditioning": gauge_preconditioning,
         "research_gate": research_gate,
