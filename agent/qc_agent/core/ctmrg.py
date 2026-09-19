@@ -2961,7 +2961,7 @@ def run_ctmrg(
             )
     elif payload.ctmrg_projector == "covariant-bilinear":
         warnings.extend([
-            "covariant-bilinear is an opt-in 1x1 research candidate using an invariant reduced-overlap SVD selector",
+            "covariant-bilinear is an opt-in bounded 1x1-2x2 research candidate using an invariant reduced-overlap selector",
             "covariant-bilinear reports reduced-overlap truncation diagnostics, not a full physical discarded-weight estimate",
             "covariant-bilinear remains needs_review until fresh/transported paired-gauge and fixed-point gates pass",
         ])
