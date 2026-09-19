@@ -35,6 +35,7 @@ from .ctmrg_gauge import (
     paired_virtual_gauge_matrices,
     transport_ctm_environment,
     transport_directional_bilinear_projector_pair,
+    transport_bilinear_retained_basis_pair,
     virtual_leg_conditioning_report,
 )
 from .ctmrg_environment import environment_map_for, validate_environment_map
@@ -1179,12 +1180,6 @@ def _directional_bilinear_sweep_covariance_replay(
             gauged_first, gauged_second, gauged_grown = _directional_boundary_factors(
                 xp, current_gauged, gauged_layer, direction
             )
-            maps = directional_boundary_gauge_map(
-                xp,
-                virtual_gauges,
-                boundary_dim=int(boundary_dim),
-                direction=direction,
-            )
             transported_left, transported_right, projector_report = (
                 transport_directional_bilinear_projector_pair(
                     xp,
@@ -1194,6 +1189,19 @@ def _directional_bilinear_sweep_covariance_replay(
                     boundary_dim=int(boundary_dim),
                     direction=direction,
                 )
+            )
+            maps = directional_boundary_gauge_map(
+                xp,
+                virtual_gauges,
+                boundary_dim=int(boundary_dim),
+                direction=direction,
+            )
+            _, _, _, _, retained_basis_report = transport_bilinear_retained_basis_pair(
+                xp,
+                first,
+                second,
+                maps["grown_row"],
+                maps["grown_col"],
             )
             predicted_grown = xp.einsum(
                 "ab,bic,oi,dc->aod",
@@ -1274,6 +1282,7 @@ def _directional_bilinear_sweep_covariance_replay(
                 "direction": direction,
                 "factor_errors": factor_errors,
                 "projector_transport": projector_report,
+                "retained_basis_transport": retained_basis_report,
                 "moved_edge_relative_error": moved_edge_error,
                 "contraction_before_relative_error": before_contraction_error,
                 "contraction_after_relative_error": after_contraction_error,
@@ -1284,6 +1293,7 @@ def _directional_bilinear_sweep_covariance_replay(
                     all(value <= tolerance for value in factor_errors.values())
                     and moved_edge_error <= tolerance
                     and projector_report.get("passed", False)
+                    and retained_basis_report.get("passed", False)
                 ),
             })
             current = next_environment

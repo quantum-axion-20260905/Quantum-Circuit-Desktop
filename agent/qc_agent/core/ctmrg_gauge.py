@@ -812,6 +812,87 @@ def transport_bilinear_projector_pair(
     }
 
 
+def transport_bilinear_retained_basis_pair(
+    xp: Any,
+    left_basis: Any,
+    right_basis: Any,
+    row_gauge: Any,
+    column_gauge: Any,
+) -> tuple[Any, Any, Any, Any, dict[str, Any]]:
+    """Split a bilinear retained basis into corner-primal and edge-dual forms.
+
+    A directional grown edge transforms as ``E' = K_row E K_col.T`` while an
+    enlarged corner factor transforms as ``F' = K**(-T) F``.  Consequently a
+    single transported projector cannot preserve both contractions: corner
+    factors need the primal form ``K @ P`` and grown edges need the dual form
+    ``K**(-T) @ P``.  This primitive makes that distinction explicit so a
+    tracked sweep can carry the state without silently reusing the wrong side.
+
+    The function only transports a known retained basis.  It does not choose
+    a subspace, canonicalize it, or admit a CTMRG fixed point.
+    """
+
+    projectors = (left_basis, right_basis)
+    gauges = (row_gauge, column_gauge)
+    for name, basis, gauge in zip(("left", "right"), projectors, gauges):
+        if getattr(basis, "ndim", None) != 2 or getattr(gauge, "ndim", None) != 2:
+            raise ValueError(f"{name} bilinear retained-basis transport requires rank-2 inputs")
+        if int(gauge.shape[0]) != int(gauge.shape[1]):
+            raise ValueError(f"{name} bilinear retained-basis transport requires a square gauge")
+        if int(gauge.shape[0]) != int(basis.shape[0]):
+            raise ValueError(f"{name} gauge dimension does not match the retained basis")
+
+    corner_left = row_gauge @ left_basis
+    corner_right = column_gauge @ right_basis
+    edge_left = xp.linalg.inv(row_gauge).T @ left_basis
+    edge_right = xp.linalg.inv(column_gauge).T @ right_basis
+
+    def norm(value: Any) -> float:
+        return _host_array(xp.linalg.norm(value))
+
+    corner_left_rule_error = norm(
+        corner_left.T @ (xp.linalg.inv(row_gauge).T) - left_basis.T
+    )
+    corner_right_rule_error = norm(
+        corner_right.T @ (xp.linalg.inv(column_gauge).T) - right_basis.T
+    )
+    edge_left_rule_error = norm(edge_left.T @ row_gauge - left_basis.T)
+    edge_right_rule_error = norm(edge_right.T @ column_gauge - right_basis.T)
+    row_condition = _host_array(xp.linalg.cond(row_gauge))
+    column_condition = _host_array(xp.linalg.cond(column_gauge))
+    scale_left = max(norm(left_basis), 1e-30)
+    scale_right = max(norm(right_basis), 1e-30)
+    primal_dual_left_separation = norm(corner_left - edge_left) / scale_left
+    primal_dual_right_separation = norm(corner_right - edge_right) / scale_right
+    numerical_tolerance = 1e-6 if "64" in str(left_basis.dtype) else 1e-8
+    return corner_left, corner_right, edge_left, edge_right, {
+        "performed": True,
+        "method": "split-primal-corner-dual-edge-bilinear-basis-transport",
+        "row_condition_number": float(row_condition),
+        "column_condition_number": float(column_condition),
+        "corner_left_rule_error": float(corner_left_rule_error),
+        "corner_right_rule_error": float(corner_right_rule_error),
+        "edge_left_dual_rule_error": float(edge_left_rule_error),
+        "edge_right_dual_rule_error": float(edge_right_rule_error),
+        "primal_dual_left_separation": float(primal_dual_left_separation),
+        "primal_dual_right_separation": float(primal_dual_right_separation),
+        "numerical_tolerance": numerical_tolerance,
+        "passed": bool(
+            math.isfinite(float(row_condition))
+            and math.isfinite(float(column_condition))
+            and float(corner_left_rule_error) <= numerical_tolerance
+            and float(corner_right_rule_error) <= numerical_tolerance
+            and float(edge_left_rule_error) <= numerical_tolerance
+            and float(edge_right_rule_error) <= numerical_tolerance
+        ),
+        "limitations": [
+            "primal and dual forms are intentionally distinct for non-orthogonal gauges",
+            "the caller must carry this split state through the complete directional sweep",
+            "retained-subspace selection, rank safeguards, and fixed-point admission remain open",
+        ],
+    }
+
+
 def transport_directional_bilinear_projector_pair(
     xp: Any,
     left_projector: Any,
