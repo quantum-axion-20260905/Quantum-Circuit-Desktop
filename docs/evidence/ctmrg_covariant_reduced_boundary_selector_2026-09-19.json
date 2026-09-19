@@ -1,0 +1,71 @@
+{
+  "schema": "quantum-circuit/ctmrg-evidence-v1",
+  "date": "2026-09-19",
+  "revision": "0e5f908",
+  "candidate": "covariant-bilinear",
+  "environment_map": "ctmrg-covariant-bilinear-v1",
+  "scope": {
+    "unit_cell": [1, 1],
+    "physical_bond_dim": 2,
+    "virtual_bond_dim": 2,
+    "environment_bond_dim": 2,
+    "cpu_dtype": "complex128",
+    "cuda_dtype": "complex64",
+    "gauge_seeds": [17, 29, 41],
+    "directions": ["left", "right", "top", "bottom"]
+  },
+  "selector_contract": {
+    "reduced_object": "S = L.T @ R",
+    "selector": "SVD of the invariant reduced overlap; full-rank path uses a transposed linear solve for the dual frame",
+    "transport_rule": "P' = K @ P; Q' = K**(-T) @ Q",
+    "biorthogonal_rule": "P.T @ Q = I",
+    "rank_policy": "reject a rank-deficient retained overlap; do not use a pseudoinverse",
+    "unit_test": {
+      "passed": true,
+      "complex128_overlap_error": 1.1685600022331587e-15,
+      "complex128_primal_transport_error": 1.022903464131826e-15,
+      "complex128_dual_transport_error": 9.58566026557762e-16
+    }
+  },
+  "cpu_fresh_gauge_probe": {
+    "iterations": {
+      "4": {
+        "gauge_drift_seeds_17_29_41": [0.002589729996144763, 0.0025090821663219815, 0.004957714225136155],
+        "integrated_replay_passed": [true, true, true],
+        "residual_seeds_17_29_41": [1.5999024030932674e-05, 1.5999024030488584e-05, 1.599902403071063e-05]
+      },
+      "12": {
+        "gauge_drift_seeds_17_29_41": [1.7507679278688792e-05, 2.8006831351064937e-06, 8.617670259336574e-08],
+        "integrated_replay_passed": [true, true, true],
+        "residual_seeds_17_29_41": [1.5996976288956688e-05, 1.5996976288734643e-05, 1.5996976288956688e-05]
+      },
+      "24": {
+        "gauge_drift_seeds_17_29_41": [1.4891952948570264e-09, 4.556423120749553e-11, 1.2915363223342524e-13],
+        "integrated_replay_passed": [true, true, true],
+        "residual_seeds_17_29_41": [1.5993905167155376e-05, 1.599390516737742e-05, 1.5993905167710487e-05]
+      }
+    },
+    "interpretation": "The paired-gauge observable drift decays with more iterations, but the invariant environment residual plateaus near 1.6e-5 and the fixed-point gate remains needs_review. This is not production admission."
+  },
+  "cuda_smoke": {
+    "available": true,
+    "dtype": "complex64",
+    "iterations": 4,
+    "integrated_replay_passed": true,
+    "maximum_covariance_edge_relative_error": 4.4207320242164713e-07,
+    "fresh_gauge_drift": 0.011499921791255474,
+    "time_ms": 722.126,
+    "interpretation": "The local covariant move/replay is within the complex64 1e-6 numerical gate; fresh finite-iteration gauge invariance is still not admitted."
+  },
+  "regression": {
+    "command": "python -m unittest discover -s tests -p 'test_*.py'",
+    "passed": true,
+    "tests_run": 163,
+    "duration_seconds": 31.854
+  },
+  "admission": {
+    "status": "needs_review",
+    "production_ready": false,
+    "reason": "Integrated transported-environment replay passes, but fresh-gauge drift and the fixed-point residual gate are not both closed; 2x2, multi-site state tracking, and checkpointed selector state remain open."
+  }
+}

@@ -356,10 +356,10 @@ gate is not completion.
 | Checkpoint | State | Evidence / meaning |
 | --- | --- | --- |
 | C1 | passed | Versioned environment contract and map replay checks are committed. |
-| C2 | needs_review | Directional K maps and bilinear projector seams pass algebraic tests, but the raw dual-span candidate is still opt-in. |
-| C3 | partial | Fixed-point classification, sector-ensemble guard, chi diagnostics, and transported-environment probes are implemented; generic gauge covariance is not admitted. |
+| C2 | needs_review | The integrated reduced-overlap covariant selector and its four-direction transported replay pass, but the candidate remains opt-in until fresh fixed-point gates pass. |
+| C3 | partial | Fixed-point classification, sector-ensemble guard, chi diagnostics, transported probes, and a covariant selector replay are implemented; initialization/residual admission remains open. |
 | C4 | baseline passed | Torch unrolled/implicit map consistency is `12/12`, including six bounded GPU tests; the bilinear candidate remains blocked from optimization. |
-| C5 | incomplete | Random D=2 and existing 2x2 evidence still fail the production gauge/chi gates; bounded directional sweep replay now localizes the failure to retained corner-basis transport after the top move. |
+| C5 | incomplete | The 1x1 covariant selector replay is green, but fresh random D=2 gauge drift and the invariant residual plateau still fail the production gates; 2x2 and multi-site selector-state evidence remain open. |
 | C6 | not reached | No production promotion or release claim is allowed until C5 passes or the candidate failure is formally closed with a replacement strategy. |
 
 ### Replay checkpoint — retained corner-basis covariance (2026-09-19)
@@ -386,9 +386,9 @@ implemented.
 The bounded replacement probe also closes two tempting shortcuts: damping
 values `0.25, 0.5, 0.75, 1.0` leave at least one random-seed drift above
 `1e-4`, and half-density/full-SVD with pairwise or diagonal preconditioning
-remain above the gate. The next required candidate is therefore a genuine
-covariant reduced-boundary selector, not another local normalization or
-conditioning heuristic. Evidence:
+remain above the gate. This ruled out local normalization and conditioning
+heuristics; the resulting covariant reduced-boundary selector is now the
+opt-in candidate described below. Evidence:
 `docs/evidence/ctmrg_phase4_replacement_probe_2026-09-19.json`.
 
 A separate four-sweep SVD-root probe also rejects plain, `S^(1/2)`, and
@@ -397,16 +397,41 @@ drift near `0.759--0.804` on seeds 17/29/41. Root scaling is therefore not the
 missing fix; the selector must change the reduced-boundary object itself.
 Evidence: `docs/evidence/ctmrg_svd_root_probe_2026-09-19.json`.
 
-- CPU complex128 canonical GHZ: left/right/bottom pass, top fails with corner
+### Covariant reduced-boundary selector checkpoint (2026-09-19)
+
+Commit `0e5f908` adds the opt-in `covariant-bilinear` environment map
+(`ctmrg-covariant-bilinear-v1`). It selects a primal/dual retained pair from
+the invariant reduced overlap `S = L.T @ R`, using an SVD for a genuinely
+reduced frame and a transposed linear solve for the currently full-rank
+`chi` path. The selector enforces `P.T @ Q = I`, rejects rank loss instead of
+using a pseudoinverse, and is wired into the real one-site `_ctm_move` path.
+
+The integrated four-direction replay now calls that real move rather than a
+hand-built prototype. CPU complex128 replay passes for seeds 17/29/41. The
+bounded CUDA complex64 smoke also passes, with maximum covariance-edge error
+`4.42e-7` against the declared `1e-6` gate. Full regression is `163/163`.
+Evidence: `docs/evidence/ctmrg_covariant_reduced_boundary_selector_2026-09-19.json`.
+
+This closes the local retained-boundary covariance seam, not Phase 4
+admission. Fresh paired-gauge drift at four iterations is still
+`2.51e-3--4.96e-3` on the three CPU random seeds and `1.15e-2` on the bounded
+CUDA smoke. At 24 CPU iterations the drift falls to
+`1.49e-9, 4.56e-11, 1.29e-13`, but the invariant environment residual plateaus
+near `1.6e-5`, so the fixed-point classification remains `needs_review`.
+The next numerical gate is covariant initialization/fixed-point convergence,
+not another projector normalization shortcut.
+
+- CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - CPU random D=2 seeds 17/29/41: replay remains red, with maximum factor error
   `0.342–1.770` and moved-edge error `0.794–4.800`.
 - CUDA complex64 seed 17: local directional transport remains green, but the
   replay is red (`1.0917` factor, `2.4609` moved-edge).
 
-This is a diagnostic localization, not a promotion: the next implementation
-must carry an explicit retained corner-basis state through every move and then
-re-run the bounded CPU/CUDA replay before any admission decision.
+The raw replay remains a negative control, not a promotion. The new covariant
+selector replay carries the reduced primal/dual state through every real move
+and passes the bounded CPU/CUDA local covariance gate; fresh initialization,
+fixed-point convergence, and multi-site semantics still block admission.
 
 ## 8. Definition of done
 
