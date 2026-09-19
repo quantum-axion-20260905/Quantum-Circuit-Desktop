@@ -1046,12 +1046,14 @@ def select_covariant_dynamic_boundary_frame(
 
     if getattr(left_factor, "ndim", None) != 2 or getattr(right_factor, "ndim", None) != 2:
         raise ValueError("dynamic covariant boundary selection requires rank-2 factors")
-    if left_factor.shape != right_factor.shape:
-        raise ValueError("dynamic covariant boundary factors must have identical shapes")
-    _, columns = (int(size) for size in left_factor.shape)
+    rows_left, columns_left = (int(size) for size in left_factor.shape)
+    rows_right, columns_right = (int(size) for size in right_factor.shape)
+    if rows_left != rows_right:
+        raise ValueError("dynamic covariant boundary factors must share their enlarged row dimension")
+    columns = min(columns_left, columns_right)
     requested = int(requested_dim)
     if requested < 1 or requested > columns:
-        raise ValueError("requested_dim must be between one and the factor column count")
+        raise ValueError("requested_dim must be between one and the smaller factor column count")
     floor = float(relative_singular_floor)
     if not math.isfinite(floor) or floor <= 0.0:
         raise ValueError("relative_singular_floor must be finite and positive")
@@ -1066,13 +1068,68 @@ def select_covariant_dynamic_boundary_frame(
         raise ValueError("dynamic covariant boundary overlap has no numerically retained sector")
 
     retained = min(requested, rank_estimate)
-    primal, dual, report = select_covariant_reduced_boundary_pair(
-        xp,
-        left_factor,
-        right_factor,
-        retained_dim=retained,
-        relative_singular_floor=relative_singular_floor,
-    )
+    if columns_left == columns_right:
+        primal, dual, report = select_covariant_reduced_boundary_pair(
+            xp,
+            left_factor,
+            right_factor,
+            retained_dim=retained,
+            relative_singular_floor=relative_singular_floor,
+        )
+    else:
+        # A rectangular periodic cell can present different retained
+        # dimensions on the two ends of one enlarged boundary.  The old
+        # selector deliberately rejects that case because its fixed-chi
+        # contract is square.  The dynamic path keeps the same invariant
+        # SVD construction, but lets U and V have different column counts:
+        # P = L @ conj(U_k) @ s_k**(-1/2),
+        # Q = R @ V_k @ s_k**(-1/2), with P.T @ Q = I.
+        # This is a real rectangular frame, not padding or a pseudoinverse.
+        U, singular, Vh = xp.linalg.svd(overlap, full_matrices=False)
+        U_keep = U[:, :retained]
+        V_keep = _transpose(xp, xp.conj(Vh[:retained, :]), (1, 0))
+        inverse_root = 1.0 / xp.sqrt(singular[:retained])
+        primal = (left_factor @ xp.conj(U_keep)) * inverse_root[None, :]
+        dual = (right_factor @ V_keep) * inverse_root[None, :]
+        identity_kwargs = {"dtype": overlap.dtype}
+        if getattr(xp, "__name__", "") == "torch":
+            identity_kwargs["device"] = overlap.device
+        identity = xp.eye(retained, **identity_kwargs)
+        overlap_error = _host_array(xp.linalg.norm(primal.T @ dual - identity))
+        singular_host_local = [float(abs(value)) for value in _host_array(singular)]
+        retained_host = singular_host_local[:retained]
+        total = sum(value * value for value in singular_host_local)
+        discarded = sum(value * value for value in singular_host_local[retained:])
+        condition_number = retained_host[0] / max(retained_host[-1], 1e-30)
+        dtype_tolerance = 1e-6 if "64" in str(left_factor.dtype) else 1e-10
+        report = {
+            "performed": True,
+            "method": "rectangular-invariant-reduced-overlap-svd-square-root",
+            "input_rows": rows_left,
+            "input_columns": columns,
+            "input_columns_left": columns_left,
+            "input_columns_right": columns_right,
+            "retained_columns": retained,
+            "relative_singular_floor": floor,
+            "singular_threshold": float(threshold),
+            "singular_values": singular_host_local,
+            "retained_singular_values": retained_host,
+            "normalization": "rectangular-reduced-overlap-svd-square-root",
+            "rank_estimate": rank_estimate,
+            "overlap_condition_number": float(condition_number),
+            "discarded_weight": float(discarded / max(total, 1e-30)),
+            "biorthogonal_overlap_error": float(overlap_error),
+            "numerical_tolerance": dtype_tolerance,
+            "passed": bool(
+                math.isfinite(float(condition_number))
+                and float(overlap_error) <= dtype_tolerance
+            ),
+            "limitations": [
+                "the rectangular selector is covariant only for the declared paired bilinear factor contract",
+                "rank-deficient overlaps are reduced explicitly rather than regularized with a pseudoinverse",
+                "this selects a rectangular boundary pair but does not establish CTMRG fixed-point convergence",
+            ],
+        }
     report = dict(report)
     report.update(
         {

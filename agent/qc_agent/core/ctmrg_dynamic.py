@@ -50,6 +50,73 @@ class BoundaryDimensions:
         }
 
 
+class DynamicCellCompatibilityError(ValueError):
+    """Raised when neighboring rectangular environments cannot be contracted.
+
+    A dynamic retained dimension is a shared boundary-space contract, not an
+    independent per-site crop.  If one site has already reduced a row/column
+    boundary while its periodic neighbor has not, continuing would either
+    broadcast incorrectly or fail later inside an opaque ``einsum`` error.
+    This exception keeps the rejection explicit and serializable at the HTTP
+    boundary.
+    """
+
+    def __init__(
+        self,
+        *,
+        direction: str,
+        environment_dimensions: dict[str, int],
+        neighbor_dimensions: dict[str, int],
+        mismatches: dict[str, tuple[int, int]],
+    ) -> None:
+        self.direction = str(direction)
+        self.environment_dimensions = dict(environment_dimensions)
+        self.neighbor_dimensions = dict(neighbor_dimensions)
+        self.mismatches = {
+            str(name): (int(values[0]), int(values[1]))
+            for name, values in mismatches.items()
+        }
+        mismatch_text = ", ".join(
+            f"{name}={left}/{right}" for name, (left, right) in self.mismatches.items()
+        )
+        super().__init__(
+            "dynamic CTMRG periodic boundary incompatibility for "
+            f"{self.direction!r}: neighboring retained dimensions disagree ({mismatch_text}); "
+            "the multi-site dynamic path requires a shared compatible row/column frame"
+        )
+
+
+def validate_dynamic_two_site_compatibility(
+    environment: "DynamicCTMEnvironment",
+    neighbor_environment: "DynamicCTMEnvironment",
+    direction: str,
+) -> None:
+    """Validate the boundary indices required by one periodic absorption."""
+
+    direction = str(direction).lower()
+    if direction not in {"left", "right", "top", "bottom"}:
+        raise ValueError("dynamic CTMRG direction must be left, right, top, or bottom")
+    if environment.map_id != neighbor_environment.map_id:
+        raise ValueError(
+            "dynamic CTMRG neighboring environments use incompatible map identifiers"
+        )
+    self_dims = environment.dimensions.to_dict()
+    neighbor_dims = neighbor_environment.dimensions.to_dict()
+    shared_names = ("top", "bottom") if direction in {"left", "right"} else ("left", "right")
+    mismatches = {
+        name: (self_dims[name], neighbor_dims[name])
+        for name in shared_names
+        if self_dims[name] != neighbor_dims[name]
+    }
+    if mismatches:
+        raise DynamicCellCompatibilityError(
+            direction=direction,
+            environment_dimensions=self_dims,
+            neighbor_dimensions=neighbor_dims,
+            mismatches=mismatches,
+        )
+
+
 @dataclass(frozen=True)
 class DynamicCTMEnvironment:
     """A rectangular CTM boundary with explicit directional dimensions.
@@ -421,6 +488,7 @@ def apply_dynamic_ctm_two_site_move(
         raise ValueError("dynamic CTMRG direction must be left, right, top, or bottom")
     if getattr(neighbor_layer, "ndim", None) != 4:
         raise ValueError("dynamic two-site CTMRG move requires a rank-4 neighbor layer")
+    validate_dynamic_two_site_compatibility(environment, neighbor_environment, direction)
     d2 = int(neighbor_layer.shape[0])
 
     if direction == "left":

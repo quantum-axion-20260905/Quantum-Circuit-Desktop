@@ -622,8 +622,10 @@ and resumed runs; the CUDA complex64 payload smoke does the same and restores
 four site digests. The full regression is now `183/183`.
 
 This is an explicit experimental API, not a silent replacement for
-`run_ctmrg`: optimization, sector ensembles, and public server routing remain
-blocked until a final policy/admission review covers the dynamic result path.
+`run_ctmrg`: optimization, sector ensembles, and the default public route
+remain blocked until a final policy/admission review covers the dynamic result
+path. The opt-in `/jobs/ctmrg/dynamic` endpoint is intentionally separate and
+returns the same `needs_review` diagnostics as the backend.
 
 Commit `0de5ed1` hardens resume admission by comparing the current payload
 request SHA-256 and unit-cell metadata with the checkpoint before any dynamic
@@ -657,6 +659,19 @@ selector replay carries the reduced primal/dual state through every real move
 and passes the bounded CPU/CUDA 1x1 and 2x2 onsite/two-site observable
 covariance gates; fresh initialization, fixed-point convergence, and
 multi-site checkpoint semantics still block admission.
+
+Commit `pending` (rectangular-frame hardening) generalizes the dynamic selector
+to genuinely rectangular left/right factor column counts. A multi-site
+periodic boundary can otherwise reach an opaque low-level contraction error
+when one retained row/column sector shrinks before its neighbor. The selector
+now performs the same invariant-overlap SVD on the rectangular reduced overlap,
+and the cell move validates shared neighboring boundary dimensions before any
+`einsum`; incompatible frames are rejected explicitly as a reviewable 422
+condition. CPU tests cover the rectangular biorthogonal frame and the explicit
+neighbor compatibility guard. This closes a correctness hole in the dynamic
+shape contract, but it does not promote heterogeneous per-site frame schedules
+to production; a future cell-wide retained-sector synchronizer is still
+required for that capability.
 
 ## 8. Definition of done
 

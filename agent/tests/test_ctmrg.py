@@ -836,6 +836,27 @@ class CTMRGTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "no numerically retained sector"):
             select_covariant_dynamic_boundary_frame(np, zero, zero, requested_dim=2)
 
+    def test_dynamic_covariant_boundary_frame_accepts_rectangular_factor_columns(self):
+        from qc_agent.core.ctmrg_gauge import select_covariant_dynamic_boundary_frame
+
+        rng = np.random.default_rng(317)
+        left = (rng.normal(size=(7, 3)) + 1j * rng.normal(size=(7, 3))).astype(np.complex128)
+        right = (rng.normal(size=(7, 2)) + 1j * rng.normal(size=(7, 2))).astype(np.complex128)
+        primal, dual, report = select_covariant_dynamic_boundary_frame(
+            np,
+            left,
+            right,
+            requested_dim=2,
+        )
+
+        self.assertTrue(report["passed"])
+        self.assertTrue(report["dynamic_frame"])
+        self.assertEqual(report["input_columns_left"], 3)
+        self.assertEqual(report["input_columns_right"], 2)
+        self.assertEqual(primal.shape, (7, 2))
+        self.assertEqual(dual.shape, (7, 2))
+        self.assertTrue(np.allclose(primal.T @ dual, np.eye(2), atol=1e-10))
+
     def test_dynamic_ctm_environment_accepts_rectangular_directional_shapes(self):
         from qc_agent.core.ctmrg_dynamic import BoundaryDimensions, DynamicCTMEnvironment
 
@@ -857,6 +878,38 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(manifest["dimensions"], {"top": 2, "left": 3, "bottom": 4, "right": 5})
         self.assertEqual(manifest["corners"]["C4"], [3, 4])
         self.assertEqual(manifest["edges"]["T2"], [5, 7, 5])
+
+    def test_dynamic_periodic_move_rejects_incompatible_neighbor_frame_explicitly(self):
+        from qc_agent.core.ctmrg_dynamic import (
+            BoundaryDimensions,
+            DynamicCTMEnvironment,
+            DynamicCellCompatibilityError,
+            validate_dynamic_two_site_compatibility,
+        )
+
+        def environment(dimensions):
+            top, left, bottom, right = (
+                dimensions["top"],
+                dimensions["left"],
+                dimensions["bottom"],
+                dimensions["right"],
+            )
+            return DynamicCTMEnvironment(
+                np.zeros((left, top), dtype=np.complex128),
+                np.zeros((top, right), dtype=np.complex128),
+                np.zeros((bottom, right), dtype=np.complex128),
+                np.zeros((left, bottom), dtype=np.complex128),
+                np.zeros((top, 4, top), dtype=np.complex128),
+                np.zeros((right, 4, right), dtype=np.complex128),
+                np.zeros((bottom, 4, bottom), dtype=np.complex128),
+                np.zeros((left, 4, left), dtype=np.complex128),
+                dimensions=BoundaryDimensions(top=top, left=left, bottom=bottom, right=right),
+            )
+
+        self_environment = environment({"top": 2, "left": 2, "bottom": 2, "right": 2})
+        neighbor = environment({"top": 2, "left": 2, "bottom": 1, "right": 2})
+        with self.assertRaisesRegex(DynamicCellCompatibilityError, "shared compatible row/column frame"):
+            validate_dynamic_two_site_compatibility(self_environment, neighbor, "left")
 
     def test_dynamic_ctm_environment_rejects_directional_shape_mismatch(self):
         from qc_agent.core.ctmrg_dynamic import BoundaryDimensions, DynamicCTMEnvironment
