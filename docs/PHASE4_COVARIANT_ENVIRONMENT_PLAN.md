@@ -183,7 +183,8 @@ code path. Evidence:
 
 An extended eight-iteration retained-subspace probe confirms the same result:
 QR and biorthogonal-QR subspaces worsen the gauge gate, while SVD balancing
-only changes residual scale and leaves the paired-gauge drift unchanged.
+and the leading singular subspace of `L @ R.T` only change residual scale and
+leave the paired-gauge drift unchanged.
 The next candidate must therefore change the reduced-boundary object itself,
 not merely orthogonalize or renormalize the current corner span. Evidence:
 `docs/evidence/ctmrg_bilinear_subspace_probe_2026-09-19.json`.

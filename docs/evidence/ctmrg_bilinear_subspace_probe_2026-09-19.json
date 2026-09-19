@@ -32,9 +32,14 @@
       {"seed": 17, "residual": 2.8679627568695132e-05, "gauge_delta": 0.0003170959829389003, "gauge_passed": false},
       {"seed": 29, "residual": 3.097785127159636e-05, "gauge_delta": 5.147810215219706e-05, "gauge_passed": true},
       {"seed": 41, "residual": 9.540060019297414e-06, "gauge_delta": 6.04649856595918e-05, "gauge_passed": true}
+    ],
+    "cross-boundary-svd": [
+      {"seed": 17, "residual": 3.6664262271779435e-06, "gauge_delta": 0.00031709598293903907, "gauge_passed": false},
+      {"seed": 29, "residual": 3.756776942309692e-06, "gauge_delta": 5.1478102152474614e-05, "gauge_passed": true},
+      {"seed": 41, "residual": 3.268625889285559e-06, "gauge_delta": 6.0464985711411456e-05, "gauge_passed": true}
     ]
   },
   "decision": "retain-raw-opt-in-only",
-  "conclusion": "QR-based retained-subspace choices are materially worse. SVD balancing changes numerical residuals but does not improve paired-gauge drift. No alternate subspace construction is admitted; the next strategy must change the reduced-boundary object itself rather than only its internal basis normalization.",
+  "conclusion": "QR-based retained-subspace choices are materially worse. SVD balancing and the leading singular subspace of the cross-boundary object L @ R.T change numerical residuals but do not improve paired-gauge drift. No alternate subspace construction is admitted; the next strategy must change the reduced-boundary object itself rather than only its internal basis normalization.",
   "resource_note": "CPU-only bounded comparison; no GPU or RAM-heavy sweep"
 }
