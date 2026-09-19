@@ -1,7 +1,7 @@
 {
   "artifact": "ctmrg-bilinear-biorthogonal-projector-candidate",
   "date": "2026-09-19",
-  "revision": "37e7898",
+  "revision": "fb1693e",
   "scope": {
     "projector_policy": "biorthogonal-bilinear",
     "unit_cell": [1, 1],
@@ -21,7 +21,7 @@
   },
   "verification": {
     "focused_tests": "3/3 passed",
-    "full_agent_suite": "158/158 passed",
+    "full_agent_suite": "160/160 passed",
     "environment_map_id": "ctmrg-biorthogonal-bilinear-v1",
     "transport_gate": true,
     "ghz_reference_gate": true,
@@ -69,12 +69,12 @@
     "reference_passed": true,
     "energy": 1.0,
     "converged": false,
-    "fixed_point_classification": "degenerate-needs-review",
+    "fixed_point_classification": "unconverged",
     "paired_gauge_delta": 1.0000000000000222,
     "paired_gauge_gate": false,
     "research_status": "needs_review"
   },
   "decision": "keep-opt-in-promising-but-not-admitted",
   "conclusion": "The raw dual-span projector materially reduces generic random D=2 gauge drift and passes the declared 1e-4 gate for two of three seeds. It still fails one seed and the degenerate GHZ gauge gate, so it is not a covariant production projector.",
-  "next_action": "combine raw dual-span projection with a symmetry/degeneracy-aware boundary map and run the full chi/2x2/autodiff gates before promotion"
+  "next_action": "combine raw dual-span projection with a symmetry/degeneracy-aware boundary map and run the full chi/2x2/autodiff gates before promotion; symmetry-ensemble gauge failures are now forced to unconverged"
 }
