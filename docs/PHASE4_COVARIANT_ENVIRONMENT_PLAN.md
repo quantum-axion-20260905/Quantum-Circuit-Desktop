@@ -730,6 +730,16 @@ single-point estimate, and rejects the request when the aggregate estimate
 exceeds the caller's time budget. The CPU regression is `194/194` after this
 budgeting fix.
 
+Commit `30e6f5a` adds the first sector-aware transfer fixed-point diagnostic.
+The opt-in dynamic payload can repeatedly apply a complete unit-cell row
+transfer to a bounded finite-width boundary-MPS, reporting normalized period
+residuals, Rayleigh quotients, discarded weight, and retained bond dimension.
+The product D=1 CUDA probe converges with zero residual; the random D=2 seed83
+probe reports residual `8.31e-3` and remains `needs_review`, alongside the
+unresolved CTMRG transfer gap. The diagnostic is explicitly marked
+`cpu-reference` for its independent boundary contraction and cannot promote an
+infinite-lattice result by itself. Full CPU regression is now `197/197`.
+
 ### Current Phase 4 disposition
 
 The bounded dynamic boundary capability is complete as an opt-in research
@@ -740,8 +750,9 @@ transfer sector can remain degenerate even when local energy is numerically
 stable. The next numerical strategy is therefore explicit: develop a
 sector-aware transfer fixed-point/boundary-MPS method, validate it first on the
 existing `[1, 2]` convergence study and finite-cylinder reference, then rerun
-the paired-gauge and optimizer gates. No local projector heuristic will be
-promoted in the meantime.
+the paired-gauge and optimizer gates. The first fixed-point diagnostic now
+exists, but width/chi convergence and gauge covariance are still required. No
+local projector heuristic will be promoted in the meantime.
 
 ## 8. Definition of done
 
