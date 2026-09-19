@@ -26,6 +26,12 @@ _CTM_NAMES = ("C1", "C2", "C3", "C4", "T1", "T2", "T3", "T4")
 
 
 def _to_host(value: Any) -> np.ndarray:
+    detach = getattr(value, "detach", None)
+    if callable(detach):
+        value = detach()
+    cpu = getattr(value, "cpu", None)
+    if callable(cpu):
+        value = cpu()
     try:
         value = value.get()
     except AttributeError:

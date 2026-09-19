@@ -1052,6 +1052,55 @@ def _directional_boundary_factors(
     return first, second, grown
 
 
+def _covariant_boundary_frame_state(
+    xp: Any,
+    environments: list[CTMEnvironment],
+    layers: list[Any],
+    unit_cell: list[int],
+    chi: int,
+) -> dict[str, Any]:
+    """Serialize the deterministic retained-frame contract for a checkpoint.
+
+    The selector itself is reconstructed from the checkpointed environments;
+    no hidden projector arrays are required.  The per-site directional
+    summaries make that reconstruction auditable and let resume reject a
+    mismatched frame contract instead of silently continuing with a different
+    retained coordinate convention.
+    """
+
+    if len(environments) != len(layers) or len(environments) != math.prod(unit_cell):
+        raise ValueError("covariant frame state requires one environment and layer per unit-cell site")
+    directions = ("left", "right", "top", "bottom")
+    selectors: list[dict[str, Any]] = []
+    for site, (environment, layer) in enumerate(zip(environments, layers)):
+        for direction in directions:
+            first, second, _ = _directional_boundary_factors(xp, environment, layer, direction)
+            _, _, report = select_covariant_reduced_boundary_pair(xp, first, second, int(chi))
+            selectors.append({
+                "site": int(site),
+                "direction": direction,
+                "retained_columns": int(report["retained_columns"]),
+                "singular_values": [float(value) for value in report["singular_values"]],
+                "retained_singular_values": [
+                    float(value) for value in report["retained_singular_values"]
+                ],
+                "overlap_condition_number": float(report["overlap_condition_number"]),
+                "biorthogonal_overlap_error": float(report["biorthogonal_overlap_error"]),
+                "passed": bool(report["passed"]),
+            })
+    state = {
+        "schema": "quantum-circuit/ctmrg-covariant-frame-v1",
+        "map_id": "ctmrg-covariant-bilinear-v1",
+        "unit_cell": list(unit_cell),
+        "site_order": list(range(len(environments))),
+        "directions": list(directions),
+        "retained_dim": int(chi),
+        "selectors": selectors,
+    }
+    state["frame_digest"] = sha256_json(state)
+    return state
+
+
 def _directional_boundary_transport_validation(
     xp: Any,
     environment: CTMEnvironment,
@@ -2598,9 +2647,19 @@ def run_ctmrg(
     raw_residual = math.inf
     start_iteration = 0
     checkpoint_info: dict[str, Any] = {}
+    checkpoint_frame_state_validation: dict[str, Any] = {
+        "performed": False,
+        "reason": "not a covariant checkpoint resume",
+    }
 
     if payload.resume_from:
         manifest, arrays = load_ctm_checkpoint(payload.resume_from, xp)
+        checkpoint_device = getattr(tensors[0], "device", None) if tensors else None
+        if checkpoint_device is not None and getattr(xp, "__name__", "") == "torch":
+            arrays = {
+                name: value.to(device=checkpoint_device) if callable(getattr(value, "to", None)) else value
+                for name, value in arrays.items()
+            }
         if manifest.get("request_sha256") != problem_sha256:
             raise ValueError("CTMRG checkpoint does not match the scientific tensor problem")
         if manifest.get("dtype") != payload.dtype:
@@ -2630,6 +2689,42 @@ def run_ctmrg(
         discarded_total = float(metadata.get("discarded_weight_total", 0.0))
         residual = float(metadata.get("residual", math.inf))
         environments = _environments_from_arrays(arrays, len(tensors))
+        if payload.ctmrg_projector == "covariant-bilinear":
+            saved_frame_state = metadata.get("covariant_frame_state")
+            if not isinstance(saved_frame_state, dict):
+                checkpoint_frame_state_validation = {
+                    "performed": False,
+                    "passed": False,
+                    "reason": "checkpoint predates the covariant retained-frame manifest",
+                }
+            else:
+                current_frame_state = _covariant_boundary_frame_state(
+                    xp,
+                    environments,
+                    layers,
+                    unit_cell,
+                    chi,
+                )
+                saved_digest = saved_frame_state.get("frame_digest")
+                current_digest = current_frame_state["frame_digest"]
+                checkpoint_frame_state_validation = {
+                    "performed": True,
+                    "passed": bool(
+                        saved_frame_state.get("schema") == current_frame_state["schema"]
+                        and saved_frame_state.get("map_id") == current_frame_state["map_id"]
+                        and list(saved_frame_state.get("unit_cell", [])) == list(unit_cell)
+                        and list(saved_frame_state.get("site_order", [])) == current_frame_state["site_order"]
+                        and int(saved_frame_state.get("retained_dim", -1)) == int(chi)
+                        and saved_digest == current_digest
+                    ),
+                    "saved_frame_digest": saved_digest,
+                    "reconstructed_frame_digest": current_digest,
+                    "site_count": len(environments),
+                }
+                if not checkpoint_frame_state_validation["passed"]:
+                    raise ValueError(
+                        "CTMRG checkpoint covariant retained-frame manifest does not match the reconstructed state"
+                    )
         initial_environment_source = "checkpoint"
         checkpoint_info = manifest
 
@@ -2637,6 +2732,15 @@ def run_ctmrg(
         nonlocal checkpoint_info
         if not payload.checkpoint_path:
             return
+        covariant_frame_state = None
+        if payload.ctmrg_projector == "covariant-bilinear":
+            covariant_frame_state = _covariant_boundary_frame_state(
+                xp,
+                environments,
+                layers,
+                unit_cell,
+                chi,
+            )
         checkpoint_info = save_ctm_checkpoint(
             payload.checkpoint_path,
             environments,
@@ -2660,6 +2764,7 @@ def run_ctmrg(
                     "unit_cell": list(unit_cell),
                     "environment_count": len(environments),
                     "environment_map": environment_map.to_dict(),
+                    **({"covariant_frame_state": covariant_frame_state} if covariant_frame_state is not None else {}),
                 },
             ),
         )
@@ -2824,6 +2929,14 @@ def run_ctmrg(
     warnings = [
         "compare environment_bond_dim and iteration convergence before using values as scientific conclusions",
     ]
+    if (
+        payload.ctmrg_projector == "covariant-bilinear"
+        and payload.resume_from
+        and not checkpoint_frame_state_validation.get("passed", False)
+    ):
+        warnings.append(
+            "covariant checkpoint resume lacks a verified retained-frame manifest; treat multi-site resume as needs_review"
+        )
     if float(payload.environment_damping) < 1.0:
         warnings.append(
             f"CTMRG environment updates use under-relaxation damping={float(payload.environment_damping):.3f}; compare fixed-point residuals across damping values"
@@ -3184,7 +3297,7 @@ def run_ctmrg(
         gauge_validation=gauge_validation,
         optimization_info=optimization_info,
     )
-    checkpoint_result = checkpoint_info or {
+    checkpoint_result = dict(checkpoint_info) if checkpoint_info else {
         "resumable": False,
         "reason": (
             "set checkpoint_path to persist and resume the CTMRG environment"
@@ -3192,6 +3305,8 @@ def run_ctmrg(
             "set checkpoint_path to persist and resume the multi-site CTMRG environment"
         ),
     }
+    if checkpoint_info and payload.ctmrg_projector == "covariant-bilinear":
+        checkpoint_result["frame_state_validation"] = checkpoint_frame_state_validation
     limitations = [
         (
             "finite-torus-gradient optimizes a bounded exact 2x2 reference objective and does not establish infinite-lattice convergence"
@@ -3222,7 +3337,7 @@ def run_ctmrg(
                 if payload.ctmrg_projector == "biorthogonal-bilinear" else
                 "covariant-bilinear reduced-overlap tail is not a full physical discarded-weight estimate"
             ),
-            f"{payload.ctmrg_projector} is a 1x1 candidate and is not admitted to optimization or production use",
+            f"{payload.ctmrg_projector} is a bounded 1x1-2x2 candidate and is not admitted to optimization or production use",
         ])
     research_result = ResearchResult(
         status="needs_review",
