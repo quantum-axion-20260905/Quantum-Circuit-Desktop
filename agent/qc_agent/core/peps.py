@@ -345,6 +345,11 @@ def run_peps(
         ),
         convergence=ConvergenceReport(
             converged=bool(boundary_diagnostics.get("converged", False)) if payload.contraction_method == "boundary-mps" else False,
+            classification=(
+                "converged"
+                if payload.contraction_method == "boundary-mps" and bool(boundary_diagnostics.get("converged", False))
+                else "unconverged"
+            ),
             criterion="boundary discarded weight and environment bond dimension" if payload.contraction_method == "boundary-mps" else "simple-update PEPS requires an independent convergence study",
             points=convergence_points,
             warnings=list(warnings),

@@ -481,6 +481,7 @@ def run_dmrg(
         warnings.append("automatic exact diagonalization cross-check exceeded the configured dtype tolerance")
     convergence = ConvergenceReport(
         converged=converged,
+        classification="converged" if converged else "unconverged",
         criterion=(
             f"abs(delta_energy) <= {payload.tolerance} and "
             f"local_solver_residual <= {payload.residual_tolerance} and "
