@@ -201,6 +201,27 @@
     "status": "needs_review",
     "passed": true
   },
+  "cuda_boundary_mps_transfer_random_d2": {
+    "available": true,
+    "device": 0,
+    "dtype": "complex64",
+    "seed": 83,
+    "unit_cell": [2, 2],
+    "widths": [1, 2],
+    "boundary_bond_dims": [1, 2],
+    "cycles": 6,
+    "points": [
+      {"width": 1, "boundary_bond_dim": 1, "final_residual": 0.00021532964681736624, "converged": false, "discarded_weight": 0.0},
+      {"width": 1, "boundary_bond_dim": 2, "final_residual": 0.00021532964681736624, "converged": false, "discarded_weight": 0.0},
+      {"width": 2, "boundary_bond_dim": 1, "final_residual": 0.0001512946668974753, "converged": false, "discarded_weight": 0.31859327509430735},
+      {"width": 2, "boundary_bond_dim": 2, "final_residual": 0.018880577254317542, "converged": false, "discarded_weight": 0.22449826365923636}
+    ],
+    "minimum_residual": 0.0001512946668974753,
+    "maximum_residual": 0.018880577254317542,
+    "maximum_discarded_weight": 0.31859327509430735,
+    "status": "needs_review",
+    "passed": true
+  },
   "cpu_entangled_negative_probe": {
     "available": true,
     "seed": 83,
@@ -219,5 +240,5 @@
     "production_ready": false,
     "passed": true
   },
-  "interpretation": "The dynamic retained-sector selector is a tested reusable contract for the next rectangular environment state. The opt-in sector study now makes deterministic initialization sensitivity measurable, and the bounded row-transfer boundary-MPS diagnostic plus width/chi study provide independent finite-cylinder fixed-point evidence. These are not ensemble averages or thermodynamic-limit proofs; unresolved transfer sectors remain outside public solver admission."
+  "interpretation": "The dynamic retained-sector selector is a tested reusable contract for the next rectangular environment state. The opt-in sector study now makes deterministic initialization sensitivity measurable, and the bounded row-transfer boundary-MPS diagnostic plus width/chi study provide independent finite-cylinder fixed-point evidence. The random D=2 width/chi packet is non-monotone and unconverged, so these diagnostics do not constitute a thermodynamic-limit proof; unresolved transfer sectors remain outside public solver admission."
 }

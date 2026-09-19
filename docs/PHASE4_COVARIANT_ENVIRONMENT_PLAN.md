@@ -749,6 +749,13 @@ points with zero residual under aggregate preflight; the study still returns
 proof. The async job lifecycle was exercised end-to-end and returned the
 versioned convergence-study schema.
 
+The first random D=2 seed83 width/chi packet is now measured on the same
+four-point grid. Width 1 gives residual `2.15e-4`; width 2 with boundary
+chi=1 gives `1.51e-4` but discarded weight `3.19e-1`; width 2 with chi=2
+gives residual `1.89e-2` and discarded weight `2.24e-1`. None of the four
+points converged after six periods, so the added boundary-MPS layer exposes
+non-monotone truncation behavior rather than masking it.
+
 ### Current Phase 4 disposition
 
 The bounded dynamic boundary capability is complete as an opt-in research
@@ -759,12 +766,12 @@ transfer sector can remain degenerate even when local energy is numerically
 stable. The next numerical strategy is therefore explicit: develop a
 sector-aware transfer fixed-point/boundary-MPS method, validate it first on the
 existing `[1, 2]` convergence study and finite-cylinder reference, then rerun
-the paired-gauge and optimizer gates. The first fixed-point diagnostic now
-exists, but width/chi convergence and gauge covariance are still required. No
-exists, and the width/chi study contract is now available; the next evidence
-packet must run that grid on the random D=2 probe and compare it against CTMRG
-transfer gaps and paired-gauge observables. No local projector heuristic will
-be promoted in the meantime.
+the paired-gauge and optimizer gates. The fixed-point and width/chi study
+contracts now exist. On the random D=2 seed83 grid, all four points remained
+unconverged: residuals ranged from `1.51e-4` to `1.89e-2`, and discarded
+weight reached `3.19e-1`. Width/chi improvement is therefore non-monotone and
+cannot be promoted as a solver shortcut. No local projector heuristic will be
+promoted in the meantime.
 
 ## 8. Definition of done
 

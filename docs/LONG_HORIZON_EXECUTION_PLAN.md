@@ -103,8 +103,9 @@ features.
 - Commit `6021779` adds the width/boundary-chi convergence study at
   `/jobs/ctmrg/boundary-mps-transfer-convergence` and to the unified async
   contract. The product 2×2 grid completes four points under aggregate
-  preflight; the next packet must run the same grid on random D=2 and compare
-  its residual/spread with CTMRG transfer-gap and gauge evidence.
+  preflight. The random D=2 seed83 grid has now been run: all four points are
+  unconverged, residuals are non-monotone, and discarded weight reaches about
+  `0.319`. The result remains diagnostic evidence rather than admission.
 
 - The optional Torch/CuPy autodiff runtime now has a deterministic Windows
   import seam: CuPy is primed before Torch in the standalone autodiff test
