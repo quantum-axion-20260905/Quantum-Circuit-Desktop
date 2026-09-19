@@ -154,6 +154,11 @@ because the dual projector update and its discarded-weight estimate remain to
 be implemented. Evidence:
 `docs/evidence/ctmrg_directional_boundary_map_2026-09-19.json`.
 
+The corresponding inverse-transpose bilinear projector-pair transport is now
+tested as well: the projected grown edge transforms only by its declared
+middle virtual gauge, with the retained boundary indices preserved. This
+separates edge covariance from the still-open corner-basis update.
+
 Implement exactly one candidate first, selected from the existing numerical
 seams after a small derivation:
 

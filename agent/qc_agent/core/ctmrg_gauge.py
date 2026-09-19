@@ -752,6 +752,66 @@ def transport_biorthogonal_boundary_basis(
     }
 
 
+def transport_bilinear_projector_pair(
+    xp: Any,
+    left_projector: Any,
+    right_projector: Any,
+    row_gauge: Any,
+    column_gauge: Any,
+) -> tuple[Any, Any, dict[str, Any]]:
+    """Transport the two sides of a bilinear grown-edge projection.
+
+    For a grown edge transforming as ``E' = K_row @ E @ K_col.T``, the
+    transpose-based projection rule is preserved by
+    ``P_left' = K_row**(-T) @ P_left`` and
+    ``P_right' = K_col**(-T) @ P_right``.  This is distinct from the
+    inverse-adjoint boundary-basis transport above: CTM edge contractions are
+    ordinary bilinear tensor contractions, not Hilbert inner products.
+    """
+
+    if getattr(left_projector, "ndim", None) != 2 or getattr(right_projector, "ndim", None) != 2:
+        raise ValueError("bilinear projector transport requires rank-2 projectors")
+    if getattr(row_gauge, "ndim", None) != 2 or getattr(column_gauge, "ndim", None) != 2:
+        raise ValueError("bilinear projector transport requires rank-2 row and column gauges")
+    if int(row_gauge.shape[0]) != int(row_gauge.shape[1]) or int(column_gauge.shape[0]) != int(column_gauge.shape[1]):
+        raise ValueError("bilinear projector transport requires square row and column gauges")
+    if int(row_gauge.shape[0]) != int(left_projector.shape[0]):
+        raise ValueError("row gauge dimension does not match the left projector")
+    if int(column_gauge.shape[0]) != int(right_projector.shape[0]):
+        raise ValueError("column gauge dimension does not match the right projector")
+    transported_left = xp.linalg.inv(row_gauge).T @ left_projector
+    transported_right = xp.linalg.inv(column_gauge).T @ right_projector
+    left_error = _host_array(
+        xp.linalg.norm(transported_left.T @ row_gauge - left_projector.T)
+    )
+    right_error = _host_array(
+        xp.linalg.norm(transported_right.T @ column_gauge - right_projector.T)
+    )
+    row_condition = _host_array(xp.linalg.cond(row_gauge))
+    column_condition = _host_array(xp.linalg.cond(column_gauge))
+    numerical_tolerance = 1e-6 if "64" in str(left_projector.dtype) else 1e-8
+    return transported_left, transported_right, {
+        "performed": True,
+        "method": "inverse-transpose-bilinear-projector-transport",
+        "row_condition_number": float(row_condition),
+        "column_condition_number": float(column_condition),
+        "left_dual_rule_error": float(left_error),
+        "right_dual_rule_error": float(right_error),
+        "numerical_tolerance": numerical_tolerance,
+        "passed": bool(
+            math.isfinite(float(row_condition))
+            and math.isfinite(float(column_condition))
+            and float(left_error) <= numerical_tolerance
+            and float(right_error) <= numerical_tolerance
+        ),
+        "limitations": [
+            "this transports a known grown-edge projector pair; it does not select the retained subspace",
+            "corner-factor basis transport must be coordinated with the edge pair in a complete CTM move",
+            "ill-conditioned row/column gauges require an explicit rank and transfer-gap gate",
+        ],
+    }
+
+
 def gauge_validation_result(
     before: dict[str, Any],
     after: dict[str, Any],

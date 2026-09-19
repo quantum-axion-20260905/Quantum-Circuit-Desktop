@@ -380,6 +380,7 @@ class CTMRGTests(unittest.TestCase):
         from qc_agent.core.ctmrg_gauge import (
             directional_boundary_gauge_map,
             paired_virtual_gauge_matrices,
+            transport_bilinear_projector_pair,
             transport_biorthogonal_boundary_basis,
         )
 
@@ -427,6 +428,7 @@ class CTMRGTests(unittest.TestCase):
             directional_boundary_gauge_map,
             paired_virtual_gauge,
             paired_virtual_gauge_matrices,
+            transport_bilinear_projector_pair,
             transport_ctm_environment,
         )
 
@@ -494,6 +496,61 @@ class CTMRGTests(unittest.TestCase):
                 rtol=1e-10,
             ))
             self.assertTrue(np.allclose(gauged_grown, predicted, atol=1e-10, rtol=1e-10))
+
+        row_gauge = directional_boundary_gauge_map(
+            np,
+            virtual_gauges,
+            2,
+            "left",
+        )["grown_row"]
+        column_gauge = directional_boundary_gauge_map(
+            np,
+            virtual_gauges,
+            2,
+            "left",
+        )["grown_col"]
+        projector_rng = np.random.default_rng(41)
+        left_projector = projector_rng.normal(size=(8, 2)) + 1j * projector_rng.normal(size=(8, 2))
+        right_projector = projector_rng.normal(size=(8, 2)) + 1j * projector_rng.normal(size=(8, 2))
+        grown_edge = projector_rng.normal(size=(8, 4, 8)) + 1j * projector_rng.normal(size=(8, 4, 8))
+        gauged_edge = np.zeros_like(grown_edge)
+        middle = directional_boundary_gauge_map(np, virtual_gauges, 2, "left")["grown_middle"]
+        for output_middle in range(4):
+            for input_middle in range(4):
+                gauged_edge[:, output_middle, :] += (
+                    middle[output_middle, input_middle]
+                    * row_gauge
+                    @ grown_edge[:, input_middle, :]
+                    @ column_gauge.T
+                )
+        transported_left, transported_right, report = transport_bilinear_projector_pair(
+            np,
+            left_projector,
+            right_projector,
+            row_gauge,
+            column_gauge,
+        )
+        original_projection = np.einsum(
+            "ia,idj,jb->adb",
+            left_projector,
+            grown_edge,
+            right_projector,
+        )
+        transported_projection = np.einsum(
+            "ia,idj,jb->adb",
+            transported_left,
+            gauged_edge,
+            transported_right,
+        )
+        expected_projection = np.zeros_like(original_projection)
+        for output_middle in range(4):
+            for input_middle in range(4):
+                expected_projection[:, output_middle, :] += (
+                    middle[output_middle, input_middle]
+                    * original_projection[:, input_middle, :]
+                )
+        self.assertTrue(report["passed"])
+        self.assertTrue(np.allclose(expected_projection, transported_projection, atol=1e-10, rtol=1e-10))
 
     def test_bond_aware_preconditioner_preserves_2x1_finite_reference(self):
         from qc_agent.core.ctmrg_gauge import pairwise_virtual_gauge_preconditioner

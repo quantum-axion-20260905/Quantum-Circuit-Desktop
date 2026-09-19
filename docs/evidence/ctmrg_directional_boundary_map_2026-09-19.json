@@ -16,8 +16,10 @@
     "boundary_dim": 2,
     "fused_virtual_dim": 4,
     "all_direction_factor_relations": "passed",
+    "bilinear_projected_grown_edge_transport": "passed",
     "maximum_observed_relative_error": 6.731875860700754e-16,
-    "full_agent_suite": "158/158 passed"
+    "projected_edge_error": "below 1e-10",
+    "full_agent_suite": "pending after projector-pair seam"
   },
   "conclusion": "The left/right/top/bottom enlarged-boundary K factors now match the actual one-site absorption index order to roundoff. This removes a major source of guessed Kronecker ordering before a dual projector is attempted.",
   "limitations": [
