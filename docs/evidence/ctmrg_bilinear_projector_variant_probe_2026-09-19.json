@@ -1,0 +1,44 @@
+{
+  "artifact": "ctmrg-bilinear-projector-variant-probe",
+  "date": "2026-09-19",
+  "revision": "0117835",
+  "scope": {
+    "unit_cell": [1, 1],
+    "virtual_bond_dim": 2,
+    "environment_bond_dim": 2,
+    "iterations": 6,
+    "dtype": "complex128",
+    "seeds": [17, 29, 41],
+    "terms": "onsite Z coefficient 1.0 and nearest-neighbor ZZ coefficient 1.0",
+    "method": "in-memory monkeypatch comparison; no production code was changed"
+  },
+  "variants": [
+    {
+      "name": "raw-dual-span",
+      "rows": [
+        {"seed": 17, "energy": 0.19730821030803114, "residual": 0.4600678930490447, "gauge_delta": 0.0010672420384890136, "gauge_passed": false},
+        {"seed": 29, "energy": -0.14581825167283888, "residual": 0.4600678930490452, "gauge_delta": 0.0009361980513111767, "gauge_passed": false},
+        {"seed": 41, "energy": 0.193689610447579, "residual": 0.46006789304904516, "gauge_delta": 0.00027950908808474506, "gauge_passed": false}
+      ]
+    },
+    {
+      "name": "overlap-inverse-transpose",
+      "rows": [
+        {"seed": 17, "energy": 0.06431689967007011, "residual": 3.9968028886505635e-15, "gauge_delta": 0.07943301968560508, "gauge_passed": false},
+        {"seed": 29, "energy": -0.1817059582691786, "residual": 6.661338147750939e-16, "gauge_delta": 0.15629595128972754, "gauge_passed": false},
+        {"seed": 41, "energy": 0.22329796135545177, "residual": 4.440892098500626e-16, "gauge_delta": 0.030241770656147304, "gauge_passed": false}
+      ]
+    },
+    {
+      "name": "svd-balanced-dual-span",
+      "rows": [
+        {"seed": 17, "energy": 0.19730821030803025, "residual": 4.3043167063938625e-06, "classification": "degenerate-needs-review", "gauge_delta": 0.0010672420384904013, "gauge_passed": false},
+        {"seed": 29, "energy": -0.14581825167283857, "residual": 4.304319150438829e-06, "classification": "degenerate-needs-review", "gauge_delta": 0.0009361980513117596, "gauge_passed": false},
+        {"seed": 41, "energy": 0.19368961044757943, "residual": 4.304317220427123e-06, "classification": "degenerate-needs-review", "gauge_delta": 0.00027950908808363484, "gauge_passed": false}
+      ]
+    }
+  ],
+  "decision": "do-not-admit-svd-balanced-variant",
+  "conclusion": "The SVD-balanced dual span does not improve the paired-gauge gate over the raw dual span in this bounded fixture, while overlap inverse-transpose normalization is materially worse. Keep the raw rule only as the current opt-in baseline and move to a genuinely covariant reduced-boundary construction.",
+  "resource_note": "CPU-only, three seeds, six iterations; no GPU or RAM-heavy sweep"
+}

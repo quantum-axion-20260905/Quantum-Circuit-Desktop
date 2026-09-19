@@ -173,6 +173,14 @@ gauge delta remains approximately `1.72e-2` at both chi values. Increasing
 chi alone is therefore not a credible admission strategy. Evidence:
 `docs/evidence/ctmrg_bilinear_chi_gpu_gate_2026-09-19.json`.
 
+An in-memory comparison of three projector normalizations confirms that the
+raw dual span is currently the least-bad bounded option: overlap-inverse
+normalization produces `3.0e-2--1.56e-1` gauge drift, while an SVD-balanced
+dual span remains at `2.8e-4--1.07e-3` in the same six-iteration fixture.
+Neither passes the `1e-4` gate, so the SVD variant was not admitted to the
+code path. Evidence:
+`docs/evidence/ctmrg_bilinear_projector_variant_probe_2026-09-19.json`.
+
 Implement exactly one candidate first, selected from the existing numerical
 seams after a small derivation:
 
