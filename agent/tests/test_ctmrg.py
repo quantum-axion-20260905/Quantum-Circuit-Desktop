@@ -1117,6 +1117,13 @@ class CTMRGTests(unittest.TestCase):
                 payload,
                 checkpoint_path=checkpoint,
             )
+            wrong_payload = payload.model_copy(update={"initial_state": "down"})
+            with self.assertRaisesRegex(ValueError, "request digest"):
+                run_dynamic_ctmrg_payload(
+                    np,
+                    wrong_payload,
+                    resume_from=checkpoint,
+                )
             resumed, resumed_state = run_dynamic_ctmrg_payload(
                 np,
                 payload,

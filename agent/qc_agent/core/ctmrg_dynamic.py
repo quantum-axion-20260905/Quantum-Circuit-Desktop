@@ -1095,6 +1095,11 @@ def run_dynamic_ctmrg_payload(
     loaded_manifest: dict[str, Any] | None = None
     if selected_resume:
         loaded_manifest, loaded = load_dynamic_ctm_checkpoint(selected_resume, xp)
+        if loaded_manifest.get("request_sha256") != request_sha256:
+            raise ValueError("dynamic CTMRG checkpoint request digest does not match the payload")
+        checkpoint_unit_cell = loaded_manifest.get("metadata", {}).get("unit_cell")
+        if checkpoint_unit_cell != list(unit_cell):
+            raise ValueError("dynamic CTMRG checkpoint unit cell does not match the payload")
         environments = loaded if isinstance(loaded, list) else [loaded]
         if len(environments) != cell_sites:
             raise ValueError("dynamic CTMRG checkpoint site count does not match the payload unit cell")
