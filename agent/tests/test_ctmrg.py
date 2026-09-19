@@ -238,6 +238,48 @@ class CTMRGTests(unittest.TestCase):
                 )],
             )
 
+    def test_covariant_bilinear_checkpoint_resume_preserves_environment_map(self):
+        rng = np.random.default_rng(17)
+        tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+        tensor = tensor.astype(np.complex128)
+        tensor /= np.linalg.norm(tensor)
+        interaction = IPEPSInteraction(
+            left_site=0,
+            right_site=0,
+            displacement=[1, 0],
+            left_pauli="Z",
+            right_pauli="Z",
+            coefficient=1.0,
+        )
+        with TemporaryDirectory() as directory:
+            checkpoint = os.path.join(directory, "covariant-ctm.npz")
+            initial = run_ctmrg(np, CTMRGPayload(
+                ctmrg_projector="covariant-bilinear",
+                virtual_bond_dim=2,
+                dtype="complex128",
+                environment_bond_dim=2,
+                iterations=4,
+                checkpoint_path=checkpoint,
+                interactions=[interaction],
+            ), tensors=[tensor])
+            self.assertTrue(initial["checkpoint"]["resumable"])
+            self.assertEqual(
+                initial["checkpoint"]["metadata"]["environment_map"]["map_id"],
+                "ctmrg-covariant-bilinear-v1",
+            )
+            resumed = run_ctmrg(np, CTMRGPayload(
+                ctmrg_projector="covariant-bilinear",
+                virtual_bond_dim=2,
+                dtype="complex128",
+                environment_bond_dim=2,
+                iterations=8,
+                resume_from=checkpoint,
+                interactions=[interaction],
+            ), tensors=[tensor])
+            self.assertEqual(resumed["initial_environment_source"], "checkpoint")
+            self.assertEqual(resumed["environment_map"]["map_id"], "ctmrg-covariant-bilinear-v1")
+            self.assertEqual(resumed["iterations"], 8)
+
     def test_symmetry_sector_ensemble_restores_ghz_gauge_gate(self):
         tensor_data: list[list[float]] = []
         for physical in range(2):
