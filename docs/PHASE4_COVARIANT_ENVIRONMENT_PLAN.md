@@ -667,11 +667,14 @@ when one retained row/column sector shrinks before its neighbor. The selector
 now performs the same invariant-overlap SVD on the rectangular reduced overlap,
 and the cell move validates shared neighboring boundary dimensions before any
 `einsum`; incompatible frames are rejected explicitly as a reviewable 422
-condition. CPU tests cover the rectangular biorthogonal frame and the explicit
-neighbor compatibility guard. This closes a correctness hole in the dynamic
-shape contract, but it does not promote heterogeneous per-site frame schedules
-to production; a future cell-wide retained-sector synchronizer is still
-required for that capability.
+condition. The periodic cell sweep now also restarts from the last complete
+cell boundary at the minimum admissible shared sector when a heterogeneous
+per-site reduction is detected, and marks that result
+`synchronized-sector-needs-review`. CPU tests cover the rectangular
+biorthogonal frame, explicit neighbor compatibility, and the restart path.
+This closes a correctness hole in the dynamic shape contract, but the
+conservative fallback is not a production fixed-point proof and higher-sector
+comparison remains required.
 
 ## 8. Definition of done
 

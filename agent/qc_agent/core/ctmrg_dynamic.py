@@ -117,6 +117,37 @@ def validate_dynamic_two_site_compatibility(
         )
 
 
+def _validate_dynamic_cell_compatibility(
+    environments: list["DynamicCTMEnvironment"],
+    unit_cell: tuple[int, int],
+    directions: tuple[str, ...],
+) -> None:
+    """Validate every periodic neighbor pair at a completed sweep boundary."""
+
+    nx, ny = (int(value) for value in unit_cell)
+
+    def site_index(x: int, y: int) -> int:
+        return (x % nx) + nx * (y % ny)
+
+    def neighbors(site: int) -> tuple[int, int, int, int]:
+        x, y = site % nx, site // nx
+        return (
+            site_index(x - 1, y),
+            site_index(x + 1, y),
+            site_index(x, y - 1),
+            site_index(x, y + 1),
+        )
+
+    positions = {"left": 0, "right": 1, "top": 2, "bottom": 3}
+    for direction in directions:
+        for site in range(len(environments)):
+            validate_dynamic_two_site_compatibility(
+                environments[site],
+                environments[neighbors(site)[positions[direction]]],
+                direction,
+            )
+
+
 @dataclass(frozen=True)
 class DynamicCTMEnvironment:
     """A rectangular CTM boundary with explicit directional dimensions.
@@ -600,6 +631,7 @@ def run_dynamic_ctm_cell_sweep(
     directions: tuple[str, ...] = ("left", "right", "top", "bottom"),
     relative_singular_floor: float = 1e-12,
     normalize: bool = True,
+    _allow_synchronized_retry: bool = True,
 ) -> tuple[list[DynamicCTMEnvironment], dict[str, Any]]:
     """Run the deterministic periodic neighbor sweep for a 1x1--2x2 cell."""
 
@@ -624,31 +656,63 @@ def run_dynamic_ctm_cell_sweep(
     positions = {"left": 0, "right": 1, "top": 2, "bottom": 3}
     working = list(environments)
     reports: list[dict[str, Any]] = []
-    for direction in directions:
-        if direction not in positions:
-            raise ValueError(f"unsupported dynamic cell-sweep direction {direction!r}")
-        for site in range(len(working)):
-            neighbor = neighbors(site)[positions[direction]]
-            effective_requested_dim = min(
-                int(requested_dim),
-                min(working[site].dimensions.to_dict().values()),
-                min(working[neighbor].dimensions.to_dict().values()),
-            )
-            working[site], report = apply_dynamic_ctm_two_site_move(
-                xp,
-                working[site],
-                working[neighbor],
-                layers[neighbor],
-                direction,
-                effective_requested_dim,
-                relative_singular_floor=relative_singular_floor,
-                normalize=normalize,
-            )
-            report = dict(report)
-            report["site"] = site
-            report["neighbor"] = neighbor
-            report["requested_dim_effective"] = effective_requested_dim
-            reports.append(report)
+    try:
+        for direction in directions:
+            if direction not in positions:
+                raise ValueError(f"unsupported dynamic cell-sweep direction {direction!r}")
+            for site in range(len(working)):
+                neighbor = neighbors(site)[positions[direction]]
+                effective_requested_dim = min(
+                    int(requested_dim),
+                    min(working[site].dimensions.to_dict().values()),
+                    min(working[neighbor].dimensions.to_dict().values()),
+                )
+                working[site], report = apply_dynamic_ctm_two_site_move(
+                    xp,
+                    working[site],
+                    working[neighbor],
+                    layers[neighbor],
+                    direction,
+                    effective_requested_dim,
+                    relative_singular_floor=relative_singular_floor,
+                    normalize=normalize,
+                )
+                report = dict(report)
+                report["site"] = site
+                report["neighbor"] = neighbor
+                report["requested_dim_effective"] = effective_requested_dim
+                reports.append(report)
+        _validate_dynamic_cell_compatibility(working, (nx, ny), directions)
+    except DynamicCellCompatibilityError:
+        if not _allow_synchronized_retry:
+            raise
+        partial_minimum = min(
+            dimension
+            for environment in working
+            for dimension in environment.dimensions.to_dict().values()
+        )
+        synchronized_dim = min(int(requested_dim), int(partial_minimum))
+        if synchronized_dim >= int(requested_dim):
+            raise
+        synchronized, synchronized_report = run_dynamic_ctm_cell_sweep(
+            xp,
+            environments,
+            layers,
+            unit_cell,
+            synchronized_dim,
+            directions=directions,
+            relative_singular_floor=relative_singular_floor,
+            normalize=normalize,
+            _allow_synchronized_retry=False,
+        )
+        synchronized_report = dict(synchronized_report)
+        synchronized_report["synchronized_retry"] = True
+        synchronized_report["original_requested_dim"] = int(requested_dim)
+        synchronized_report["synchronized_requested_dim"] = int(synchronized_dim)
+        synchronized_report["synchronization_policy"] = (
+            "restart-from-cell-boundary-at-minimum-admissible-dimension"
+        )
+        return synchronized, synchronized_report
     return working, {
         "schema": "quantum-circuit/ctmrg-dynamic-cell-sweep-v1",
         "performed": True,
@@ -656,6 +720,7 @@ def run_dynamic_ctm_cell_sweep(
         "site_count": len(working),
         "directions": list(directions),
         "requested_dim": int(requested_dim),
+        "synchronized_retry": False,
         "reports": reports,
         "all_passed": bool(all(item.get("passed", False) for item in reports)),
         "dimensions_final": [environment.dimensions.to_dict() for environment in working],
@@ -1049,6 +1114,11 @@ def run_dynamic_ctmrg_cell(
     diagnostics = _environment_diagnostics(xp, current)
     final_residual = float(convergence_points[-1].residual if convergence_points else math.inf)
     classification = "converged" if converged else "unconverged"
+    synchronized_sector_retry = any(
+        bool(report.get("synchronized_retry")) for report in sweep_reports
+    )
+    if synchronized_sector_retry:
+        classification = "synchronized-sector-needs-review"
     if any(value is None for value in diagnostics["correlation_lengths_by_site"]):
         classification = "degenerate-needs-review"
     research_result = ResearchResult(
@@ -1081,11 +1151,23 @@ def run_dynamic_ctmrg_cell(
         warnings=[
             "dynamic covariant CTMRG is an experimental bounded periodic path",
             "production admission still requires broader unit cells and optimization gates",
+            *(
+                [
+                    "a cell-wide retained-sector synchronization restart was used; compare against a higher-sector run before interpreting observables"
+                ]
+                if synchronized_sector_retry else []
+            ),
         ],
         limitations=[
             "this runner is bounded to 1x1--2x2 periodic cells",
             "dynamic retained dimensions are not yet integrated into public CTMRG payload policy",
             "transfer-gap diagnostics are reported but do not prove thermodynamic-limit convergence",
+            *(
+                [
+                    "synchronized retained-sector fallback may reduce the requested boundary dimension and is not a production fixed-point proof"
+                ]
+                if synchronized_sector_retry else []
+            ),
         ],
         provenance={
             "sweep_schema": "quantum-circuit/ctmrg-dynamic-cell-sweep-v1",

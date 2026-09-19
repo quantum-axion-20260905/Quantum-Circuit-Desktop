@@ -1491,6 +1491,45 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(all(value < 1e-6 for value in result["environment_diagnostics"]["transfer_gap_by_site"]))
         self.assertTrue(math.isfinite(result["energy"]))
 
+    def test_dynamic_cell_restarts_at_shared_sector_when_site_frames_diverge(self):
+        from qc_agent.core.ctmrg import _build_tensors, _double_layer, _initialize_environment
+        from qc_agent.core.ctmrg_dynamic import (
+            BoundaryDimensions,
+            DynamicCTMEnvironment,
+            run_dynamic_ctmrg_cell,
+        )
+
+        rng = np.random.default_rng(83)
+        tensors = []
+        for _ in range(4):
+            tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+            tensors.append((tensor / np.linalg.norm(tensor)).astype(np.complex128))
+        layers = [_double_layer(np, tensor) for tensor in tensors]
+        environments = []
+        for layer in layers:
+            base = _initialize_environment(np, layer, 2, regularizer=1e-9, sector_seed=1)
+            environments.append(
+                DynamicCTMEnvironment(
+                    *base.tensors(),
+                    dimensions=BoundaryDimensions.uniform(2),
+                )
+            )
+
+        result, final = run_dynamic_ctmrg_cell(
+            np,
+            tensors,
+            environments,
+            (2, 2),
+            requested_dim=2,
+            iterations=24,
+            tolerance=1e-10,
+        )
+
+        self.assertTrue(any(item["synchronized_retry"] for item in result["dynamic_cell_sweep"]))
+        self.assertEqual(result["fixed_point_classification"], "synchronized-sector-needs-review")
+        self.assertEqual(result["status"], "needs_review")
+        self.assertTrue(all(environment.dimensions == BoundaryDimensions.uniform(1) for environment in final))
+
     def test_directional_boundary_gauge_map_matches_all_one_site_absorptions(self):
         from qc_agent.core.ctmrg import _double_layer, _initialize_environment
         from qc_agent.core.ctmrg_gauge import (
