@@ -613,6 +613,18 @@ horizontal ZZ interaction are compared; complex128 deltas remain below
 integrity plus replay consistency for the bounded dynamic state, but it does
 not yet authorize the public payload path or optimization.
 
+Commit `61b2032` exposes `run_dynamic_ctmrg_payload` as the explicit backend
+entry point. It reuses the existing payload tensor/interaction contracts,
+builds fresh dynamic environments, persists the final multi-site state when a
+checkpoint path is supplied, and resumes from that state with a safe effective
+retained dimension. The CPU payload test preserves energy `0.5` across fresh
+and resumed runs; the CUDA complex64 payload smoke does the same and restores
+four site digests. The full regression is now `183/183`.
+
+This is an explicit experimental API, not a silent replacement for
+`run_ctmrg`: optimization, sector ensembles, and public server routing remain
+blocked until a final policy/admission review covers the dynamic result path.
+
 - For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - For comparison, CPU random D=2 seeds 17/29/41 on the raw candidate: replay remains red, with maximum factor error
