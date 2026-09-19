@@ -189,6 +189,14 @@ Therefore transport removes a degenerate-sector initialization artifact but
 does not solve the generic covariant truncation problem. Evidence:
 `docs/evidence/ctmrg_transported_gauge_probe_2026-09-19.json`.
 
+Packet C4’s current baseline consistency gate also passes: the Torch unrolled
+and implicit CTMRG suite is `12/12`, including six bounded GPU tests, central
+differences, adjoint residuals, and checkpoint round trips. Both paths route
+their directional moves through the same `payload.ctmrg_projector` seam. The
+bilinear candidate remains blocked from optimization by design until its
+paired-gauge and chi gates pass. Evidence:
+`docs/evidence/ctmrg_phase4_c4_autodiff_2026-09-19.json`.
+
 Implement exactly one candidate first, selected from the existing numerical
 seams after a small derivation:
 

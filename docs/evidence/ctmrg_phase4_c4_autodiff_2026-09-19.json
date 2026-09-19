@@ -1,0 +1,23 @@
+{
+  "artifact": "ctmrg-phase4-c4-autodiff-map-consistency",
+  "date": "2026-09-19",
+  "revision": "0b3d128",
+  "verification": {
+    "command": "python -m unittest tests.test_ctmrg_autodiff -v",
+    "autodiff_suite": "12/12 passed",
+    "full_agent_suite": "160/160 passed",
+    "gpu_autodiff_tests": "6/6 passed",
+    "cpu_implicit_central_difference": "passed",
+    "checkpoint_round_trips": "unrolled and implicit GPU/CPU paths passed",
+    "finite_gradient_checks": "passed"
+  },
+  "map_contract": {
+    "unrolled_path": "routes directional CTMRG moves through payload.ctmrg_projector",
+    "implicit_path": "routes the same directional moves through payload.ctmrg_projector",
+    "transported_environment_diagnostic": "available only to bounded contraction diagnostics; not used inside optimization",
+    "bilinear_candidate_optimization": "blocked by payload validation until covariance gates pass"
+  },
+  "decision": "c4-baseline-map-consistency-passed-candidate-still-needs-review",
+  "conclusion": "The existing Torch unrolled and implicit CTMRG paths use the same projector/map seam and pass their declared bounded gradient, adjoint, and checkpoint tests. This does not promote the generic entangled bilinear candidate: its optimization admission remains explicitly disabled.",
+  "resource_note": "bounded local tests; GPU tests use small tensors and release CUDA pools in teardown"
+}
