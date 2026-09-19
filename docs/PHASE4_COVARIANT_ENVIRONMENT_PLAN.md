@@ -553,6 +553,17 @@ periodic solver: observable/interaction adapters, multi-site periodic state
 propagation, convergence diagnostics, and public checkpoint resume remain
 separate admission gates.
 
+Commit `04c147b` adds `run_dynamic_ctmrg_one_site`, an experimental runner
+around that sweep. It returns a serializable research-result envelope plus the
+resident dynamic state, reports spectral convergence points, evaluates
+normalized onsite and nearest-neighbor one-site-cell interactions, and keeps
+the `needs_review`/limitation metadata explicit. The product reference gives
+`Z=1`, `ZZ=1`, and energy `1.5` in complex128; the bounded CUDA complex64
+smoke returns the same `Z=1` result and final dimensions `1x1x1x1`.
+This makes the dynamic path usable for controlled research probes, while
+multi-site periodic propagation and public payload admission remain blocked
+by design until their evidence gates are implemented.
+
 - For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - For comparison, CPU random D=2 seeds 17/29/41 on the raw candidate: replay remains red, with maximum factor error
