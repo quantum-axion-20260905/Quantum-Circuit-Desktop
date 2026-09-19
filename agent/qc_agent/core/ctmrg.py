@@ -31,6 +31,8 @@ from .ctmrg_reference import analytic_ghz_reference, finite_periodic_peps_refere
 from .ctmrg_gauge import (
     diagonal_bond_balance_preconditioner,
     pairwise_virtual_gauge_preconditioner,
+    paired_virtual_gauge_matrices,
+    transport_ctm_environment,
     virtual_leg_conditioning_report,
 )
 from .ctmrg_environment import environment_map_for, validate_environment_map
@@ -1784,11 +1786,17 @@ def run_ctmrg(
     elif not reference_validation["performed"]:
         warnings.append(f"independent finite product reference unavailable: {reference_validation['reason']}")
     gauge_validation: dict[str, Any] = {"performed": False, "reason": "disabled by request"}
+    environment_transport_validation: dict[str, Any] = {
+        "performed": False,
+        "reason": "disabled by request",
+    }
     if bool(getattr(payload, "gauge_validation", False)):
         if int(payload.virtual_bond_dim) <= 1:
             gauge_validation["reason"] = "virtual_bond_dim=1 has no non-trivial virtual gauge probe"
+            environment_transport_validation["reason"] = "virtual_bond_dim=1 has no non-trivial virtual gauge transport"
         elif int(payload.virtual_bond_dim) > 2:
             gauge_validation["reason"] = "the bounded paired gauge probe currently supports virtual_bond_dim<=2"
+            environment_transport_validation["reason"] = "the bounded paired gauge transport currently supports virtual_bond_dim<=2"
         else:
             from .ctmrg_gauge import gauge_validation_result, paired_virtual_gauge
 
@@ -1801,6 +1809,55 @@ def run_ctmrg(
                 "gauge_validation": False,
             })
             gauged_tensors = paired_virtual_gauge(xp, tensors)
+            gauged_layers = [_double_layer(xp, tensor) for tensor in gauged_tensors]
+            transported_environments = [
+                transport_ctm_environment(
+                    xp,
+                    environment,
+                    tensor,
+                    virtual_gauges=paired_virtual_gauge_matrices(xp, tensor),
+                )
+                for environment, tensor in zip(environments, tensors)
+            ]
+            original_norms = [
+                _real(_environment_contraction(xp, environment, layer))
+                for environment, layer in zip(environments, layers)
+            ]
+            transported_norms = [
+                _real(_environment_contraction(xp, environment, layer))
+                for environment, layer in zip(transported_environments, gauged_layers)
+            ]
+            norm_deltas = [
+                abs(left - right)
+                for left, right in zip(original_norms, transported_norms)
+            ]
+            transport_scale = max(*(abs(value) for value in original_norms), 1e-30)
+            environment_transport_validation = {
+                "performed": True,
+                "method": "fused-double-layer-inverse-transpose-edge-transport",
+                "environment_map": environment_map.to_dict(),
+                "site_count": len(environments),
+                "norm_before": original_norms,
+                "norm_after_transport": transported_norms,
+                "max_abs_delta": max(norm_deltas, default=0.0),
+                "relative_max_abs_delta": max(norm_deltas, default=0.0) / transport_scale,
+                "tolerance": max(
+                    float(payload.gauge_validation_tolerance),
+                    1e-5 if payload.dtype == "complex64" else 1e-10,
+                ),
+                "passed": bool(
+                    max(norm_deltas, default=0.0) / transport_scale
+                    <= max(
+                        float(payload.gauge_validation_tolerance),
+                        1e-5 if payload.dtype == "complex64" else 1e-10,
+                    )
+                ),
+                "limitations": [
+                    "this gate validates resident-environment contraction transport only",
+                    "it does not establish covariance of a truncated CTMRG fixed point",
+                    "boundary-basis/projector transport remains a separate research gate",
+                ],
+            }
             gauged_result = run_ctmrg(xp, probe_payload, tensors=gauged_tensors)
             gauge_validation = gauge_validation_result(
                 {
@@ -1905,6 +1962,7 @@ def run_ctmrg(
             "environment_spectrum": environment_diagnostics["environment_spectrum"],
             "reference_validation": reference_validation,
             "gauge_validation": gauge_validation,
+            "environment_transport_validation": environment_transport_validation,
             "gauge_conditioning": gauge_conditioning,
             "gauge_preconditioning": gauge_preconditioning,
             "research_gate": research_gate,
@@ -1946,6 +2004,7 @@ def run_ctmrg(
         "energy_variance": reference_validation.get("energy_variance"),
         "reference_validation": reference_validation,
         "gauge_validation": gauge_validation,
+        "environment_transport_validation": environment_transport_validation,
         "gauge_conditioning": gauge_conditioning,
         "gauge_preconditioning": gauge_preconditioning,
         "research_gate": research_gate,

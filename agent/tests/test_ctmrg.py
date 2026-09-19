@@ -300,6 +300,33 @@ class CTMRGTests(unittest.TestCase):
         )
         self.assertAlmostEqual(original_z, transported_z, places=10)
 
+        result = run_ctmrg(
+            np,
+            CTMRGPayload(
+                virtual_bond_dim=2,
+                dtype="complex128",
+                environment_bond_dim=2,
+                iterations=2,
+                gauge_validation=True,
+                terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+                interactions=[IPEPSInteraction(
+                    left_site=0,
+                    right_site=0,
+                    displacement=[1, 0],
+                    left_pauli="Z",
+                    right_pauli="Z",
+                    coefficient=1.0,
+                )],
+            ),
+            tensors=[tensor],
+        )
+        self.assertTrue(result["environment_transport_validation"]["performed"])
+        self.assertTrue(result["environment_transport_validation"]["passed"])
+        self.assertLess(
+            result["environment_transport_validation"]["relative_max_abs_delta"],
+            1e-10,
+        )
+
     def test_bond_aware_preconditioner_preserves_2x1_finite_reference(self):
         from qc_agent.core.ctmrg_gauge import pairwise_virtual_gauge_preconditioner
 
