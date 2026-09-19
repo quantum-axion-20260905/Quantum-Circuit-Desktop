@@ -676,6 +676,14 @@ This closes a correctness hole in the dynamic shape contract, but the
 conservative fallback is not a production fixed-point proof and higher-sector
 comparison remains required.
 
+The dynamic result envelope now also carries a structured research gate with
+separate checks for bounded-cell scope, residual convergence, complete energy,
+resolved transfer gaps, shared retained-sector integrity, and public promotion.
+The last gate is intentionally false while the endpoint remains experimental;
+clients therefore cannot confuse a finite contraction with an admitted
+production observable. Product, unresolved-entangled, and synchronized-sector
+tests all assert the corresponding gate behavior.
+
 ## 8. Definition of done
 
 Done means the covariant candidate either passes Packet F and is promoted as a

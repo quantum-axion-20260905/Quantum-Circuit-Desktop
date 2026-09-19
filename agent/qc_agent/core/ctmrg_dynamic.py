@@ -16,6 +16,8 @@ import json
 import math
 from typing import Any
 
+from .ctmrg_admission import dynamic_ctmrg_research_gate
+
 
 DYNAMIC_BOUNDARY_SCHEMA = "quantum-circuit/ctmrg-dynamic-boundary-v1"
 _CORNER_NAMES = ("C1", "C2", "C3", "C4")
@@ -1121,6 +1123,15 @@ def run_dynamic_ctmrg_cell(
         classification = "synchronized-sector-needs-review"
     if any(value is None for value in diagnostics["correlation_lengths_by_site"]):
         classification = "degenerate-needs-review"
+    research_gate = dynamic_ctmrg_research_gate(
+        unit_cell=(nx, ny),
+        converged=converged,
+        residual=final_residual,
+        tolerance=float(tolerance),
+        energy_complete=energy_complete,
+        transfer_gaps=list(diagnostics["transfer_gap_by_site"]),
+        synchronized_sector_retry=synchronized_sector_retry,
+    )
     research_result = ResearchResult(
         status="needs_review",
         method="ctmrg-dynamic-covariant-v2",
@@ -1177,6 +1188,7 @@ def run_dynamic_ctmrg_cell(
             "unit_cell": [nx, ny],
             "environment_shape_manifests": [environment.shape_manifest() for environment in current],
             "sweep_reports": sweep_reports,
+            "research_gate": research_gate,
         },
     )
     result = {
@@ -1197,6 +1209,7 @@ def run_dynamic_ctmrg_cell(
         "environment_diagnostics": diagnostics,
         "environment_shape_manifests": [environment.shape_manifest() for environment in current],
         "dynamic_cell_sweep": sweep_reports,
+        "research_gate": research_gate,
         "research_result": research_result.to_dict(),
     }
     return result, current

@@ -122,3 +122,98 @@ def ctmrg_research_gate(
             "entangled cells require a passing virtual-gauge probe before production admission",
         ],
     }
+
+
+def dynamic_ctmrg_research_gate(
+    *,
+    unit_cell: tuple[int, int],
+    converged: bool,
+    residual: float,
+    tolerance: float,
+    energy_complete: bool,
+    transfer_gaps: list[float | None],
+    synchronized_sector_retry: bool,
+) -> dict[str, Any]:
+    """Return explicit admission gates for the experimental dynamic path.
+
+    Dynamic retained dimensions are useful for bounded research probes, but a
+    completed contraction is not automatically a production result.  Keeping
+    these gates structured makes that distinction available to API clients and
+    future domain plugins without changing the numerical value.
+    """
+
+    finite_gaps = [
+        float(value)
+        for value in transfer_gaps
+        if value is not None and math.isfinite(float(value))
+    ]
+    transfer_gap_resolved = bool(
+        len(finite_gaps) == len(transfer_gaps)
+        and bool(finite_gaps)
+        and min(finite_gaps) > 1e-5
+    )
+    residual_ok = bool(math.isfinite(float(residual)) and float(residual) <= float(tolerance))
+    bounded_cell = (
+        len(unit_cell) == 2
+        and 1 <= int(unit_cell[0]) <= 2
+        and 1 <= int(unit_cell[1]) <= 2
+    )
+    gates: dict[str, dict[str, Any]] = {
+        "bounded_cell": {
+            "passed": bounded_cell,
+            "unit_cell": [int(value) for value in unit_cell],
+            "reason": "unit cell is within the bounded dynamic contract"
+            if bounded_cell else
+            "unit cell exceeds the bounded dynamic contract",
+        },
+        "environment_convergence": {
+            "passed": bool(converged and residual_ok),
+            "converged": bool(converged),
+            "residual": float(residual),
+            "tolerance": float(tolerance),
+            "reason": "dynamic environment residual reached tolerance"
+            if converged and residual_ok else
+            "dynamic environment residual did not reach tolerance",
+        },
+        "energy_complete": {
+            "passed": bool(energy_complete),
+            "reason": "all requested observables and interactions were evaluated"
+            if energy_complete else
+            "one or more requested interactions could not be evaluated",
+        },
+        "transfer_gap": {
+            "passed": transfer_gap_resolved,
+            "minimum": min(finite_gaps) if finite_gaps else None,
+            "threshold": 1e-5,
+            "reason": "all transfer sectors have a resolved leading gap"
+            if transfer_gap_resolved else
+            "one or more transfer sectors are unresolved",
+        },
+        "shared_retained_sector": {
+            "passed": not bool(synchronized_sector_retry),
+            "synchronized_retry": bool(synchronized_sector_retry),
+            "reason": "all sites retained the requested shared sector"
+            if not synchronized_sector_retry else
+            "a conservative shared-sector restart reduced the requested dimension",
+        },
+        "public_promotion": {
+            "passed": False,
+            "reason": "dynamic CTMRG remains opt-in experimental and is not the default public solver",
+        },
+    }
+    blocking_reasons = [
+        str(gate["reason"])
+        for gate in gates.values()
+        if not bool(gate.get("passed"))
+    ]
+    return {
+        "status": "passed" if not blocking_reasons else "needs_review",
+        "scope": "bounded-dynamic-ctmrg-contract",
+        "production_ready": False,
+        "gates": gates,
+        "blocking_reasons": blocking_reasons,
+        "limitations": [
+            "passing bounded gates is not a proof of thermodynamic-limit convergence",
+            "the dynamic endpoint remains opt-in until independent fixed-point and optimizer evidence is complete",
+        ],
+    }

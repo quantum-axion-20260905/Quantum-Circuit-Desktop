@@ -1453,6 +1453,10 @@ class CTMRGTests(unittest.TestCase):
         self.assertAlmostEqual(result["energy"], 1.5, places=10)
         self.assertEqual(len(result["environment_diagnostics"]["transfer_gap_by_site"]), 4)
         self.assertTrue(all(value == 1.0 for value in result["environment_diagnostics"]["transfer_gap_by_site"]))
+        self.assertEqual(result["research_gate"]["status"], "needs_review")
+        self.assertTrue(result["research_gate"]["gates"]["environment_convergence"]["passed"])
+        self.assertTrue(result["research_gate"]["gates"]["transfer_gap"]["passed"])
+        self.assertFalse(result["research_gate"]["gates"]["public_promotion"]["passed"])
         self.assertEqual(len(result["dynamic_cell_sweep"]), 2)
         self.assertEqual(len(final), 4)
         self.assertTrue(all(environment.dimensions.to_dict() == {"top": 1, "left": 1, "bottom": 1, "right": 1} for environment in final))
@@ -1489,6 +1493,8 @@ class CTMRGTests(unittest.TestCase):
         self.assertFalse(result["converged"])
         self.assertEqual(result["fixed_point_classification"], "degenerate-needs-review")
         self.assertTrue(all(value < 1e-6 for value in result["environment_diagnostics"]["transfer_gap_by_site"]))
+        self.assertFalse(result["research_gate"]["gates"]["transfer_gap"]["passed"])
+        self.assertFalse(result["research_gate"]["production_ready"])
         self.assertTrue(math.isfinite(result["energy"]))
 
     def test_dynamic_cell_restarts_at_shared_sector_when_site_frames_diverge(self):
@@ -1528,6 +1534,7 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(any(item["synchronized_retry"] for item in result["dynamic_cell_sweep"]))
         self.assertEqual(result["fixed_point_classification"], "synchronized-sector-needs-review")
         self.assertEqual(result["status"], "needs_review")
+        self.assertFalse(result["research_gate"]["gates"]["shared_retained_sector"]["passed"])
         self.assertTrue(all(environment.dimensions == BoundaryDimensions.uniform(1) for environment in final))
 
     def test_directional_boundary_gauge_map_matches_all_one_site_absorptions(self):
