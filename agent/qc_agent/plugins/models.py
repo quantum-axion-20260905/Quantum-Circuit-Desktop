@@ -240,6 +240,9 @@ class CTMRGPayload(BaseModel):
     boundary_mps_height: int = Field(default=4, ge=2, le=16)
     boundary_mps_bond_dim: int = Field(default=16, ge=1, le=128)
     boundary_mps_cutoff: float = Field(default=0.0, ge=0.0, le=1.0)
+    boundary_mps_transfer_fixed_point: bool = False
+    boundary_mps_transfer_cycles: int = Field(default=8, ge=1, le=64)
+    boundary_mps_transfer_tolerance: float = Field(default=1e-8, gt=0.0, le=1.0)
     iterations: int = Field(default=20, ge=1, le=200)
     tolerance: float = Field(default=1e-8, gt=0, le=1.0)
     optimization: Literal["none", "product-coordinate-descent", "simple-update", "full-update"] = "none"

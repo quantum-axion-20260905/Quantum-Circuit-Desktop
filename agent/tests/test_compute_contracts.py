@@ -109,6 +109,27 @@ class ComputeContractTests(unittest.TestCase):
                 ],
             )
 
+    def test_ctmrg_preflight_prices_boundary_mps_transfer_fixed_point(self):
+        payload = CTMRGPayload(
+            boundary_mps_transfer_fixed_point=True,
+            boundary_mps_width=2,
+            boundary_mps_bond_dim=2,
+            boundary_mps_transfer_cycles=3,
+            interactions=[{
+                "left_site": 0,
+                "right_site": 0,
+                "displacement": [1, 0],
+                "left_pauli": "Z",
+                "right_pauli": "Z",
+                "coefficient": 1.0,
+            }],
+        )
+        report = estimate_ctmrg(payload, gpu_free_mb=4096)
+        self.assertTrue(report["feasible"])
+        self.assertTrue(report["boundary_mps_transfer_fixed_point"])
+        self.assertEqual(report["boundary_mps_transfer_cycles"], 3)
+        self.assertTrue(any("transfer fixed-point" in warning for warning in report["warnings"]))
+
     def test_ctmrg_gradient_update_evaluation_budget_is_admitted_explicitly(self):
         payload = CTMRGPayload(
             optimization="full-update",

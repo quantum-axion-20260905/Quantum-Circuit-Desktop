@@ -135,6 +135,7 @@ def dynamic_ctmrg_research_gate(
     synchronized_sector_retry: bool,
     reference_validation: dict[str, Any] | None = None,
     boundary_mps_validation: dict[str, Any] | None = None,
+    boundary_mps_transfer_validation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return explicit admission gates for the experimental dynamic path.
 
@@ -176,6 +177,18 @@ def dynamic_ctmrg_research_gate(
     boundary_mps_passed = bool(
         not boundary_mps_requested
         or (boundary_mps.get("performed") and boundary_mps.get("passed"))
+    )
+    boundary_mps_transfer = boundary_mps_transfer_validation or {
+        "requested": False,
+        "performed": False,
+        "converged": False,
+        "passed": True,
+        "reason": "boundary-MPS transfer fixed-point diagnostic was not requested",
+    }
+    boundary_mps_transfer_requested = bool(boundary_mps_transfer.get("requested"))
+    boundary_mps_transfer_passed = bool(
+        not boundary_mps_transfer_requested
+        or (boundary_mps_transfer.get("performed") and boundary_mps_transfer.get("converged"))
     )
     gates: dict[str, dict[str, Any]] = {
         "bounded_cell": {
@@ -219,6 +232,18 @@ def dynamic_ctmrg_research_gate(
             "finite-cylinder boundary-MPS cross-check was not requested"
             if not boundary_mps_requested else
             str(boundary_mps.get("reason", "boundary-MPS cross-check failed")),
+        },
+        "boundary_mps_transfer_fixed_point": {
+            "passed": boundary_mps_transfer_passed,
+            "requested": boundary_mps_transfer_requested,
+            "performed": bool(boundary_mps_transfer.get("performed")),
+            "converged": bool(boundary_mps_transfer.get("converged")),
+            "final_residual": boundary_mps_transfer.get("final_residual"),
+            "reason": "boundary-MPS transfer fixed point converged"
+            if boundary_mps_transfer_passed and boundary_mps_transfer_requested else
+            "boundary-MPS transfer fixed-point diagnostic was not requested"
+            if not boundary_mps_transfer_requested else
+            str(boundary_mps_transfer.get("reason", "boundary-MPS transfer fixed point did not converge")),
         },
         "transfer_gap": {
             "passed": transfer_gap_resolved,

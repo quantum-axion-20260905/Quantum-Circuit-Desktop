@@ -461,3 +461,177 @@ def run_boundary_mps_convergence_study(
             "compare with CTMRG chi, residual, and paired-gauge evidence",
         ],
     }
+
+
+def _dense_boundary_vector(boundary: list[np.ndarray]) -> np.ndarray:
+    """Materialize only the small horizontal boundary vector for diagnostics."""
+
+    if not boundary:
+        raise ValueError("boundary-MPS fixed-point state cannot be empty")
+    state = boundary[0][0, :, :]
+    for tensor in boundary[1:]:
+        state = np.einsum("...a,asb->...sb", state, tensor, optimize=True)
+    if int(state.shape[-1]) != 1:
+        raise ValueError("boundary-MPS fixed-point state has an open right bond")
+    return np.asarray(state[..., 0], dtype=np.complex128).reshape(-1)
+
+
+def _normalize_boundary(boundary: list[np.ndarray]) -> tuple[list[np.ndarray], np.ndarray, float]:
+    vector = _dense_boundary_vector(boundary)
+    norm = float(np.sqrt(max(0.0, float(np.vdot(vector, vector).real))))
+    if not np.isfinite(norm) or norm <= 1e-30:
+        raise ValueError("boundary-MPS fixed-point transfer produced a zero or non-finite state")
+    normalized = list(boundary)
+    normalized[0] = normalized[0] / norm
+    return normalized, vector / norm, norm
+
+
+def run_boundary_mps_transfer_fixed_point(
+    tensors: list[Any],
+    unit_cell: list[int] | tuple[int, int],
+    *,
+    width: int,
+    cycles: int,
+    max_bond_dim: int,
+    cutoff: float = 0.0,
+    tolerance: float = 1e-8,
+) -> dict[str, Any]:
+    """Run a bounded row-transfer boundary-MPS fixed-point diagnostic.
+
+    A complete unit-cell row period is repeatedly applied to a finite-width
+    boundary MPS.  The period residual is measured on the normalized dense
+    boundary vector, while every row reports its discarded weight and
+    dominant Rayleigh quotient.  This is an independent finite-cylinder
+    transfer probe; it is intentionally not an infinite-lattice admission
+    proof and never replaces CTMRG's transfer-gap gate.
+    """
+
+    cell_x, cell_y = (int(value) for value in unit_cell)
+    if cell_x < 1 or cell_y < 1 or cell_x > 2 or cell_y > 2:
+        raise ValueError("boundary-MPS transfer fixed-point supports unit cells up to 2x2")
+    if len(tensors) != cell_x * cell_y:
+        raise ValueError("boundary-MPS transfer tensor count does not match the unit cell")
+    if int(width) < 1 or int(width) > 8:
+        raise ValueError("boundary-MPS transfer width must be between 1 and 8")
+    if int(cycles) < 1 or int(cycles) > 64:
+        raise ValueError("boundary-MPS transfer cycles must be between 1 and 64")
+    if int(max_bond_dim) < 1 or int(max_bond_dim) > 128:
+        raise ValueError("boundary-MPS transfer bond dimension must be between 1 and 128")
+    if not np.isfinite(float(cutoff)) or float(cutoff) < 0.0 or float(cutoff) > 1.0:
+        raise ValueError("boundary-MPS transfer cutoff must be between 0 and 1")
+    if not np.isfinite(float(tolerance)) or float(tolerance) <= 0.0:
+        raise ValueError("boundary-MPS transfer tolerance must be positive and finite")
+
+    normalized_tensors = [_host(tensor).astype(np.complex128, copy=False) for tensor in tensors]
+    expected_shape = (
+        2,
+        int(normalized_tensors[0].shape[1]),
+        int(normalized_tensors[0].shape[1]),
+        int(normalized_tensors[0].shape[1]),
+        int(normalized_tensors[0].shape[1]),
+    )
+    if any(tuple(tensor.shape) != expected_shape for tensor in normalized_tensors):
+        raise ValueError("boundary-MPS transfer requires equal physical and virtual tensor shapes")
+    virtual = int(expected_shape[1])
+    double_virtual = virtual * virtual
+    ones = np.ones((double_virtual,), dtype=np.complex128)
+    layers = [_double_layer(tensor) for tensor in normalized_tensors]
+    boundary = [np.ones((1, double_virtual, 1), dtype=np.complex128) for _ in range(int(width))]
+    boundary, previous_vector, initial_norm = _normalize_boundary(boundary)
+
+    cycle_reports: list[dict[str, Any]] = []
+    converged_streak = 0
+    for cycle in range(1, int(cycles) + 1):
+        cycle_start_vector = previous_vector
+        current_vector = previous_vector
+        row_reports: list[dict[str, Any]] = []
+        cycle_discarded = 0.0
+        cycle_rayleigh = complex(1.0, 0.0)
+        max_used = 1
+        for row_offset in range(cell_y):
+            row_index = (cycle - 1) * cell_y + row_offset
+            before = current_vector
+            row = [
+                _row_mpo(
+                    layers[(x % cell_x) + cell_x * (row_index % cell_y)],
+                    x=x,
+                    width=int(width),
+                    ones=ones,
+                )
+                for x in range(int(width))
+            ]
+            boundary = _apply_row_mpo(boundary, row)
+            boundary, discarded, used = _compress(boundary, int(max_bond_dim), float(cutoff))
+            raw = _dense_boundary_vector(boundary)
+            rayleigh_denominator = complex(np.vdot(before, before))
+            rayleigh = complex(np.vdot(before, raw) / rayleigh_denominator) if abs(rayleigh_denominator) > 1e-30 else complex(0.0, 0.0)
+            boundary, current_vector, norm = _normalize_boundary(boundary)
+            cycle_rayleigh *= rayleigh
+            cycle_discarded += float(discarded)
+            max_used = max(max_used, int(used))
+            row_reports.append({
+                "row": row_index + 1,
+                "cell_row": row_index % cell_y,
+                "rayleigh_quotient": {
+                    "re": float(rayleigh.real),
+                    "im": float(rayleigh.imag),
+                    "abs": float(abs(rayleigh)),
+                },
+                "norm_before_normalization": float(norm),
+                "discarded_weight": float(discarded),
+                "boundary_bond_dim_used": int(used),
+            })
+
+        final_vector = current_vector
+        cycle_overlap = complex(np.vdot(cycle_start_vector, final_vector))
+        phase = cycle_overlap / abs(cycle_overlap) if abs(cycle_overlap) > 1e-30 else complex(1.0, 0.0)
+        residual = float(np.linalg.norm(final_vector - phase * cycle_start_vector))
+        if residual <= float(tolerance):
+            converged_streak += 1
+        else:
+            converged_streak = 0
+        cycle_reports.append({
+            "cycle": cycle,
+            "residual": residual,
+            "transfer_rayleigh_quotient": {
+                "re": float(cycle_rayleigh.real),
+                "im": float(cycle_rayleigh.imag),
+                "abs": float(abs(cycle_rayleigh)),
+            },
+            "discarded_weight": cycle_discarded,
+            "boundary_bond_dim_used": max_used,
+            "rows": row_reports,
+        })
+        previous_vector = final_vector
+
+    final_residual = float(cycle_reports[-1]["residual"])
+    converged = bool(
+        cycle_reports
+        and final_residual <= float(tolerance)
+        and (len(cycle_reports) == 1 or converged_streak >= 2)
+    )
+    return {
+        "schema": "quantum-circuit/boundary-mps-transfer-fixed-point-v1",
+        "status": "needs_review",
+        "method": "finite-cylinder-boundary-mps-transfer-fixed-point",
+        "unit_cell": [cell_x, cell_y],
+        "width": int(width),
+        "cycles_requested": int(cycles),
+        "cycles_completed": len(cycle_reports),
+        "boundary_bond_dim_requested": int(max_bond_dim),
+        "cutoff": float(cutoff),
+        "tolerance": float(tolerance),
+        "virtual_bond_dim": virtual,
+        "boundary_vector_dimension": int(double_virtual ** int(width)),
+        "initial_boundary_norm": initial_norm,
+        "final_residual": final_residual,
+        "converged": converged,
+        "cycle_reports": cycle_reports,
+        "materializes_statevector": False,
+        "device": "cpu-reference",
+        "limitations": [
+            "finite horizontal cylinder with open all-ones side boundaries",
+            "boundary-vector residual is not a gauge-invariant infinite-lattice proof",
+            "compare width, bond dimension, cutoff, CTMRG chi, and independent finite references",
+        ],
+    }

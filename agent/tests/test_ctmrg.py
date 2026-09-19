@@ -1251,6 +1251,9 @@ class CTMRGTests(unittest.TestCase):
             boundary_mps_width=2,
             boundary_mps_height=2,
             boundary_mps_bond_dim=2,
+            boundary_mps_transfer_fixed_point=True,
+            boundary_mps_transfer_cycles=3,
+            boundary_mps_transfer_tolerance=1e-10,
         )
 
         result, _ = run_dynamic_ctmrg_payload(np, payload)
@@ -1258,6 +1261,9 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(result["boundary_mps_validation"]["performed"])
         self.assertTrue(result["boundary_mps_validation"]["passed"])
         self.assertTrue(result["research_gate"]["gates"]["boundary_mps_crosscheck"]["passed"])
+        self.assertTrue(result["boundary_mps_transfer_validation"]["performed"])
+        self.assertTrue(result["boundary_mps_transfer_validation"]["converged"])
+        self.assertTrue(result["research_gate"]["gates"]["boundary_mps_transfer_fixed_point"]["passed"])
 
     def test_dynamic_convergence_study_reports_sector_and_reference_spread(self):
         from qc_agent.core.ctmrg_dynamic import run_dynamic_ctmrg_convergence_study
@@ -1987,6 +1993,50 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(all(point["performed"] for point in study["points"]))
         self.assertTrue(all(abs(point["reference_energy"] - 1.5) < 1e-8 for point in study["points"]))
         self.assertEqual(study["max_discarded_weight"], 0.0)
+
+    def test_boundary_mps_transfer_fixed_point_preserves_product_limit(self):
+        from qc_agent.core.ctmrg_boundary_mps import run_boundary_mps_transfer_fixed_point
+
+        tensor = np.zeros((2, 1, 1, 1, 1), dtype=np.complex128)
+        tensor[0, 0, 0, 0, 0] = 1.0
+        result = run_boundary_mps_transfer_fixed_point(
+            [tensor],
+            [1, 1],
+            width=2,
+            cycles=3,
+            max_bond_dim=2,
+            tolerance=1e-10,
+        )
+
+        self.assertEqual(result["schema"], "quantum-circuit/boundary-mps-transfer-fixed-point-v1")
+        self.assertTrue(result["converged"])
+        self.assertAlmostEqual(result["final_residual"], 0.0, places=12)
+        self.assertEqual(result["cycle_reports"][-1]["transfer_rayleigh_quotient"]["abs"], 1.0)
+        self.assertFalse(result["materializes_statevector"])
+
+    def test_boundary_mps_transfer_fixed_point_keeps_random_probe_reviewable(self):
+        from qc_agent.core.ctmrg_boundary_mps import run_boundary_mps_transfer_fixed_point
+
+        rng = np.random.default_rng(83)
+        tensors = []
+        for _ in range(4):
+            tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+            tensors.append((tensor / np.linalg.norm(tensor)).astype(np.complex128))
+        result = run_boundary_mps_transfer_fixed_point(
+            tensors,
+            [2, 2],
+            width=2,
+            cycles=4,
+            max_bond_dim=4,
+            tolerance=1e-8,
+        )
+
+        self.assertEqual(result["status"], "needs_review")
+        self.assertEqual(result["device"], "cpu-reference")
+        self.assertEqual(result["boundary_vector_dimension"], 16)
+        self.assertEqual(len(result["cycle_reports"]), 4)
+        self.assertTrue(all(math.isfinite(point["residual"]) for point in result["cycle_reports"]))
+        self.assertTrue(all(math.isfinite(point["transfer_rayleigh_quotient"]["abs"]) for point in result["cycle_reports"]))
 
     def test_plus_state_has_unit_x_expectation(self):
         payload = CTMRGPayload(

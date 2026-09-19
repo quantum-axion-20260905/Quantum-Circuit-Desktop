@@ -1398,6 +1398,29 @@ def run_dynamic_ctmrg_payload(
             and boundary_mps_validation.get("max_abs_error") is not None
             and float(boundary_mps_validation["max_abs_error"]) <= boundary_mps_validation["tolerance"]
         )
+    boundary_mps_transfer_validation: dict[str, Any] = {
+        "requested": bool(getattr(payload, "boundary_mps_transfer_fixed_point", False)),
+        "performed": False,
+        "converged": False,
+        "passed": True,
+        "reason": "boundary-MPS transfer fixed-point diagnostic was not requested",
+    }
+    if boundary_mps_transfer_validation["requested"]:
+        from .ctmrg_boundary_mps import run_boundary_mps_transfer_fixed_point
+
+        boundary_mps_transfer_validation = dict(run_boundary_mps_transfer_fixed_point(
+            tensors,
+            payload.unit_cell,
+            width=int(payload.boundary_mps_width),
+            cycles=int(payload.boundary_mps_transfer_cycles),
+            max_bond_dim=int(payload.boundary_mps_bond_dim),
+            cutoff=float(payload.boundary_mps_cutoff),
+            tolerance=float(payload.boundary_mps_transfer_tolerance),
+        ))
+        boundary_mps_transfer_validation["requested"] = True
+        boundary_mps_transfer_validation["performed"] = True
+        boundary_mps_transfer_validation["passed"] = bool(boundary_mps_transfer_validation.get("converged"))
+    result["boundary_mps_transfer_validation"] = boundary_mps_transfer_validation
     result["boundary_mps_validation"] = boundary_mps_validation
     research_gate = dynamic_ctmrg_research_gate(
         unit_cell=unit_cell,
@@ -1412,6 +1435,7 @@ def run_dynamic_ctmrg_payload(
         ),
         reference_validation=reference_validation,
         boundary_mps_validation=boundary_mps_validation,
+        boundary_mps_transfer_validation=boundary_mps_transfer_validation,
     )
     result["research_gate"] = research_gate
     research_result = dict(result.get("research_result", {}))
@@ -1419,6 +1443,7 @@ def run_dynamic_ctmrg_payload(
     research_result["details"]["reference_validation"] = reference_validation
     research_result["details"]["research_gate"] = research_gate
     research_result["details"]["boundary_mps_validation"] = boundary_mps_validation
+    research_result["details"]["boundary_mps_transfer_validation"] = boundary_mps_transfer_validation
     research_result["details"]["environment_initialization_sector_seed"] = initialization_sector_seed
     research_result["metrics"] = dict(research_result.get("metrics", {}))
     research_result["metrics"]["reference_max_abs_error"] = reference_validation.get("max_abs_error")
