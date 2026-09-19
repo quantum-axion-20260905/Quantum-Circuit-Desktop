@@ -625,6 +625,11 @@ This is an explicit experimental API, not a silent replacement for
 `run_ctmrg`: optimization, sector ensembles, and public server routing remain
 blocked until a final policy/admission review covers the dynamic result path.
 
+Commit `0de5ed1` hardens resume admission by comparing the current payload
+request SHA-256 and unit-cell metadata with the checkpoint before any dynamic
+move is executed. A mismatch is rejected explicitly; the regression remains
+`183/183`.
+
 - For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - For comparison, CPU random D=2 seeds 17/29/41 on the raw candidate: replay remains red, with maximum factor error

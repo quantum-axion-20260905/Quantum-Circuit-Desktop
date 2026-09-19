@@ -34,6 +34,7 @@
     "dynamic_multi_site_checkpoint_resume": true,
     "dynamic_resumed_multisite_gauge_replay": true,
     "dynamic_payload_api": true,
+    "dynamic_resume_request_identity_guard": true,
     "full_regression": "183/183"
   },
   "cuda_smoke": {
