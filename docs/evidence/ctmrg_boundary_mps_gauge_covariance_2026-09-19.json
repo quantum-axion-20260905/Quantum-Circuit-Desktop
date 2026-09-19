@@ -10,7 +10,8 @@
     "widths": [1, 2],
     "boundary_bond_dims": [1, 4],
     "cycles": 8,
-    "gauge_tolerance": 1e-8
+    "gauge_tolerance": 1e-8,
+    "tracked_frame_compression": true
   },
   "contract": {
     "raw_control": "gauged tensor with original all-ones open boundaries",
@@ -25,33 +26,42 @@
       "boundary_bond_dim": 1,
       "raw_relative_patch_delta": 3.144225022304513,
       "transported_relative_patch_delta": 2.091810624201787e-16,
-      "gauge_covariance_passed": true
+      "tracked_frame_relative_patch_delta": 4.152640234892223e-16,
+      "gauge_covariance_passed": true,
+      "tracked_frame_gauge_covariance_passed": true
     },
     {
       "width": 1,
       "boundary_bond_dim": 4,
       "raw_relative_patch_delta": 3.144225022304513,
       "transported_relative_patch_delta": 2.091810624201787e-16,
-      "gauge_covariance_passed": true
+      "tracked_frame_relative_patch_delta": 4.152640234892223e-16,
+      "gauge_covariance_passed": true,
+      "tracked_frame_gauge_covariance_passed": true
     },
     {
       "width": 2,
       "boundary_bond_dim": 1,
       "raw_relative_patch_delta": 1.608459824640431,
       "transported_relative_patch_delta": 0.2866262131750376,
-      "gauge_covariance_passed": false
+      "tracked_frame_relative_patch_delta": 1.5705798753545289e-15,
+      "gauge_covariance_passed": false,
+      "tracked_frame_gauge_covariance_passed": true
     },
     {
       "width": 2,
       "boundary_bond_dim": 4,
       "raw_relative_patch_delta": 2.787065052630302,
       "transported_relative_patch_delta": 3.9221162682998417e-16,
-      "gauge_covariance_passed": true
+      "tracked_frame_relative_patch_delta": 1.1758584772078673e-15,
+      "gauge_covariance_passed": true,
+      "tracked_frame_gauge_covariance_passed": true
     }
   ],
   "summary": {
     "point_count": 4,
     "passed_points": 3,
+    "tracked_frame_passed_points": 4,
     "raw_control_is_non_invariant": true,
     "low_chi_truncation_remains_review_only": true,
     "full_regression": "203/203"
@@ -63,7 +73,7 @@
     "job_status": "done",
     "schema": "quantum-circuit/boundary-mps-transfer-gauge-covariance-study-v1",
     "preflight_feasible": true,
-    "gauge_replay_runs_per_point": 3
+    "gauge_replay_runs_per_point": 4
   },
   "limitations": [
     "finite-cylinder evidence is not an infinite-lattice fixed-point proof",

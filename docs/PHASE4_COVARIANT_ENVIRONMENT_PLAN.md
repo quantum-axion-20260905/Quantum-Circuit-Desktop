@@ -769,6 +769,14 @@ This closes an open-boundary transport seam, not the infinite-lattice gate:
 the Euclidean Rayleigh quotient remains a frame-dependent diagnostic and
 transfer-gap, chi-convergence, and variational checks stay independent.
 
+The follow-up tracked-frame compression path now unframes each output
+physical leg before SVD and re-applies the frame afterward; newly created MPS
+internal bonds intentionally keep their fresh reference frame. On the same
+grid it reduces the ordinary width 2/chi 1 replay delta from `2.87e-1` to
+`1.57e-15`, giving 4/4 tracked-frame replay points while keeping the ordinary
+3/4 result visible. This is a tested covariant truncation seam for the
+finite-cylinder instrument, not yet a generic CTMRG retained-subspace policy.
+
 ### Current Phase 4 disposition
 
 The bounded dynamic boundary capability is complete as an opt-in research
@@ -786,7 +794,10 @@ weight reached `3.19e-1`. Width/chi improvement is therefore non-monotone and
 cannot be promoted as a solver shortcut. No local projector heuristic will be
 promoted in the meantime. The new replay confirms that the next numerical
 strategy must be a gauge-aware retained-subspace/fixed-point method rather
-than another boundary tolerance or raw-frame comparison.
+than another boundary tolerance or raw-frame comparison. The tracked-frame
+compression replay is the first implementation candidate for that strategy;
+it must still be integrated with CTMRG environment sectors and transfer-gap
+evidence before admission.
 
 ## 8. Definition of done
 

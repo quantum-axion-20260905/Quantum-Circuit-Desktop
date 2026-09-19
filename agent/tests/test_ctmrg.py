@@ -2079,6 +2079,7 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(study["schema"], "quantum-circuit/boundary-mps-transfer-gauge-covariance-study-v1")
         self.assertEqual(study["point_count"], 4)
         self.assertEqual(study["passed_points"], 3)
+        self.assertEqual(study["tracked_frame_passed_points"], 4)
         self.assertTrue(all(point["raw_relative_patch_delta"] > 1e-3 for point in study["points"]))
         width_one = [point for point in study["points"] if point["width"] == 1]
         self.assertTrue(all(point["gauge_covariance_passed"] for point in width_one))
@@ -2087,11 +2088,13 @@ class CTMRGTests(unittest.TestCase):
             if point["width"] == 2 and point["boundary_bond_dim"] == 1
         )
         self.assertFalse(width_two_chi_one["gauge_covariance_passed"])
+        self.assertTrue(width_two_chi_one["tracked_frame_gauge_covariance_passed"])
         width_two_chi_four = next(
             point for point in study["points"]
             if point["width"] == 2 and point["boundary_bond_dim"] == 4
         )
         self.assertTrue(width_two_chi_four["gauge_covariance_passed"])
+        self.assertTrue(width_two_chi_four["tracked_frame_gauge_covariance_passed"])
         self.assertFalse(study["research_gate_summary"]["production_ready"])
 
     def test_plus_state_has_unit_x_expectation(self):

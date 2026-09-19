@@ -127,12 +127,64 @@ def _apply_row_mpo(boundary: list[np.ndarray], row: list[np.ndarray]) -> list[np
     return output
 
 
+def _transform_boundary_mps_tensor(
+    tensor: np.ndarray,
+    *,
+    left: np.ndarray | None = None,
+    physical: np.ndarray | None = None,
+    right: np.ndarray | None = None,
+) -> np.ndarray:
+    """Transform an MPS tensor on explicit left/physical/right index frames."""
+
+    output = tensor
+    if left is not None:
+        output = np.einsum("pq,qsb->psb", left, output, optimize=True)
+    if physical is not None:
+        output = np.einsum("pq,aqb->apb", physical, output, optimize=True)
+    if right is not None:
+        output = np.einsum("aqb,pb->aqp", output, right, optimize=True)
+    return np.asarray(output, dtype=np.complex128)
+
+
 def _compress(
     tensors: list[np.ndarray],
     max_bond_dim: int,
     cutoff: float,
+    *,
+    physical_unframe: np.ndarray | None = None,
+    physical_frame: np.ndarray | None = None,
+    bond_left_unframe: np.ndarray | None = None,
+    bond_right_unframe: np.ndarray | None = None,
+    bond_left_frame: np.ndarray | None = None,
+    bond_right_frame: np.ndarray | None = None,
 ) -> tuple[list[np.ndarray], float, int]:
     compressed = list(tensors)
+    if any(value is not None for value in (physical_unframe, bond_left_unframe, bond_right_unframe)):
+        transformed: list[np.ndarray] = []
+        for index, tensor in enumerate(compressed):
+            left = None
+            right = None
+            if bond_left_unframe is not None and index > 0:
+                operator_dim = int(bond_left_unframe.shape[0])
+                if int(tensor.shape[0]) % operator_dim:
+                    raise ValueError("tracked boundary compression left bond is not an operator-bond product")
+                state_dim = int(tensor.shape[0]) // operator_dim
+                left = np.kron(np.eye(state_dim, dtype=np.complex128), bond_left_unframe)
+            if bond_right_unframe is not None and index < len(compressed) - 1:
+                operator_dim = int(bond_right_unframe.shape[0])
+                if int(tensor.shape[2]) % operator_dim:
+                    raise ValueError("tracked boundary compression right bond is not an operator-bond product")
+                state_dim = int(tensor.shape[2]) // operator_dim
+                right = np.kron(bond_right_unframe, np.eye(state_dim, dtype=np.complex128))
+            transformed.append(
+                _transform_boundary_mps_tensor(
+                    tensor,
+                    left=left,
+                    physical=physical_unframe,
+                    right=right,
+                )
+            )
+        compressed = transformed
     discarded_total = 0.0
     max_used = 1
     for index in range(len(compressed) - 1):
@@ -151,6 +203,18 @@ def _compress(
         factor = singular[:keep, None] * vh[:keep, :]
         compressed[index + 1] = np.tensordot(factor, compressed[index + 1], axes=(1, 0))
         max_used = max(max_used, keep)
+    # The SVD creates a new internal MPS frame whose dimension can be smaller
+    # than the pre-truncation bond.  Only the physical output leg is
+    # transported back; the new internal bonds intentionally keep the fresh
+    # reference frame selected by this compression.
+    if physical_frame is not None:
+        compressed = [
+            _transform_boundary_mps_tensor(
+                tensor,
+                physical=physical_frame,
+            )
+            for tensor in compressed
+        ]
     return compressed, discarded_total, max_used
 
 
@@ -193,6 +257,22 @@ def _paired_transported_boundary_vectors(tensor: np.ndarray) -> dict[str, np.nda
     }
 
 
+def _validate_physical_frame(
+    value: np.ndarray | None,
+    *,
+    name: str,
+    dimension: int,
+) -> np.ndarray | None:
+    if value is None:
+        return None
+    matrix = np.asarray(value, dtype=np.complex128)
+    if matrix.shape != (dimension, dimension):
+        raise ValueError(f"{name} must have shape ({dimension}, {dimension})")
+    if not np.all(np.isfinite(matrix.real)) or not np.all(np.isfinite(matrix.imag)):
+        raise ValueError(f"{name} must contain finite values")
+    return matrix
+
+
 def contract_patch(
     tensors: list[Any],
     unit_cell: list[int] | tuple[int, int],
@@ -207,6 +287,10 @@ def contract_patch(
     right_boundary_vector: np.ndarray | None = None,
     bottom_boundary_vector: np.ndarray | None = None,
     boundary_frame: str = "all-ones",
+    compression_unframe: np.ndarray | None = None,
+    compression_frame: np.ndarray | None = None,
+    bond_left_unframe: np.ndarray | None = None,
+    bond_right_unframe: np.ndarray | None = None,
 ) -> tuple[complex, dict[str, Any]]:
     """Contract one finite open patch with a boundary-MPS row sweep."""
 
@@ -241,6 +325,26 @@ def contract_patch(
             raise ValueError(f"{name} must contain finite values")
     if not str(boundary_frame).strip():
         raise ValueError("boundary_frame must be a non-empty label")
+    compression_unframe = _validate_physical_frame(
+        compression_unframe,
+        name="compression_unframe",
+        dimension=double_virtual,
+    )
+    compression_frame = _validate_physical_frame(
+        compression_frame,
+        name="compression_frame",
+        dimension=double_virtual,
+    )
+    bond_left_unframe = _validate_physical_frame(
+        bond_left_unframe,
+        name="bond_left_unframe",
+        dimension=double_virtual,
+    )
+    bond_right_unframe = _validate_physical_frame(
+        bond_right_unframe,
+        name="bond_right_unframe",
+        dimension=double_virtual,
+    )
     requested = {int(site): str(label).upper() for site, label in (operators or {}).items()}
     boundary = [initial_vector.reshape(1, double_virtual, 1).copy() for _ in range(width)]
     discarded_total = 0.0
@@ -263,7 +367,15 @@ def contract_patch(
                 )
             )
         boundary = _apply_row_mpo(boundary, row)
-        boundary, discarded, used = _compress(boundary, int(max_bond_dim), float(cutoff))
+        boundary, discarded, used = _compress(
+            boundary,
+            int(max_bond_dim),
+            float(cutoff),
+            physical_unframe=compression_unframe,
+            physical_frame=compression_frame,
+            bond_left_unframe=bond_left_unframe,
+            bond_right_unframe=bond_right_unframe,
+        )
         discarded_total += discarded
         max_used = max(max_used, used)
         rows.append({
@@ -278,6 +390,7 @@ def contract_patch(
         "boundary_bond_dim_requested": int(max_bond_dim),
         "boundary_bond_dim_used": int(max_used),
         "boundary_frame": str(boundary_frame),
+        "compression_frame": "tracked-reference-frame" if compression_frame is not None else "native-frame",
         "requested_initial_boundary_norm": float(np.linalg.norm(initial_vector)),
         "left_boundary_norm": float(np.linalg.norm(left_vector)),
         "right_boundary_norm": float(np.linalg.norm(right_vector)),
@@ -569,6 +682,10 @@ def run_boundary_mps_transfer_fixed_point(
     left_boundary_vector: np.ndarray | None = None,
     right_boundary_vector: np.ndarray | None = None,
     boundary_frame: str = "all-ones",
+    compression_unframe: np.ndarray | None = None,
+    compression_frame: np.ndarray | None = None,
+    bond_left_unframe: np.ndarray | None = None,
+    bond_right_unframe: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """Run a bounded row-transfer boundary-MPS fixed-point diagnostic.
 
@@ -623,6 +740,26 @@ def run_boundary_mps_transfer_fixed_point(
             raise ValueError(f"{name} must contain finite values")
     if not str(boundary_frame).strip():
         raise ValueError("boundary_frame must be a non-empty label")
+    compression_unframe = _validate_physical_frame(
+        compression_unframe,
+        name="compression_unframe",
+        dimension=double_virtual,
+    )
+    compression_frame = _validate_physical_frame(
+        compression_frame,
+        name="compression_frame",
+        dimension=double_virtual,
+    )
+    bond_left_unframe = _validate_physical_frame(
+        bond_left_unframe,
+        name="bond_left_unframe",
+        dimension=double_virtual,
+    )
+    bond_right_unframe = _validate_physical_frame(
+        bond_right_unframe,
+        name="bond_right_unframe",
+        dimension=double_virtual,
+    )
     layers = [_double_layer(tensor) for tensor in normalized_tensors]
     boundary = [initial_vector.reshape(1, double_virtual, 1).copy() for _ in range(int(width))]
     boundary, previous_vector, initial_norm = _normalize_boundary(boundary)
@@ -651,7 +788,15 @@ def run_boundary_mps_transfer_fixed_point(
                 for x in range(int(width))
             ]
             boundary = _apply_row_mpo(boundary, row)
-            boundary, discarded, used = _compress(boundary, int(max_bond_dim), float(cutoff))
+            boundary, discarded, used = _compress(
+                boundary,
+                int(max_bond_dim),
+                float(cutoff),
+                physical_unframe=compression_unframe,
+                physical_frame=compression_frame,
+                bond_left_unframe=bond_left_unframe,
+                bond_right_unframe=bond_right_unframe,
+            )
             raw = _dense_boundary_vector(boundary)
             rayleigh_denominator = complex(np.vdot(before, before))
             rayleigh = complex(np.vdot(before, raw) / rayleigh_denominator) if abs(rayleigh_denominator) > 1e-30 else complex(0.0, 0.0)
@@ -710,6 +855,7 @@ def run_boundary_mps_transfer_fixed_point(
         "cycles_completed": len(cycle_reports),
         "boundary_bond_dim_requested": int(max_bond_dim),
         "boundary_frame": str(boundary_frame),
+        "compression_frame": "tracked-reference-frame" if compression_frame is not None else "native-frame",
         "initial_boundary_norm": float(np.linalg.norm(initial_vector)),
         "left_boundary_norm": float(np.linalg.norm(left_vector)),
         "right_boundary_norm": float(np.linalg.norm(right_vector)),
@@ -869,13 +1015,20 @@ def run_boundary_mps_transfer_gauge_covariance_study(
     if not normalized_tensors or int(normalized_tensors[0].shape[1]) != 2:
         raise ValueError("the paired boundary-MPS gauge study currently requires virtual_bond_dim=2")
 
-    from .ctmrg_gauge import paired_virtual_gauge
+    from .ctmrg_gauge import paired_virtual_gauge, paired_virtual_gauge_matrices
 
     gauged_tensors = [
         _host(tensor).astype(np.complex128, copy=False)
         for tensor in paired_virtual_gauge(np, normalized_tensors)
     ]
     transported = _paired_transported_boundary_vectors(normalized_tensors[0])
+    _, down_gauge, left_gauge, right_gauge = paired_virtual_gauge_matrices(np, normalized_tensors[0])
+    physical_frame = _fused_boundary_gauge(np.asarray(down_gauge))
+    physical_unframe = np.linalg.inv(physical_frame)
+    left_frame = _fused_boundary_gauge(np.asarray(left_gauge))
+    right_frame = _fused_boundary_gauge(np.asarray(right_gauge))
+    left_unframe = np.linalg.inv(left_frame)
+    right_unframe = np.linalg.inv(right_frame)
 
     points: list[dict[str, Any]] = []
     for width in normalized_widths:
@@ -911,6 +1064,23 @@ def run_boundary_mps_transfer_gauge_covariance_study(
                 right_boundary_vector=transported["right"],
                 boundary_frame="paired-inverse-transpose-fused",
             )
+            tracked = run_boundary_mps_transfer_fixed_point(
+                gauged_tensors,
+                unit_cell,
+                width=width,
+                cycles=int(cycles),
+                max_bond_dim=bond_dim,
+                cutoff=float(cutoff),
+                tolerance=float(tolerance),
+                initial_boundary_vector=transported["up"],
+                left_boundary_vector=transported["left"],
+                right_boundary_vector=transported["right"],
+                boundary_frame="paired-inverse-transpose-fused",
+                compression_unframe=physical_unframe,
+                compression_frame=physical_frame,
+                bond_left_unframe=left_unframe,
+                bond_right_unframe=right_unframe,
+            )
             height = max(1, cell_y)
             base_value, base_patch = contract_patch(
                 normalized_tensors,
@@ -941,15 +1111,39 @@ def run_boundary_mps_transfer_gauge_covariance_study(
                 bottom_boundary_vector=transported["down"],
                 boundary_frame="paired-inverse-transpose-fused",
             )
+            tracked_value, tracked_patch = contract_patch(
+                gauged_tensors,
+                unit_cell,
+                width=width,
+                height=height,
+                max_bond_dim=bond_dim,
+                cutoff=float(cutoff),
+                initial_boundary_vector=transported["up"],
+                left_boundary_vector=transported["left"],
+                right_boundary_vector=transported["right"],
+                bottom_boundary_vector=transported["down"],
+                boundary_frame="paired-inverse-transpose-fused",
+                compression_unframe=physical_unframe,
+                compression_frame=physical_frame,
+                bond_left_unframe=left_unframe,
+                bond_right_unframe=right_unframe,
+            )
             base_rayleigh = float(base["cycle_reports"][-1]["transfer_rayleigh_quotient"]["abs"])
             raw_rayleigh = float(raw["cycle_reports"][-1]["transfer_rayleigh_quotient"]["abs"])
             covariant_rayleigh = float(covariant["cycle_reports"][-1]["transfer_rayleigh_quotient"]["abs"])
+            tracked_rayleigh = float(tracked["cycle_reports"][-1]["transfer_rayleigh_quotient"]["abs"])
             transported_delta = abs(covariant_value - base_value) / max(abs(base_value), 1e-30)
+            tracked_delta = abs(tracked_value - base_value) / max(abs(base_value), 1e-30)
             raw_delta = abs(raw_value - base_value) / max(abs(base_value), 1e-30)
             rayleigh_delta = abs(covariant_rayleigh - base_rayleigh) / max(abs(base_rayleigh), 1e-30)
+            tracked_rayleigh_delta = abs(tracked_rayleigh - base_rayleigh) / max(abs(base_rayleigh), 1e-30)
             passed = bool(
                 np.isfinite(transported_delta)
                 and transported_delta <= float(gauge_tolerance)
+            )
+            tracked_passed = bool(
+                np.isfinite(tracked_delta)
+                and tracked_delta <= float(gauge_tolerance)
             )
             points.append({
                 "width": width,
@@ -976,12 +1170,24 @@ def run_boundary_mps_transfer_gauge_covariance_study(
                     "finite_patch_value": {"re": float(covariant_value.real), "im": float(covariant_value.imag)},
                     "patch_diagnostics": covariant_patch,
                 },
+                "tracked_frame_gauge": {
+                    "final_residual": float(tracked["final_residual"]),
+                    "converged": bool(tracked["converged"]),
+                    "transfer_rayleigh_abs": tracked_rayleigh,
+                    "finite_patch_value": {"re": float(tracked_value.real), "im": float(tracked_value.imag)},
+                    "patch_diagnostics": tracked_patch,
+                },
                 "raw_relative_patch_delta": float(raw_delta),
                 "transported_relative_patch_delta": float(transported_delta),
+                "tracked_frame_relative_patch_delta": float(tracked_delta),
                 "transported_relative_frame_rayleigh_delta": float(rayleigh_delta),
+                "tracked_frame_relative_frame_rayleigh_delta": float(tracked_rayleigh_delta),
                 "gauge_covariance_passed": passed,
+                "tracked_frame_gauge_covariance_passed": tracked_passed,
             })
 
+    passed_points = sum(bool(point["gauge_covariance_passed"]) for point in points)
+    tracked_passed_points = sum(bool(point["tracked_frame_gauge_covariance_passed"]) for point in points)
     return {
         "schema": "quantum-circuit/boundary-mps-transfer-gauge-covariance-study-v1",
         "status": "needs_review",
@@ -998,17 +1204,20 @@ def run_boundary_mps_transfer_gauge_covariance_study(
             "boundary_transport": "inverse-transpose-fused-open-boundaries",
             "negative_control": "gauged-tensor-with-original-all-ones-boundaries",
             "transported_control": "gauged-tensor-with-transported-top-side-bottom-boundaries",
+            "tracked_compression": "unframe-output-physical-leg-before-SVD-and-reapply-frame-after-truncation",
             "boundary_vector_norms": {
                 name: float(np.linalg.norm(value)) for name, value in transported.items()
             },
         },
         "points": points,
         "point_count": len(points),
-        "passed_points": sum(bool(point["gauge_covariance_passed"]) for point in points),
+        "passed_points": passed_points,
+        "tracked_frame_passed_points": tracked_passed_points,
         "research_gate_summary": {
             "status": "needs_review",
             "production_ready": False,
-            "gauge_covariance_passed_points": sum(bool(point["gauge_covariance_passed"]) for point in points),
+            "gauge_covariance_passed_points": passed_points,
+            "tracked_frame_gauge_covariance_passed_points": tracked_passed_points,
             "points": len(points),
             "reason": "boundary transport replay is necessary evidence but does not prove an infinite-lattice fixed point or CTMRG convergence",
         },
@@ -1016,6 +1225,7 @@ def run_boundary_mps_transfer_gauge_covariance_study(
         "warnings": [
             "the raw gauged control intentionally changes the open boundary condition",
             "transported replay compares finite-cylinder contractions; the Euclidean Rayleigh diagnostic is frame-dependent under non-unitary gauges",
+            "tracked-frame compression is an opt-in covariant replay strategy, not yet a generic CTMRG retained-subspace policy",
             "non-unitary gauge transforms can interact with finite boundary-MPS truncation; inspect discarded weight and chi convergence",
         ],
     }

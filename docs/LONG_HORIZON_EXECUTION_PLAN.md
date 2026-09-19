@@ -117,6 +117,14 @@ features.
   seam but does not promote generic entangled CTMRG; transfer-gap,
   chi-convergence, and variational gates remain open.
 
+- The follow-up tracked-frame compression replay unframes the output physical
+  leg before SVD and re-applies it afterward; newly created internal MPS bonds
+  stay in the fresh reference frame. On the same random D=2 grid it makes the
+  ordinary width 2/chi 1 delta (`2.87e-1`) fall to `1.57e-15`, so the tracked
+  replay passes 4/4 while the ordinary transported control remains 3/4. This
+  is a finite-cylinder covariant truncation seam, not yet the generic CTMRG
+  retained-subspace policy required for promotion.
+
 - The optional Torch/CuPy autodiff runtime now has a deterministic Windows
   import seam: CuPy is primed before Torch in the standalone autodiff test
   module, matching the production server's CUDA loading order. This closes a

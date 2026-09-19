@@ -103,7 +103,7 @@ from .api.contracts import AsyncBudget, AsyncKind, AsyncSubmission
 from .metrics import metrics
 
 
-app = FastAPI(title="Quantum Compute Agent", version="0.8.0-alpha.5")
+app = FastAPI(title="Quantum Compute Agent", version="0.8.0-alpha.6")
 cors_origins = [
     origin.strip()
     for origin in os.environ.get(
@@ -944,11 +944,11 @@ def jobs_ctmrg_boundary_mps_transfer_gauge_covariance(
     report = preflight_ctmrg(estimate_payload, gpu_free_mb=_gpu_free_mb(_hardware_snapshot()))
     report = _scale_ctmrg_study_preflight(
         report,
-        point_count=3 * len(payload.widths) * len(payload.boundary_bond_dims),
+        point_count=4 * len(payload.widths) * len(payload.boundary_bond_dims),
         max_time_ms=payload.max_time_ms,
     )
     report["boundary_mps_transfer_gauge_study"] = True
-    report["gauge_replay_runs_per_point"] = 3
+    report["gauge_replay_runs_per_point"] = 4
     if not report.get("feasible", False):
         raise HTTPException(
             status_code=422,
@@ -1488,11 +1488,11 @@ def _async_preflight(kind: AsyncKind, payload: Any, resolved: str, budget: dict[
         report = preflight_ctmrg(estimate_payload, gpu_free_mb=free_mb)
         report = _scale_ctmrg_study_preflight(
             report,
-            point_count=3 * len(payload.widths) * len(payload.boundary_bond_dims),
+            point_count=4 * len(payload.widths) * len(payload.boundary_bond_dims),
             max_time_ms=max_time_ms,
         )
         report["boundary_mps_transfer_gauge_study"] = True
-        report["gauge_replay_runs_per_point"] = 3
+        report["gauge_replay_runs_per_point"] = 4
     elif kind == "tebd":
         report = preflight_tebd(bounded_payload, gpu_free_mb=free_mb)
     elif resolved == "reference":
