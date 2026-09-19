@@ -231,7 +231,7 @@ class CTMRGPayload(BaseModel):
     environment_bond_dim: int = Field(default=16, ge=1, le=128)
     ctmrg_projector: Literal["half-density", "full-svd"] = "half-density"
     environment_sector_policy: Literal["single", "symmetry-ensemble"] = "single"
-    gauge_preconditioner: Literal["none", "pairwise-polar-balance"] = "none"
+    gauge_preconditioner: Literal["none", "pairwise-polar-balance", "diagonal-bond-balance"] = "none"
     gauge_preconditioner_iterations: int = Field(default=4, ge=1, le=16)
     environment_damping: float = Field(default=1.0, gt=0.0, le=1.0)
     boundary_mps_reference: bool = False
@@ -511,7 +511,7 @@ class CTMRGSpinModelPayload(LatticeHamiltonianPayload):
     environment_damping: float = Field(default=1.0, gt=0.0, le=1.0)
     gauge_validation: bool = False
     gauge_validation_tolerance: float = Field(default=1e-4, gt=0, le=1.0)
-    gauge_preconditioner: Literal["none", "pairwise-polar-balance"] = "none"
+    gauge_preconditioner: Literal["none", "pairwise-polar-balance", "diagonal-bond-balance"] = "none"
     gauge_preconditioner_iterations: int = Field(default=4, ge=1, le=16)
     environment_sector_policy: Literal["single", "symmetry-ensemble"] = "single"
     boundary_mps_reference: bool = False

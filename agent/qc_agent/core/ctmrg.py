@@ -28,7 +28,11 @@ from .checkpoints import load_ctm_checkpoint, save_ctm_checkpoint
 from .contracts import CheckpointManifest, ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
 from .ctmrg_admission import ctmrg_research_gate
 from .ctmrg_reference import analytic_ghz_reference, finite_periodic_peps_reference, finite_product_reference
-from .ctmrg_gauge import pairwise_virtual_gauge_preconditioner, virtual_leg_conditioning_report
+from .ctmrg_gauge import (
+    diagonal_bond_balance_preconditioner,
+    pairwise_virtual_gauge_preconditioner,
+    virtual_leg_conditioning_report,
+)
 from .ctmrg_environment import environment_map_for, validate_environment_map
 from .ctmrg_projectors import (
     full_svd_projectors,
@@ -1470,6 +1474,13 @@ def run_ctmrg(
             unit_cell=(int(unit_cell[0]), int(unit_cell[1])),
             iterations=int(payload.gauge_preconditioner_iterations),
         )
+    elif payload.gauge_preconditioner == "diagonal-bond-balance":
+        tensors, gauge_preconditioning = diagonal_bond_balance_preconditioner(
+            xp,
+            tensors,
+            unit_cell=(int(unit_cell[0]), int(unit_cell[1])),
+            iterations=int(payload.gauge_preconditioner_iterations),
+        )
     layers = [_double_layer(xp, tensor) for tensor in tensors]
     chi = int(payload.environment_bond_dim)
     environments = [_initialize_environment(xp, layer, chi, sector_seed=_environment_seed) for layer in layers]
@@ -1762,7 +1773,7 @@ def run_ctmrg(
         warnings.append("complex64 entangled iPEPS runs may lose transfer-sector precision; use complex128 for reference-quality observables")
     if payload.gauge_preconditioner != "none":
         warnings.append(
-            "pairwise-polar-balance is an opt-in 1x1-2x2 gauge diagnostic; it preserves finite periodic bond pairing but is not admitted into optimization or production paths"
+            f"{payload.gauge_preconditioner} is an opt-in 1x1-2x2 gauge diagnostic; it preserves finite periodic bond pairing but is not admitted into optimization or production paths"
         )
     if gauge_conditioning.get("performed") and not gauge_conditioning.get("well_conditioned", False):
         warnings.append("one or more virtual-leg Gram spectra are rank-deficient or ill-conditioned; gauge preconditioning remains diagnostic-only")

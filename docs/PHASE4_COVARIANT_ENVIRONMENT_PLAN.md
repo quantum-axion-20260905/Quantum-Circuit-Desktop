@@ -91,8 +91,24 @@ Acceptance:
 
 ### Packet B — implement one covariant candidate
 
-Status: **next active packet**. The baseline contract is frozen; the candidate
-must attach to it without changing the default map.
+Status: **in progress**. The first candidate is implemented and measured, but
+it remains opt-in `needs_review`; the admission gate is intentionally not
+passed.
+
+The current candidate is `diagonal-bond-balance`. It applies an exact
+periodic `X / X^-T` pairing using a bounded diagonal metric update, accepts
+only local and global mismatch reductions that do not worsen the paired Gram
+conditioning, and records its diagnostics in the result envelope. It is useful
+as a conditioning baseline, but it does not remove off-diagonal or
+environment-fixed-point gauge sensitivity. Evidence:
+`docs/evidence/ctmrg_diagonal_bond_balance_2026-09-19.json`.
+
+The bounded random D=2 gate improved for seeds 17/29/41, but remained above
+the declared `1e-4` paired-gauge tolerance for all three seeds. Therefore the
+default projector, optimization paths, and production admission remain
+unchanged. The next C2 iteration must target environment transport or a
+minimal-canonical reduced-boundary construction rather than adding another
+local tensor-only heuristic.
 
 Implement exactly one candidate first, selected from the existing numerical
 seams after a small derivation:

@@ -345,6 +345,194 @@ def pairwise_virtual_gauge_preconditioner(
     }
 
 
+def diagonal_bond_balance_preconditioner(
+    xp: Any,
+    tensors: list[Any],
+    *,
+    unit_cell: tuple[int, int] = (1, 1),
+    iterations: int = 4,
+    eigenvalue_floor: float = 1e-10,
+) -> tuple[list[Any], dict[str, Any]]:
+    """Apply a conservative diagonal virtual-bond balancing candidate.
+
+    For a periodic bond with lower/target Gram diagonals ``a`` and ``b`` the
+    diagonal gauge ``X=diag((b/a)**1/4)`` makes the two diagonal metrics agree
+    to first order under the exact paired action ``X`` / ``X**(-T)``.  A
+    candidate is accepted only when the full Hermitian bond mismatch decreases
+    and the paired Gram condition number does not worsen.  This is an
+    intentionally small, backend-neutral canonicalization probe: it does not
+    claim to construct the minimal PEPS canonical form and remains opt-in.
+    """
+
+    nx, ny = (int(value) for value in unit_cell)
+    if (nx, ny) not in ((1, 1), (2, 1), (1, 2), (2, 2)):
+        return list(tensors), {
+            "performed": False,
+            "method": "diagonal-bond-balance",
+            "reason": "the bounded candidate supports only 1x1 through 2x2 periodic cells",
+            "mutated_tensors": False,
+        }
+    if len(tensors) != nx * ny:
+        return list(tensors), {
+            "performed": False,
+            "method": "diagonal-bond-balance",
+            "reason": "tensor count does not match the declared periodic unit cell",
+            "mutated_tensors": False,
+        }
+    if int(iterations) < 1:
+        raise ValueError("diagonal bond-balance iterations must be positive")
+
+    def site_index(x: int, y: int) -> int:
+        return (x % nx) + nx * (y % ny)
+
+    bonds: list[tuple[str, int, int, int, int]] = []
+    for y in range(ny):
+        for x in range(nx):
+            source = site_index(x, y)
+            bonds.append(("horizontal", source, site_index(x + 1, y), 4, 3))
+            bonds.append(("vertical", source, site_index(x, y + 1), 2, 1))
+
+    def bond_metric(
+        current: list[Any],
+        source: int,
+        target: int,
+        source_axis: int,
+        target_axis: int,
+    ) -> tuple[float, float]:
+        source_gram = _leg_gram(xp, current[source], source_axis)
+        target_gram = _leg_gram(xp, current[target], target_axis)
+        delta = _host_array(xp.linalg.norm(source_gram - target_gram))
+        scale = max(
+            _host_array(xp.linalg.norm(source_gram)),
+            _host_array(xp.linalg.norm(target_gram)),
+            1e-30,
+        )
+        values = []
+        for gram in (source_gram, target_gram):
+            values.extend(
+                float(value.real if hasattr(value, "real") else value)
+                for value in _host_array(xp.linalg.eigvalsh(gram))
+            )
+        positive = [max(value, 0.0) for value in values]
+        condition = max(positive) / max(min(positive), 1e-30) if positive else math.inf
+        return float(delta / scale), float(condition)
+
+    def condition_not_worse(candidate: float, current: float) -> bool:
+        if math.isinf(current):
+            return not math.isinf(candidate) or candidate <= current
+        return candidate <= current * (1.0 + 1e-9)
+
+    def metrics(current: list[Any]) -> list[tuple[float, float]]:
+        return [
+            bond_metric(current, source, target, source_axis, target_axis)
+            for _, source, target, source_axis, target_axis in bonds
+        ]
+
+    def score(current: list[Any]) -> tuple[float, float]:
+        current_metrics = metrics(current)
+        return (
+            float(sum(metric[0] for metric in current_metrics)),
+            float(max((metric[1] for metric in current_metrics), default=0.0)),
+        )
+
+    working = list(tensors)
+    before_metrics = metrics(working)
+    score_before = (
+        float(sum(metric[0] for metric in before_metrics)),
+        float(max((metric[1] for metric in before_metrics), default=0.0)),
+    )
+    accepted_transform_count = 0
+    rejected_transform_count = 0
+    mutated = False
+
+    for _ in range(int(iterations)):
+        for _, source, target, source_axis, target_axis in bonds:
+            current_metric = bond_metric(working, source, target, source_axis, target_axis)
+            source_gram = _leg_gram(xp, working[source], source_axis)
+            target_gram = _leg_gram(xp, working[target], target_axis)
+            source_diag = xp.maximum(xp.real(xp.diag(source_gram)), 1e-30)
+            target_diag = xp.maximum(xp.real(xp.diag(target_gram)), 1e-30)
+            scale = xp.power(target_diag / source_diag, 0.25)
+            transform = xp.diag(scale)
+            inverse_transform = xp.diag(1.0 / scale)
+            candidate_source = _apply_leg_transform(
+                xp, working[source], source_axis, transform
+            )
+            candidate_target = _apply_leg_transform(
+                xp,
+                candidate_source if target == source else working[target],
+                target_axis,
+                inverse_transform,
+            )
+            candidate = list(working)
+            candidate[source] = candidate_source if target != source else candidate_target
+            candidate[target] = candidate_target
+            candidate_metric = bond_metric(candidate, source, target, source_axis, target_axis)
+            current_score = score(working)
+            candidate_score = score(candidate)
+            if (
+                candidate_metric[0] < current_metric[0] - 1e-12
+                and candidate_score[0] < current_score[0] - 1e-12
+                and condition_not_worse(candidate_score[1], current_score[1])
+            ):
+                working = candidate
+                accepted_transform_count += 1
+                mutated = True
+            else:
+                rejected_transform_count += 1
+
+    after_metrics = metrics(working)
+    score_after = (
+        float(sum(metric[0] for metric in after_metrics)),
+        float(max((metric[1] for metric in after_metrics), default=0.0)),
+    )
+    vertical_before = [metric for bond, metric in zip(bonds, before_metrics) if bond[0] == "vertical"]
+    vertical_after = [metric for bond, metric in zip(bonds, after_metrics) if bond[0] == "vertical"]
+    horizontal_before = [metric for bond, metric in zip(bonds, before_metrics) if bond[0] == "horizontal"]
+    horizontal_after = [metric for bond, metric in zip(bonds, after_metrics) if bond[0] == "horizontal"]
+    return working, {
+        "performed": True,
+        "method": "diagonal-bond-balance",
+        "iterations": int(iterations),
+        "eigenvalue_floor": float(eigenvalue_floor),
+        "balance_power": 0.25,
+        "vertical_pair_delta_before": max((metric[0] for metric in vertical_before), default=0.0),
+        "vertical_pair_delta_after": max((metric[0] for metric in vertical_after), default=0.0),
+        "horizontal_pair_delta_before": max((metric[0] for metric in horizontal_before), default=0.0),
+        "horizontal_pair_delta_after": max((metric[0] for metric in horizontal_after), default=0.0),
+        "total_pair_delta_before": score_before[0],
+        "total_pair_delta_after": score_after[0],
+        "condition_number_before": max((metric[1] for metric in before_metrics), default=0.0),
+        "condition_number_after": max((metric[1] for metric in after_metrics), default=0.0),
+        "accepted_transform_count": int(accepted_transform_count),
+        "rejected_transform_count": int(rejected_transform_count),
+        "acceptance_rule": "local and total Hermitian bond mismatch must decrease without increasing the global paired Gram condition number",
+        "bond_metrics": [
+            {
+                "orientation": orientation,
+                "source_site": int(source),
+                "target_site": int(target),
+                "source_axis": int(source_axis),
+                "target_axis": int(target_axis),
+                "delta_before": float(before[0]),
+                "delta_after": float(after[0]),
+                "condition_before": float(before[1]),
+                "condition_after": float(after[1]),
+            }
+            for (orientation, source, target, source_axis, target_axis), before, after
+            in zip(bonds, before_metrics, after_metrics)
+        ],
+        "mutated_tensors": mutated,
+        "exact_periodic_pairing": True,
+        "limitations": [
+            "diagonal metric balancing is not a general PEPS canonical form",
+            "it does not remove off-diagonal or long-range gauge sensitivity",
+            "independent finite-PEPS/reference and paired-gauge gates remain mandatory",
+            "not admitted into optimization or production paths until those gates pass",
+        ],
+    }
+
+
 def paired_virtual_gauge(xp: Any, tensors: list[Any]) -> list[Any]:
     """Apply a deterministic, invertible paired gauge to each unit-cell tensor."""
 

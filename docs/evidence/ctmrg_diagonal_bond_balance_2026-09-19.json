@@ -1,0 +1,75 @@
+{
+  "artifact": "ctmrg-diagonal-bond-balance-candidate",
+  "date": "2026-09-19",
+  "revision": "37262cd",
+  "scope": {
+    "unit_cell": [1, 1],
+    "physical_bond_dim": 2,
+    "virtual_bond_dim": 2,
+    "environment_bond_dim": 2,
+    "iterations": 8,
+    "dtype": "complex128"
+  },
+  "candidate": {
+    "method": "diagonal-bond-balance",
+    "gauge_action": "exact periodic X / X^-T pairing",
+    "balance_power": 0.25,
+    "acceptance_rule": "local and total Hermitian bond mismatch decrease; global Gram conditioning does not worsen",
+    "default_changed": false,
+    "optimization_admitted": false
+  },
+  "verification": {
+    "focused_tests": "2/2 passed",
+    "ctmrg_backend_suite": "48/48 passed",
+    "full_agent_suite": "154/154 passed",
+    "finite_product_reference_preserved": true,
+    "spin_plugin_contract_available": true
+  },
+  "random_d2_comparison": [
+    {
+      "seed": 17,
+      "baseline_gauge_delta": 0.22543984391429064,
+      "candidate_gauge_delta": 0.013805798623803961,
+      "candidate_gauge_gate": false,
+      "total_pair_delta_before": 0.720579304920015,
+      "total_pair_delta_after": 0.6220251796236997,
+      "condition_before": 2.6999574908094193,
+      "condition_after": 2.187208242037313
+    },
+    {
+      "seed": 29,
+      "baseline_gauge_delta": 0.024041651035286687,
+      "candidate_gauge_delta": 0.013017974359033426,
+      "candidate_gauge_gate": false,
+      "total_pair_delta_before": 0.36995076496920376,
+      "total_pair_delta_after": 0.19959237651619605,
+      "condition_before": 1.8769087382290954,
+      "condition_after": 1.6761533668528394
+    },
+    {
+      "seed": 41,
+      "baseline_gauge_delta": 0.11176539301967862,
+      "candidate_gauge_delta": 0.09455338011183084,
+      "candidate_gauge_gate": false,
+      "total_pair_delta_before": 0.5619434284607003,
+      "total_pair_delta_after": 0.4857749816990175,
+      "condition_before": 2.0648133750311524,
+      "condition_after": 1.9761288416998004
+    }
+  ],
+  "cuda_smoke": {
+    "device": "cuda",
+    "dtype": "complex64",
+    "seed": 17,
+    "iterations": 4,
+    "energy": -0.03758950158953667,
+    "gauge_delta": 0.18269779905676842,
+    "total_pair_delta_before": 0.7905570268630981,
+    "total_pair_delta_after": 0.4410068839788437,
+    "bounded_execution_completed": true
+  },
+  "decision": "keep-opt-in-diagnostic",
+  "conclusion": "The candidate consistently improves the local bond metric and reduces truncated-CTMRG gauge drift, but all three generic D=2 gauge gates remain above 1e-4. It is not a covariant production environment and must not change the default or optimization paths.",
+  "next_action": "continue C2 with an environment-transport or minimal-canonical reduced-boundary candidate; retain this candidate as a reproducible baseline",
+  "resource_note": "bounded CPU and small CUDA smoke only; no unrelated RAM-heavy process was inspected or touched"
+}

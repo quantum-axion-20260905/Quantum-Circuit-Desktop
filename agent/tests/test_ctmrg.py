@@ -197,6 +197,71 @@ class CTMRGTests(unittest.TestCase):
             report["condition_number_before"] * (1.0 + 1e-9),
         )
 
+    def test_diagonal_bond_balance_reduces_periodic_metric_without_breaking_reference(self):
+        from qc_agent.core.ctmrg_gauge import diagonal_bond_balance_preconditioner, paired_virtual_gauge
+
+        tensor = np.zeros((2, 2, 2, 2, 2), dtype=np.complex128)
+        tensor[0, 0, 0, 0, 0] = 1.0
+        tensor[1, 1, 1, 1, 1] = 1.0
+        gauged = paired_virtual_gauge(np, [tensor])[0]
+        preconditioned, report = diagonal_bond_balance_preconditioner(
+            np, [gauged], iterations=4
+        )
+        self.assertTrue(report["performed"])
+        self.assertTrue(report["exact_periodic_pairing"])
+        self.assertEqual(report["balance_power"], 0.25)
+        self.assertLessEqual(
+            report["vertical_pair_delta_after"],
+            report["vertical_pair_delta_before"],
+        )
+        self.assertLessEqual(
+            report["horizontal_pair_delta_after"],
+            report["horizontal_pair_delta_before"],
+        )
+        self.assertLess(
+            report["total_pair_delta_after"],
+            report["total_pair_delta_before"],
+        )
+        payload = CTMRGPayload(
+            virtual_bond_dim=2,
+            dtype="complex128",
+            gauge_preconditioner="diagonal-bond-balance",
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+        )
+        original_reference = finite_periodic_peps_reference(
+            payload, [tensor], [0.0], [1.0], 1.0, tolerance=1e-10
+        )
+        preconditioned_reference = finite_periodic_peps_reference(
+            payload, preconditioned, [0.0], [1.0], 1.0, tolerance=1e-10
+        )
+        self.assertTrue(original_reference["performed"])
+        self.assertTrue(preconditioned_reference["performed"])
+        self.assertAlmostEqual(
+            original_reference["reference_energy"],
+            preconditioned_reference["reference_energy"],
+            places=10,
+        )
+
+    def test_diagonal_bond_balance_is_available_through_spin_plugin_contract(self):
+        payload = build_ctmrg_spin_payload(
+            LatticeHamiltonianPayload(
+                dimensions=[1, 1],
+                model="ising",
+                coupling=1.0,
+                field=0.2,
+            ),
+            gauge_preconditioner="diagonal-bond-balance",
+            gauge_preconditioner_iterations=2,
+        )
+        self.assertEqual(payload.gauge_preconditioner, "diagonal-bond-balance")
+
     def test_bond_aware_preconditioner_preserves_2x1_finite_reference(self):
         from qc_agent.core.ctmrg_gauge import pairwise_virtual_gauge_preconditioner
 
