@@ -625,6 +625,65 @@ def transport_ctm_environment(
     )
 
 
+def transport_biorthogonal_boundary_basis(
+    xp: Any,
+    projector: Any,
+    enlarged_gauge: Any,
+) -> tuple[Any, Any, dict[str, Any]]:
+    """Transport a retained boundary basis as an exact dual pair.
+
+    If an enlarged boundary basis changes by a generally non-unitary matrix
+    ``K``, transporting an isometric projector as ``K @ P`` and then
+    re-orthogonalizing loses the dual contraction rule.  The covariant pair is
+    instead ``P_right = K @ P`` and ``P_left = K**(-H) @ P``.  It satisfies
+    ``P_left.H @ P_right = I`` and ``P_left.H @ K = P.H`` up to roundoff.
+
+    This is a truncation building block, not a complete CTMRG move: callers
+    still need to derive the correct enlarged-boundary gauge ``K`` for each
+    directional absorption and handle rank loss explicitly.
+    """
+
+    if getattr(projector, "ndim", None) != 2 or getattr(enlarged_gauge, "ndim", None) != 2:
+        raise ValueError("boundary-basis transport requires a rank-2 projector and rank-2 enlarged gauge")
+    if int(enlarged_gauge.shape[0]) != int(enlarged_gauge.shape[1]):
+        raise ValueError("boundary-basis transport requires a square enlarged gauge")
+    if int(enlarged_gauge.shape[0]) != int(projector.shape[0]):
+        raise ValueError("enlarged gauge dimension does not match the projector row dimension")
+    inverse_adjoint = xp.linalg.inv(xp.conj(enlarged_gauge).T)
+    right = enlarged_gauge @ projector
+    left = inverse_adjoint @ projector
+    overlap = xp.conj(left).T @ right
+    dual_rule = xp.conj(left).T @ enlarged_gauge - xp.conj(projector).T
+    eye_kwargs = {"dtype": overlap.dtype}
+    if getattr(xp, "__name__", "") == "torch":
+        eye_kwargs["device"] = overlap.device
+    identity = xp.eye(int(overlap.shape[0]), **eye_kwargs)
+    overlap_error = _host_array(xp.linalg.norm(overlap - identity))
+    dual_rule_error = _host_array(xp.linalg.norm(dual_rule))
+    gauge_condition = _host_array(xp.linalg.cond(enlarged_gauge))
+    numerical_tolerance = 1e-6 if "64" in str(projector.dtype) else 1e-8
+    return left, right, {
+        "performed": True,
+        "method": "inverse-adjoint-biorthogonal-boundary-transport",
+        "projector_rows": int(projector.shape[0]),
+        "projector_columns": int(projector.shape[1]),
+        "enlarged_gauge_condition_number": float(gauge_condition),
+        "dual_overlap_error": float(overlap_error),
+        "dual_rule_error": float(dual_rule_error),
+        "numerical_tolerance": numerical_tolerance,
+        "passed": bool(
+            math.isfinite(float(gauge_condition))
+            and float(overlap_error) <= numerical_tolerance
+            and float(dual_rule_error) <= numerical_tolerance
+        ),
+        "limitations": [
+            "the caller must supply the correct directional enlarged-boundary gauge",
+            "rank-deficient or ill-conditioned gauges require a separate admission gate",
+            "this does not by itself define a thermodynamic CTMRG fixed point",
+        ],
+    }
+
+
 def gauge_validation_result(
     before: dict[str, Any],
     after: dict[str, Any],

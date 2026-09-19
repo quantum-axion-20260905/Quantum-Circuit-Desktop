@@ -1,0 +1,36 @@
+{
+  "artifact": "ctmrg-biorthogonal-boundary-basis-transport",
+  "date": "2026-09-19",
+  "revision": "pending-commit",
+  "scope": "Phase 4 C2 boundary-basis truncation building block",
+  "rule": {
+    "right_projector": "K @ P",
+    "left_projector": "K^(-H) @ P",
+    "dual_overlap": "P_left^H @ P_right = I",
+    "dual_absorption": "P_left^H @ K = P^H"
+  },
+  "verification": {
+    "cpu": {
+      "dtype": "complex128",
+      "projector_shape": [4, 2],
+      "passed": true,
+      "focused_test": "passed"
+    },
+    "cuda": {
+      "dtype": "complex64",
+      "projector_shape": [8, 3],
+      "passed": true,
+      "numerical_tolerance": 1e-6,
+      "dual_overlap_error": 3.017634142565839e-08,
+      "dual_rule_error": 7.51087227968128e-08
+    },
+    "full_agent_suite": "156/156 passed"
+  },
+  "decision": "keep-as-truncation-building-block",
+  "limitations": [
+    "The directional enlarged-boundary gauge K is not inferred automatically yet.",
+    "The primitive is not connected to the default half-density or full-SVD sweep.",
+    "It does not establish a converged infinite-lattice fixed point by itself."
+  ],
+  "next_action": "derive K for each left/right/top/bottom absorption and compare transported dual projectors against the existing projector path"
+}

@@ -327,6 +327,33 @@ class CTMRGTests(unittest.TestCase):
             1e-10,
         )
 
+    def test_boundary_basis_transport_preserves_biorthogonal_dual_rule(self):
+        from qc_agent.core.ctmrg_gauge import transport_biorthogonal_boundary_basis
+
+        rng = np.random.default_rng(29)
+        seed = rng.normal(size=(4, 2)) + 1j * rng.normal(size=(4, 2))
+        projector, _ = np.linalg.qr(seed)
+        enlarged_gauge = np.array([
+            [1.3 + 0.1j, 0.2 - 0.2j, 0.0, 0.0],
+            [0.0 + 0.1j, 0.8 - 0.05j, 0.1 + 0.2j, 0.0],
+            [0.0, 0.0 + 0.2j, 1.1 - 0.1j, 0.15],
+            [0.0, 0.0, 0.05 - 0.1j, 0.9 + 0.2j],
+        ], dtype=np.complex128)
+        left, right, report = transport_biorthogonal_boundary_basis(
+            np,
+            projector,
+            enlarged_gauge,
+        )
+        self.assertTrue(report["passed"])
+        self.assertTrue(np.allclose(np.conj(left).T @ right, np.eye(2), atol=1e-10))
+        self.assertTrue(
+            np.allclose(
+                np.conj(left).T @ enlarged_gauge,
+                np.conj(projector).T,
+                atol=1e-10,
+            )
+        )
+
     def test_bond_aware_preconditioner_preserves_2x1_finite_reference(self):
         from qc_agent.core.ctmrg_gauge import pairwise_virtual_gauge_preconditioner
 
