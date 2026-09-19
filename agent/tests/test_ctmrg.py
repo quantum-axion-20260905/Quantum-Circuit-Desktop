@@ -19,10 +19,12 @@ class CTMRGTests(unittest.TestCase):
         baseline = environment_map_for("half-density")
         full_svd = environment_map_for("full-svd")
         bilinear = environment_map_for("biorthogonal-bilinear")
+        covariant = environment_map_for("covariant-bilinear")
         self.assertEqual(baseline.schema, "quantum-circuit/ctmrg-environment-map-v1")
         self.assertEqual(baseline.map_id, "ctmrg-half-density-v1")
         self.assertEqual(full_svd.map_id, "ctmrg-full-svd-biorthogonal-v1")
         self.assertEqual(bilinear.map_id, "ctmrg-biorthogonal-bilinear-v1")
+        self.assertEqual(covariant.map_id, "ctmrg-covariant-bilinear-v1")
         self.assertEqual(baseline.virtual_leg_order, ("physical", "up", "down", "left", "right"))
         self.assertEqual(baseline.edge_order, ("T1", "T2", "T3", "T4"))
         validate_environment_map(baseline.to_dict(), baseline)
@@ -185,6 +187,40 @@ class CTMRGTests(unittest.TestCase):
             ),
             "unconverged",
         )
+
+    def test_covariant_bilinear_policy_runs_integrated_reduced_boundary_replay(self):
+        rng = np.random.default_rng(17)
+        tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+        tensor = tensor.astype(np.complex128)
+        tensor /= np.linalg.norm(tensor)
+        result = run_ctmrg(np, CTMRGPayload(
+            ctmrg_projector="covariant-bilinear",
+            virtual_bond_dim=2,
+            dtype="complex128",
+            environment_bond_dim=2,
+            iterations=4,
+            gauge_validation=True,
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+        ), tensors=[tensor])
+        self.assertEqual(result["environment_map"]["map_id"], "ctmrg-covariant-bilinear-v1")
+        self.assertEqual(result["ctmrg_projector"], "covariant-bilinear")
+        self.assertFalse(result["research_gate"]["production_ready"])
+        replay = result["covariant_reduced_boundary_sweep_replay"]
+        self.assertTrue(replay["performed"])
+        self.assertTrue(replay["passed"])
+        self.assertEqual(
+            [step["direction"] for step in replay["steps"]],
+            ["left", "right", "top", "bottom"],
+        )
+        self.assertLess(replay["maximum_covariance_edge_relative_error"], 1e-8)
+        self.assertTrue(any("integrated reduced-boundary replay passes" in warning for warning in result["warnings"]))
 
     def test_symmetry_sector_ensemble_restores_ghz_gauge_gate(self):
         tensor_data: list[list[float]] = []
@@ -529,6 +565,60 @@ class CTMRGTests(unittest.TestCase):
             )
             self.assertTrue(retained_report["passed"])
             self.assertGreater(retained_report["primal_dual_left_separation"], 1e-3)
+
+    def test_covariant_reduced_boundary_selector_is_gauge_covariant(self):
+        from qc_agent.core.ctmrg_gauge import select_covariant_reduced_boundary_pair
+
+        rng = np.random.default_rng(113)
+        left = rng.normal(size=(9, 4)) + 1j * rng.normal(size=(9, 4))
+        right = rng.normal(size=(9, 4)) + 1j * rng.normal(size=(9, 4))
+        left = left.astype(np.complex128)
+        right = right.astype(np.complex128)
+        primal, dual, report = select_covariant_reduced_boundary_pair(
+            np,
+            left,
+            right,
+            retained_dim=3,
+        )
+        self.assertTrue(report["passed"])
+        self.assertEqual(primal.shape, (9, 3))
+        self.assertEqual(dual.shape, (9, 3))
+        self.assertTrue(np.allclose(primal.T @ dual, np.eye(3), atol=1e-10))
+        self.assertEqual(report["rank_estimate"], 4)
+        self.assertGreater(report["discarded_weight"], 0.0)
+
+        gauge = np.array([
+            [1.3 + 0.1j, 0.2 - 0.2j, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0 + 0.1j, 0.8 - 0.05j, 0.1 + 0.2j, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0 + 0.2j, 1.1 - 0.1j, 0.15, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.9 + 0.2j, 0.05 - 0.1j, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 1.2, 0.1, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.95, 0.1j, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.05, 0.05, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.9, 0.1],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.15],
+        ], dtype=np.complex128)
+        gauged_primal, gauged_dual, gauged_report = select_covariant_reduced_boundary_pair(
+            np,
+            gauge @ left,
+            np.linalg.inv(gauge).T @ right,
+            retained_dim=3,
+        )
+        self.assertTrue(gauged_report["passed"])
+        self.assertLess(
+            np.linalg.norm(gauged_primal - gauge @ primal) / np.linalg.norm(gauged_primal),
+            1e-10,
+        )
+        self.assertLess(
+            np.linalg.norm(gauged_dual - np.linalg.inv(gauge).T @ dual) / np.linalg.norm(gauged_dual),
+            1e-10,
+        )
+        self.assertTrue(np.allclose(gauged_primal.T @ gauged_dual, np.eye(3), atol=1e-10))
+
+        singular_right = right.copy()
+        singular_right[:, 3] = singular_right[:, 0]
+        with self.assertRaises(ValueError):
+            select_covariant_reduced_boundary_pair(np, left, singular_right, retained_dim=4)
 
     def test_directional_boundary_gauge_map_matches_all_one_site_absorptions(self):
         from qc_agent.core.ctmrg import _double_layer, _initialize_environment

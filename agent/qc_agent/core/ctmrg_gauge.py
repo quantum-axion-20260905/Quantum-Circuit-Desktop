@@ -25,6 +25,14 @@ def _host_array(value: Any) -> Any:
     return value
 
 
+def _transpose(xp: Any, value: Any, axes: tuple[int, ...]) -> Any:
+    """Transpose a small diagnostic array across NumPy/CuPy/Torch backends."""
+
+    if getattr(xp, "__name__", "") == "torch":
+        return value.permute(*axes)
+    return value.transpose(axes)
+
+
 def virtual_leg_conditioning_report(
     xp: Any,
     tensors: list[Any],
@@ -889,6 +897,123 @@ def transport_bilinear_retained_basis_pair(
             "primal and dual forms are intentionally distinct for non-orthogonal gauges",
             "the caller must carry this split state through the complete directional sweep",
             "retained-subspace selection, rank safeguards, and fixed-point admission remain open",
+        ],
+    }
+
+
+def select_covariant_reduced_boundary_pair(
+    xp: Any,
+    left_factor: Any,
+    right_factor: Any,
+    retained_dim: int,
+    *,
+    relative_singular_floor: float = 1e-12,
+) -> tuple[Any, Any, dict[str, Any]]:
+    """Select a covariant primal/dual boundary pair from a reduced overlap.
+
+    The directional CTMRG factors are rectangular maps from the retained
+    boundary coordinates into an enlarged boundary space.  Under the paired
+    boundary gauge they transform as ``L' = K L`` and ``R' = K**(-T) R``.
+    Their bilinear reduced overlap
+
+    ``S = L.T @ R``
+
+    is therefore invariant.  An SVD of this *reduced* object, rather than an
+    SVD of a gauge-dependent enlarged matrix, gives coordinate coefficients
+    that are unchanged by the gauge.  If ``S = U diag(s) V.H``, the returned
+    pair is
+
+    ``P = L @ conj(U_k) @ diag(s_k**(-1/2))``
+    ``Q = R @ V_k       @ diag(s_k**(-1/2))``.
+
+    Consequently ``P.T @ Q = I`` and the pair transports as
+    ``P' = K P`` and ``Q' = K**(-T) Q``.  This is the reduced-boundary
+    selector needed by a tracked bilinear sweep.  It does not claim that the
+    resulting CTMRG map has converged, and it deliberately rejects a
+    rank-deficient retained overlap instead of silently using a pseudoinverse.
+    """
+
+    if getattr(left_factor, "ndim", None) != 2 or getattr(right_factor, "ndim", None) != 2:
+        raise ValueError("covariant reduced-boundary selection requires rank-2 factors")
+    if left_factor.shape != right_factor.shape:
+        raise ValueError("covariant reduced-boundary factors must have identical shapes")
+    rows, columns = (int(size) for size in left_factor.shape)
+    keep = int(retained_dim)
+    if keep < 1 or keep > columns:
+        raise ValueError("retained_dim must be between one and the factor column count")
+    floor = float(relative_singular_floor)
+    if not math.isfinite(floor) or floor <= 0.0:
+        raise ValueError("relative_singular_floor must be finite and positive")
+
+    overlap = left_factor.T @ right_factor
+    U, singular, Vh = xp.linalg.svd(overlap, full_matrices=False)
+    scale = max(_host_array(singular[0]) if int(singular.shape[0]) else 0.0, 1e-30)
+    threshold = scale * floor
+    if int(singular.shape[0]) < keep or _host_array(singular[keep - 1]) <= threshold:
+        raise ValueError(
+            "covariant reduced-boundary overlap is rank-deficient at the requested retained dimension"
+        )
+    if keep == columns:
+        # At the currently supported CTMRG point the reduced frame is square
+        # and no column truncation is requested.  Keeping the primal frame
+        # untouched and solving S.T @ Q.T = R.T is materially more stable in
+        # complex64 than rebuilding both frames from nearly-degenerate SVD
+        # vectors.  It also makes the exact covariance rule visible: P=L and
+        # Q=R@S**(-1), with no arbitrary singular-vector phases.
+        primal = left_factor
+        dual = _transpose(
+            xp,
+            xp.linalg.solve(
+                _transpose(xp, overlap, (1, 0)),
+                _transpose(xp, right_factor, (1, 0)),
+            ),
+            (1, 0),
+        )
+        normalization = "full-rank-primal-plus-transposed-linear-solve"
+    else:
+        U_keep = U[:, :keep]
+        V_keep = _transpose(xp, xp.conj(Vh[:keep, :]), (1, 0))
+        inverse_root = 1.0 / xp.sqrt(singular[:keep])
+        primal = (left_factor @ xp.conj(U_keep)) * inverse_root[None, :]
+        dual = (right_factor @ V_keep) * inverse_root[None, :]
+        normalization = "reduced-overlap-svd-square-root"
+
+    identity_kwargs = {"dtype": overlap.dtype}
+    if getattr(xp, "__name__", "") == "torch":
+        identity_kwargs["device"] = overlap.device
+    identity = xp.eye(keep, **identity_kwargs)
+    overlap_error = _host_array(xp.linalg.norm(primal.T @ dual - identity))
+    singular_host = [float(abs(value)) for value in _host_array(singular)]
+    retained_host = singular_host[:keep]
+    total = sum(value * value for value in singular_host)
+    discarded = sum(value * value for value in singular_host[keep:])
+    condition_number = retained_host[0] / max(retained_host[-1], 1e-30)
+    dtype_tolerance = 1e-6 if "64" in str(left_factor.dtype) else 1e-10
+    return primal, dual, {
+        "performed": True,
+        "method": "invariant-reduced-overlap-svd-covariant-selector",
+        "input_rows": rows,
+        "input_columns": columns,
+        "retained_columns": keep,
+        "relative_singular_floor": floor,
+        "singular_threshold": float(threshold),
+        "singular_values": singular_host,
+        "retained_singular_values": retained_host,
+        "normalization": normalization,
+        "rank_estimate": int(sum(value > threshold for value in singular_host)),
+        "overlap_condition_number": float(condition_number),
+        "discarded_weight": float(discarded / max(total, 1e-30)),
+        "biorthogonal_overlap_error": float(overlap_error),
+        "numerical_tolerance": dtype_tolerance,
+        "passed": bool(
+            math.isfinite(float(condition_number))
+            and float(overlap_error) <= dtype_tolerance
+        ),
+        "limitations": [
+            "the selector is covariant only for the declared paired bilinear factor contract",
+            "rank-deficient overlaps are rejected rather than regularized with a pseudoinverse",
+            "this selects a reduced boundary pair but does not establish CTMRG fixed-point convergence",
+            "multi-site state tracking and checkpoint persistence remain caller responsibilities",
         ],
     }
 

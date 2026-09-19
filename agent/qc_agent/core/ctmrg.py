@@ -36,6 +36,7 @@ from .ctmrg_gauge import (
     transport_ctm_environment,
     transport_directional_bilinear_projector_pair,
     transport_bilinear_retained_basis_pair,
+    select_covariant_reduced_boundary_pair,
     virtual_leg_conditioning_report,
 )
 from .ctmrg_environment import environment_map_for, validate_environment_map
@@ -333,6 +334,33 @@ def _ctm_move(
         # span.  It does not yet have a principled discarded-weight estimate;
         # zero here means "not estimated", and the result warning makes that
         # distinction explicit rather than fabricating a truncation weight.
+        return new_left, new_right, new_edge, 0.0
+
+    if projector_method == "covariant-bilinear":
+        # The directional factors form a paired bilinear frame: the left
+        # factor transforms with the column boundary map and the right factor
+        # with the row boundary map.  The reduced-overlap selector returns a
+        # primal P and dual Q with P.T@Q=I, so the edge contraction uses the
+        # row projector P and column projector Q.  Corner coordinates use the
+        # opposite dual/primal contractions; this is what keeps the reduced
+        # coordinate representation invariant under K/K**(-T).
+        primal, dual, _ = select_covariant_reduced_boundary_pair(
+            xp,
+            left_corner,
+            right_corner,
+            int(chi),
+        )
+        new_left = dual.T @ left_corner
+        new_right = primal.T @ right_corner
+        new_edge = xp.einsum(
+            "ia,idj,jb->adb",
+            primal,
+            grown_edge,
+            dual,
+        )
+        # The reduced overlap is square at the currently supported chi, so a
+        # zero tail means "no reduced-overlap truncation" rather than a claim
+        # about the physical CTMRG discarded weight.
         return new_left, new_right, new_edge, 0.0
 
     rho = left_corner @ xp.conj(left_corner).T + right_corner @ xp.conj(right_corner).T
@@ -966,7 +994,7 @@ def _fixed_point_classification(
 
     if converged:
         return "converged"
-    if projector == "biorthogonal-bilinear" and correlation_length is None:
+    if projector in {"biorthogonal-bilinear", "covariant-bilinear"} and correlation_length is None:
         return "degenerate-needs-review"
     return "unconverged"
 
@@ -1538,6 +1566,219 @@ def _tracked_bilinear_sweep_covariance_replay(
     }
 
 
+def _covariant_bilinear_sweep_covariance_replay(
+    xp: Any,
+    environment: CTMEnvironment,
+    gauged_environment: CTMEnvironment,
+    layer: Any,
+    gauged_layer: Any,
+    virtual_gauges: tuple[Any, Any, Any, Any],
+    boundary_dim: int,
+    chi: int,
+    *,
+    sweeps: int = 1,
+) -> dict[str, Any]:
+    """Replay the integrated reduced-overlap selector through real moves.
+
+    Unlike the earlier tracked-basis prototype, this replay selects ``P`` and
+    ``Q`` from the resident directional factors on every step and then calls
+    the actual ``covariant-bilinear`` move.  The transported gauge must obey
+    ``P' = K_col P`` and ``Q' = K_row Q``; the resulting corners are compared
+    in the reduced coordinate frame and the moved edge is compared after the
+    declared middle-leg map.  This remains a bounded replay, not a
+    thermodynamic fixed-point proof.
+    """
+
+    if int(sweeps) < 1:
+        raise ValueError("sweeps must be positive")
+    if int(boundary_dim) < 1 or int(chi) < 1:
+        raise ValueError("boundary_dim and chi must be positive")
+
+    directions = ("left", "right", "top", "bottom")
+    current = environment
+    current_gauged = gauged_environment
+    reports: list[dict[str, Any]] = []
+    move_by_direction = {
+        "left": _left_move,
+        "right": _right_move,
+        "top": _top_move,
+        "bottom": _bottom_move,
+    }
+
+    def relative_error(actual: Any, expected: Any) -> float:
+        scale = max(_max_abs(xp, expected), 1e-30)
+        return float(_host(xp.linalg.norm(actual - expected))) / scale
+
+    def moved_edge(environment_value: CTMEnvironment, direction: str) -> Any:
+        return getattr(environment_value, {
+            "left": "T4",
+            "right": "T2",
+            "top": "T1",
+            "bottom": "T3",
+        }[direction])
+
+    def moved_corners(environment_value: CTMEnvironment, direction: str) -> tuple[Any, Any]:
+        if direction == "left":
+            return environment_value.C1, environment_value.C4
+        if direction == "right":
+            return environment_value.C2, environment_value.C3
+        if direction == "top":
+            return environment_value.C1, environment_value.C2
+        return environment_value.C4, environment_value.C3
+
+    for sweep_index in range(int(sweeps)):
+        for direction in directions:
+            first, second, grown = _directional_boundary_factors(
+                xp, current, layer, direction
+            )
+            gauged_first, gauged_second, gauged_grown = _directional_boundary_factors(
+                xp, current_gauged, gauged_layer, direction
+            )
+            maps = directional_boundary_gauge_map(
+                xp,
+                virtual_gauges,
+                boundary_dim=int(boundary_dim),
+                direction=direction,
+            )
+            primal, dual, selector_report = select_covariant_reduced_boundary_pair(
+                xp, first, second, int(chi)
+            )
+            gauged_primal, gauged_dual, gauged_selector_report = (
+                select_covariant_reduced_boundary_pair(
+                    xp, gauged_first, gauged_second, int(chi)
+                )
+            )
+            original_left = dual.T @ first
+            original_right = primal.T @ second
+            original_edge = xp.einsum(
+                "ia,idj,jb->adb", primal, grown, dual
+            )
+            expected_gauged_left = gauged_dual.T @ gauged_first
+            expected_gauged_right = gauged_primal.T @ gauged_second
+            expected_gauged_edge = xp.einsum(
+                "ia,idj,jb->adb", gauged_primal, gauged_grown, gauged_dual
+            )
+            expected_edge = xp.einsum(
+                "oi,aid->aod", maps["grown_middle"], original_edge
+            )
+
+            move = move_by_direction[direction]
+            next_environment, discarded = move(
+                xp,
+                current,
+                layer,
+                int(chi),
+                projector_method="covariant-bilinear",
+            )
+            next_gauged_environment, gauged_discarded = move(
+                xp,
+                current_gauged,
+                gauged_layer,
+                int(chi),
+                projector_method="covariant-bilinear",
+            )
+            actual_corners = moved_corners(next_environment, direction)
+            actual_gauged_corners = moved_corners(next_gauged_environment, direction)
+            expected_corners = (original_left, original_right)
+            expected_gauged_corners = (expected_gauged_left, expected_gauged_right)
+            corner_output_error = max(
+                relative_error(actual_corners[0], expected_corners[0]),
+                relative_error(actual_corners[1], expected_corners[1]),
+            )
+            gauged_corner_output_error = max(
+                relative_error(actual_gauged_corners[0], expected_gauged_corners[0]),
+                relative_error(actual_gauged_corners[1], expected_gauged_corners[1]),
+            )
+            moved_edge_error = relative_error(
+                moved_edge(next_environment, direction), original_edge
+            )
+            gauged_moved_edge_error = relative_error(
+                moved_edge(next_gauged_environment, direction), expected_gauged_edge
+            )
+            covariance_edge_error = relative_error(
+                moved_edge(next_gauged_environment, direction), expected_edge
+            )
+            factor_errors = {
+                "corner_left_relative_error": relative_error(
+                    gauged_first, maps["corner_left"] @ first
+                ),
+                "corner_right_relative_error": relative_error(
+                    gauged_second, maps["corner_right"] @ second
+                ),
+                "grown_edge_relative_error": relative_error(
+                    gauged_grown,
+                    xp.einsum(
+                        "ab,bic,oi,dc->aod",
+                        maps["grown_row"],
+                        grown,
+                        maps["grown_middle"],
+                        maps["grown_col"],
+                    ),
+                ),
+                "primal_selector_transport_error": relative_error(
+                    gauged_primal, maps["grown_col"] @ primal
+                ),
+                "dual_selector_transport_error": relative_error(
+                    gauged_dual, maps["grown_row"] @ dual
+                ),
+            }
+            tolerance = 1e-6 if "64" in str(first.dtype) else 1e-10
+            reports.append({
+                "sweep": sweep_index + 1,
+                "direction": direction,
+                "factor_errors": factor_errors,
+                "selector": selector_report,
+                "gauged_selector": gauged_selector_report,
+                "corner_output_relative_error": corner_output_error,
+                "gauged_corner_output_relative_error": gauged_corner_output_error,
+                "moved_edge_relative_error": moved_edge_error,
+                "gauged_moved_edge_relative_error": gauged_moved_edge_error,
+                "covariance_edge_relative_error": covariance_edge_error,
+                "discarded_weight": float(discarded),
+                "gauged_discarded_weight": float(gauged_discarded),
+                "tolerance": tolerance,
+                "passed": bool(
+                    all(value <= tolerance for value in factor_errors.values())
+                    and corner_output_error <= tolerance
+                    and gauged_corner_output_error <= tolerance
+                    and moved_edge_error <= tolerance
+                    and gauged_moved_edge_error <= tolerance
+                    and covariance_edge_error <= tolerance
+                    and selector_report.get("passed", False)
+                    and gauged_selector_report.get("passed", False)
+                ),
+            })
+            current = next_environment
+            current_gauged = next_gauged_environment
+
+    return {
+        "performed": True,
+        "method": "integrated-covariant-reduced-boundary-sweep-replay",
+        "sweeps": int(sweeps),
+        "directions_per_sweep": list(directions),
+        "steps": reports,
+        "maximum_factor_relative_error": max(
+            (max(item["factor_errors"].values()) for item in reports),
+            default=0.0,
+        ),
+        "maximum_corner_output_relative_error": max(
+            (float(item["corner_output_relative_error"]) for item in reports),
+            default=0.0,
+        ),
+        "maximum_covariance_edge_relative_error": max(
+            (float(item["covariance_edge_relative_error"]) for item in reports),
+            default=0.0,
+        ),
+        "passed": bool(all(item["passed"] for item in reports)),
+        "limitations": [
+            "this is a bounded one-site replay from an explicitly transported environment",
+            "fresh initialization and multi-site periodic state tracking remain separate gates",
+            "the reduced-overlap tail is not a full physical discarded-weight proof",
+            "a passing replay does not establish a converged thermodynamic fixed point",
+        ],
+    }
+
+
 def _term_expectation(xp: Any, env: CTMEnvironment, tensor: Any, term: PauliTerm) -> float:
     if len(term.paulis) > 1:
         raise ValueError("one-site CTMRG onsite terms must act on at most one unit-cell site")
@@ -2081,7 +2322,7 @@ def run_ctmrg(
                 ensemble_result["warnings"].append(
                     f"virtual-gauge validation exceeded tolerance: max observable/energy delta {gauge_validation['max_abs_delta']:.3e}"
                 )
-                if payload.ctmrg_projector == "biorthogonal-bilinear":
+                if payload.ctmrg_projector in {"biorthogonal-bilinear", "covariant-bilinear"}:
                     ensemble_result["converged"] = False
                     ensemble_result["fixed_point_classification"] = _fixed_point_classification(
                         projector=payload.ctmrg_projector,
@@ -2089,7 +2330,7 @@ def run_ctmrg(
                         correlation_length=ensemble_result.get("correlation_length"),
                     )
                     ensemble_result["warnings"].append(
-                        "biorthogonal-bilinear fixed-point status is not admitted as converged while its paired-gauge probe fails"
+                        f"{payload.ctmrg_projector} fixed-point status is not admitted as converged while its paired-gauge probe fails"
                     )
             ensemble_result["research_gate"] = ctmrg_research_gate(
                 payload,
@@ -2404,7 +2645,7 @@ def run_ctmrg(
     gauge_conditioning = virtual_leg_conditioning_report(xp, tensors)
     environment_diagnostics = _environment_diagnostics(xp, environments)
     converged = bool(residual <= float(payload.tolerance))
-    if payload.ctmrg_projector == "biorthogonal-bilinear":
+    if payload.ctmrg_projector in {"biorthogonal-bilinear", "covariant-bilinear"}:
         transfer_gap_ready = environment_diagnostics.get("correlation_length") is not None
         converged = bool(converged and transfer_gap_ready)
     optimization_consistency_error: float | None = None
@@ -2451,6 +2692,20 @@ def run_ctmrg(
         if environment_diagnostics.get("correlation_length") is None:
             warnings.append(
                 "biorthogonal-bilinear transfer gap is unresolved; fixed-point status remains unconverged"
+            )
+    elif payload.ctmrg_projector == "covariant-bilinear":
+        warnings.extend([
+            "covariant-bilinear is an opt-in 1x1 research candidate using an invariant reduced-overlap SVD selector",
+            "covariant-bilinear reports reduced-overlap truncation diagnostics, not a full physical discarded-weight estimate",
+            "covariant-bilinear remains needs_review until fresh/transported paired-gauge and fixed-point gates pass",
+        ])
+        if raw_residual > max(float(payload.tolerance) * 10.0, 1e-6):
+            warnings.append(
+                f"covariant-bilinear raw boundary-basis residual is {raw_residual:.3e}; retain it as a basis diagnostic and require transfer-gap evidence before scientific use"
+            )
+        if environment_diagnostics.get("correlation_length") is None:
+            warnings.append(
+                "covariant-bilinear transfer gap is unresolved; fixed-point status remains unconverged"
             )
     if raw_residual > max(float(payload.tolerance) * 10.0, 1e-6) and residual <= float(payload.tolerance):
         warnings.append(
@@ -2536,6 +2791,10 @@ def run_ctmrg(
         "performed": False,
         "reason": "not run for this request",
     }
+    covariant_reduced_boundary_sweep_replay: dict[str, Any] = {
+        "performed": False,
+        "reason": "not run for this request",
+    }
     if bool(getattr(payload, "gauge_validation", False)):
         if int(payload.virtual_bond_dim) <= 1:
             gauge_validation["reason"] = "virtual_bond_dim=1 has no non-trivial virtual gauge probe"
@@ -2618,7 +2877,7 @@ def run_ctmrg(
                 tolerance=float(payload.gauge_validation_tolerance),
                 virtual_bond_dim=int(payload.virtual_bond_dim),
             )
-            if payload.ctmrg_projector == "biorthogonal-bilinear":
+            if payload.ctmrg_projector in {"biorthogonal-bilinear", "covariant-bilinear"}:
                 directional_boundary_transport_validation = _directional_boundary_transport_validation(
                     xp,
                     environments[0],
@@ -2628,28 +2887,49 @@ def run_ctmrg(
                     paired_virtual_gauge_matrices(xp, tensors[0]),
                     boundary_dim=int(environments[0].C1.shape[0]),
                 )
-                directional_sweep_covariance_replay = _directional_bilinear_sweep_covariance_replay(
-                    xp,
-                    environments[0],
-                    transported_environments[0],
-                    layers[0],
-                    gauged_layers[0],
-                    paired_virtual_gauge_matrices(xp, tensors[0]),
-                    boundary_dim=int(environments[0].C1.shape[0]),
-                    chi=int(payload.environment_bond_dim),
-                    sweeps=1,
-                )
-                tracked_basis_sweep_replay = _tracked_bilinear_sweep_covariance_replay(
-                    xp,
-                    environments[0],
-                    transported_environments[0],
-                    layers[0],
-                    gauged_layers[0],
-                    paired_virtual_gauge_matrices(xp, tensors[0]),
-                    boundary_dim=int(environments[0].C1.shape[0]),
-                    chi=int(payload.environment_bond_dim),
-                    sweeps=1,
-                )
+                if payload.ctmrg_projector == "biorthogonal-bilinear":
+                    directional_sweep_covariance_replay = _directional_bilinear_sweep_covariance_replay(
+                        xp,
+                        environments[0],
+                        transported_environments[0],
+                        layers[0],
+                        gauged_layers[0],
+                        paired_virtual_gauge_matrices(xp, tensors[0]),
+                        boundary_dim=int(environments[0].C1.shape[0]),
+                        chi=int(payload.environment_bond_dim),
+                        sweeps=1,
+                    )
+                    tracked_basis_sweep_replay = _tracked_bilinear_sweep_covariance_replay(
+                        xp,
+                        environments[0],
+                        transported_environments[0],
+                        layers[0],
+                        gauged_layers[0],
+                        paired_virtual_gauge_matrices(xp, tensors[0]),
+                        boundary_dim=int(environments[0].C1.shape[0]),
+                        chi=int(payload.environment_bond_dim),
+                        sweeps=1,
+                    )
+                else:
+                    covariant_reduced_boundary_sweep_replay = _covariant_bilinear_sweep_covariance_replay(
+                        xp,
+                        environments[0],
+                        transported_environments[0],
+                        layers[0],
+                        gauged_layers[0],
+                        paired_virtual_gauge_matrices(xp, tensors[0]),
+                        boundary_dim=int(environments[0].C1.shape[0]),
+                        chi=int(payload.environment_bond_dim),
+                        sweeps=1,
+                    )
+                    directional_sweep_covariance_replay = {
+                        "performed": False,
+                        "reason": "raw bilinear replay is not the covariant-bilinear candidate gate",
+                    }
+                    tracked_basis_sweep_replay = {
+                        "performed": False,
+                        "reason": "integrated covariant reduced-boundary replay used instead",
+                    }
                 transported_gauged_result = run_ctmrg(
                     xp,
                     probe_payload,
@@ -2691,24 +2971,33 @@ def run_ctmrg(
                     ),
                 }
                 warnings.append(
-                    "biorthogonal-bilinear transported-environment gauge probe is diagnostic-only; fresh paired-gauge validation remains the admission gate"
+                    f"{payload.ctmrg_projector} transported-environment gauge probe is diagnostic-only; fresh paired-gauge validation remains the admission gate"
                 )
-                if not directional_sweep_covariance_replay["passed"]:
+                if payload.ctmrg_projector == "biorthogonal-bilinear":
+                    if not directional_sweep_covariance_replay["passed"]:
+                        warnings.append(
+                            "biorthogonal-bilinear bounded directional sweep replay still loses covariance; tracked retained-basis transport remains unresolved"
+                        )
+                    if tracked_basis_sweep_replay["passed"]:
+                        warnings.append(
+                            "tracked primal/dual basis replay passes as a bounded prototype but is not integrated into the production CTMRG move"
+                        )
+                elif not covariant_reduced_boundary_sweep_replay["passed"]:
                     warnings.append(
-                        "biorthogonal-bilinear bounded directional sweep replay still loses covariance; tracked retained-basis transport remains unresolved"
+                        "covariant-bilinear integrated reduced-boundary replay did not pass; keep the policy in needs_review"
                     )
-                if tracked_basis_sweep_replay["passed"]:
+                else:
                     warnings.append(
-                        "tracked primal/dual basis replay passes as a bounded prototype but is not integrated into the production CTMRG move"
+                        "covariant-bilinear integrated reduced-boundary replay passes only from a transported environment; fresh initialization and fixed-point gates remain open"
                     )
             if not gauge_validation["passed"]:
                 warnings.append(
                     f"virtual-gauge validation exceeded tolerance: max observable/energy delta {gauge_validation['max_abs_delta']:.3e}"
                 )
-                if payload.ctmrg_projector == "biorthogonal-bilinear":
+                if payload.ctmrg_projector in {"biorthogonal-bilinear", "covariant-bilinear"}:
                     converged = False
                     warnings.append(
-                        "biorthogonal-bilinear fixed-point status is not admitted as converged while its paired-gauge probe fails"
+                        f"{payload.ctmrg_projector} fixed-point status is not admitted as converged while its paired-gauge probe fails"
                     )
     fixed_point_classification = _fixed_point_classification(
         projector=payload.ctmrg_projector,
@@ -2753,10 +3042,14 @@ def run_ctmrg(
         ),
         "non-nearest interaction displacements are not yet supported by the two-site-RDM contraction",
     ]
-    if payload.ctmrg_projector == "biorthogonal-bilinear":
+    if payload.ctmrg_projector in {"biorthogonal-bilinear", "covariant-bilinear"}:
         limitations.extend([
-            "biorthogonal-bilinear currently has no principled discarded-weight estimate",
-            "biorthogonal-bilinear is a 1x1 candidate and is not admitted to optimization or production use",
+            (
+                "biorthogonal-bilinear currently has no principled discarded-weight estimate"
+                if payload.ctmrg_projector == "biorthogonal-bilinear" else
+                "covariant-bilinear reduced-overlap tail is not a full physical discarded-weight estimate"
+            ),
+            f"{payload.ctmrg_projector} is a 1x1 candidate and is not admitted to optimization or production use",
         ])
     research_result = ResearchResult(
         status="needs_review",
@@ -2785,7 +3078,7 @@ def run_ctmrg(
             classification=fixed_point_classification,
             criterion=(
                 "normalized corner/edge residual plus resolved transfer-gap and paired-gauge checks"
-                if payload.ctmrg_projector == "biorthogonal-bilinear" else
+                if payload.ctmrg_projector in {"biorthogonal-bilinear", "covariant-bilinear"} else
                 "normalized corner/edge environment residual"
             ),
             points=points,
@@ -2818,6 +3111,7 @@ def run_ctmrg(
             "directional_boundary_transport_validation": directional_boundary_transport_validation,
             "directional_sweep_covariance_replay": directional_sweep_covariance_replay,
             "tracked_basis_sweep_replay": tracked_basis_sweep_replay,
+            "covariant_reduced_boundary_sweep_replay": covariant_reduced_boundary_sweep_replay,
             "gauge_conditioning": gauge_conditioning,
             "gauge_preconditioning": gauge_preconditioning,
             "research_gate": research_gate,
@@ -2866,6 +3160,7 @@ def run_ctmrg(
         "directional_boundary_transport_validation": directional_boundary_transport_validation,
         "directional_sweep_covariance_replay": directional_sweep_covariance_replay,
         "tracked_basis_sweep_replay": tracked_basis_sweep_replay,
+        "covariant_reduced_boundary_sweep_replay": covariant_reduced_boundary_sweep_replay,
         "gauge_conditioning": gauge_conditioning,
         "gauge_preconditioning": gauge_preconditioning,
         "research_gate": research_gate,
