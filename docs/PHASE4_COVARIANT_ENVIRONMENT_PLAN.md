@@ -630,6 +630,14 @@ request SHA-256 and unit-cell metadata with the checkpoint before any dynamic
 move is executed. A mismatch is rejected explicitly; the regression remains
 `183/183`.
 
+Commit `b09a955` adds a negative entangled 2x2 admission test. A deterministic
+random D=2 payload reaches a residual near `1.6e-8`, but its four transfer gaps
+remain approximately `2e-9`; the runner therefore reports
+`degenerate-needs-review`, `converged=false`, and finite energy rather than
+promoting the result. The full regression is `184/184`. This is the required
+scientific behavior: the dynamic backend can produce a bounded result, but it
+does not label an unresolved transfer sector production-ready.
+
 - For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - For comparison, CPU random D=2 seeds 17/29/41 on the raw candidate: replay remains red, with maximum factor error

@@ -35,7 +35,8 @@
     "dynamic_resumed_multisite_gauge_replay": true,
     "dynamic_payload_api": true,
     "dynamic_resume_request_identity_guard": true,
-    "full_regression": "183/183"
+    "dynamic_unresolved_transfer_gap_guard": true,
+    "full_regression": "184/184"
   },
   "cuda_smoke": {
     "available": true,
@@ -113,6 +114,24 @@
     "fresh_source": "fresh",
     "resumed_source": "checkpoint",
     "checkpoint_site_digest_count": 4,
+    "passed": true
+  },
+  "cpu_entangled_negative_probe": {
+    "available": true,
+    "seed": 83,
+    "unit_cell": [2, 2],
+    "dtype": "complex128",
+    "iterations": 4,
+    "residual": 1.5999998992377584e-08,
+    "transfer_gaps": [
+      2.000000e-09,
+      2.000000e-09,
+      2.000000e-09,
+      2.000000e-09
+    ],
+    "classification": "degenerate-needs-review",
+    "converged": false,
+    "production_ready": false,
     "passed": true
   },
   "interpretation": "The dynamic retained-sector selector is a tested reusable contract for the next rectangular environment state. It is not yet wired into the square fixed-chi CTMRG move and does not change public solver admission."
