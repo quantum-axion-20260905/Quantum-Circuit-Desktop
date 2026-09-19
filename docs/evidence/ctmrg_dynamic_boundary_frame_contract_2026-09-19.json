@@ -46,6 +46,7 @@
     "dynamic_torch_cpu_parity": true,
     "dynamic_boundary_mps_crosscheck": true,
     "dynamic_convergence_study": true,
+    "cuda_dynamic_convergence_endpoint": true,
     "full_regression": "192/192"
   },
   "cuda_smoke": {

@@ -716,6 +716,19 @@ restarts, and per-point research gates. The bounded CPU and CUDA `[1, 2]`
 studies show the intended diagnostic split: the product energy and finite
 reference are stable, while the `chi=2` transfer sector remains unresolved.
 
+### Current Phase 4 disposition
+
+The bounded dynamic boundary capability is complete as an opt-in research
+instrument, not as a generic entangled production solver. The evidence packet
+now fully characterizes the remaining failure: the covariant reduced frame is
+replay-safe, finite references are available, but the full-rank `chi=2`
+transfer sector can remain degenerate even when local energy is numerically
+stable. The next numerical strategy is therefore explicit: develop a
+sector-aware transfer fixed-point/boundary-MPS method, validate it first on the
+existing `[1, 2]` convergence study and finite-cylinder reference, then rerun
+the paired-gauge and optimizer gates. No local projector heuristic will be
+promoted in the meantime.
+
 ## 8. Definition of done
 
 Done means the covariant candidate either passes Packet F and is promoted as a
