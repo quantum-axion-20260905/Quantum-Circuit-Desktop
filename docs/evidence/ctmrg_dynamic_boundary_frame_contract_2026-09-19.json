@@ -1,7 +1,7 @@
 {
   "schema": "quantum-circuit/ctmrg-evidence-v1",
   "date": "2026-09-19",
-  "revision": "c1eb10f",
+  "revision": "38dcef5",
   "candidate": "covariant-bilinear-v2-contract",
   "environment_map": "ctmrg-covariant-dynamic-frame-v1",
   "scope": {
