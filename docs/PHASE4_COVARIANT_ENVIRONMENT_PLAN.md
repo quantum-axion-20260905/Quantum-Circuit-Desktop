@@ -592,6 +592,19 @@ list of dynamic environments, resume-time digest validation, and a fresh
 paired-gauge multi-site result replay after resume. Public payload policy and
 optimization remain intentionally unchanged until those gates pass.
 
+Commit `1a50944` completes the list-state checkpoint layer. A 2x2 checkpoint
+now stores site-ordered manifests and one digest per environment while
+preserving the single-site metadata format for compatibility. Load validates
+every digest, reconstructs the directional dimensions, and returns the same
+ordered list. A runner→checkpoint→load test recomputes the horizontal ZZ
+observable as `1.0`; the CUDA complex64 round-trip does the same. The full
+regression is now `181/181`.
+
+The dynamic state can therefore be resumed safely at the bounded 2x2 data
+structure level. A public resume API and a paired-gauge replay that starts
+from the resumed multi-site state are still the final evidence gates for this
+packet.
+
 - For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - For comparison, CPU random D=2 seeds 17/29/41 on the raw candidate: replay remains red, with maximum factor error
