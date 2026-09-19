@@ -508,6 +508,14 @@ uses this state. Only after that state survives the existing covariance replay
 and transfer-gap gates can dynamic retention be enabled in the public CTMRG
 policy.
 
+Commit `a3c69e8` now adds the immutable `DynamicCTMEnvironment` and
+`BoundaryDimensions` contracts. Corners and edges validate against explicit
+top/left/bottom/right dimensions, and `shape_manifest()` provides a stable
+schema for the upcoming checkpoint layer. The current square environment is
+unchanged; the new type is intentionally not silently substituted into old
+runs. Three additional shape-contract tests keep the full regression at
+`172/172`.
+
 - For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - For comparison, CPU random D=2 seeds 17/29/41 on the raw candidate: replay remains red, with maximum factor error
