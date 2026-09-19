@@ -1,7 +1,7 @@
 {
   "schema": "quantum-circuit/ctmrg-evidence-v1",
   "date": "2026-09-19",
-  "revision": "af1d437",
+  "revision": "4e94591",
   "candidate": "covariant-bilinear",
   "environment_map": "ctmrg-covariant-bilinear-v1",
   "scope": {
@@ -114,6 +114,13 @@
       "raw_component_relative_error": [1.2056870854014337, 1.2374257628739962, 1.2373829675350543, 1.2373797340913724],
       "converged": [false, false, false, false]
     },
+    "transfer_diagnostics_at_cpu_complex128_iteration_16": {
+      "transfer_ratio_by_site": [0.9999999980000003, 0.9999999980000003, 0.9999999979999998, 0.9999999979999998],
+      "transfer_gap_by_site": [1.999999721391532e-09, 1.999999721391532e-09, 2.000000165480742e-09, 2.000000165480742e-09],
+      "correlation_length": null,
+      "fixed_point_classification": "degenerate-needs-review",
+      "interpretation": "The leading and subleading transfer magnitudes are nearly degenerate; a finite correlation length is intentionally not reported."
+    },
     "cuda_complex64": {
       "iterations": [2, 4, 8],
       "residual": [1.63312245e-05, 1.62115282e-05, 1.63892344e-05],
@@ -129,11 +136,11 @@
     "command": "python -m unittest discover -s tests -p 'test_*.py'",
     "passed": true,
     "tests_run": 167,
-    "duration_seconds": 31.787
+    "duration_seconds": 31.310
   },
   "admission": {
     "status": "needs_review",
     "production_ready": false,
-    "reason": "Integrated transported-environment replay, bounded 2x2 onsite/two-site replay, and CPU/CUDA covariant frame-manifest resume pass, but fresh-gauge drift, the fixed-point residual floor, and longer-sweep interaction covariance are not closed."
+    "reason": "Integrated transported-environment replay, bounded 2x2 onsite/two-site replay, CPU/CUDA covariant frame-manifest resume, and explicit transfer-gap diagnostics pass, but fresh-gauge drift, the unresolved near-degenerate transfer gap, and longer-sweep interaction covariance are not closed."
   }
 }

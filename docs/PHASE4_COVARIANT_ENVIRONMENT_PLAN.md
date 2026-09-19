@@ -426,6 +426,9 @@ Commit `655aa2a` makes the covariant complex128 initialization floor explicit
 `1e-6` for degenerate-sector stability.
 Commit `af1d437` carries that policy through checkpoint metadata and resume
 results so fresh and resumed runs remain directly comparable.
+Commit `4e94591` exposes the transfer ratio, explicit gap, and eigenvalue
+magnitudes per unit-cell site; this makes the unresolved fixed-point gate
+quantitative rather than a missing diagnostic.
 Because a multi-site boundary can be represented in a different retained
 internal frame after transport, its replay gate compares normalized onsite
 observables while retaining raw component error as a diagnostic. CPU
@@ -443,6 +446,10 @@ but not full multi-site production admission: fixed-point interaction
 covariance and convergence remain separate gates. The next implementation is
 therefore fixed-point/longer-sweep validation, not a looser raw-component
 tolerance.
+
+At the current 2x2 complex128 point the four transfer gaps are approximately
+`2.0e-9`, so the declared finite correlation length is correctly withheld and
+the fixed-point classification remains `degenerate-needs-review`.
 
 The bounded longer-sweep campaign confirms that the remaining gate is
 algorithmic rather than a missing replay tolerance. CPU complex128 2x2 at 16
