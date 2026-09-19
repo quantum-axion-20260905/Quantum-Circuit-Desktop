@@ -1,7 +1,7 @@
 {
   "artifact": "ctmrg-2x2-gauge-baseline",
   "date": "2026-09-19",
-  "revision": "pending-commit",
+  "revision": "e4ecf27",
   "scope": {
     "unit_cell": [2, 2],
     "virtual_bond_dim": 2,
