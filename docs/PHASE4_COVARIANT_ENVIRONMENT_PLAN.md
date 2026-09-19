@@ -424,6 +424,8 @@ host/device conversion.
 Commit `655aa2a` makes the covariant complex128 initialization floor explicit
 (`1e-9`) and reports it in the result; the baseline and complex64 floor remain
 `1e-6` for degenerate-sector stability.
+Commit `af1d437` carries that policy through checkpoint metadata and resume
+results so fresh and resumed runs remain directly comparable.
 Because a multi-site boundary can be represented in a different retained
 internal frame after transport, its replay gate compares normalized onsite
 observables while retaining raw component error as a diagnostic. CPU
