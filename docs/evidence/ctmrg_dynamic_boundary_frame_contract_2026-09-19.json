@@ -28,5 +28,14 @@
     "dynamic_covariant_move_kernel": true,
     "full_regression": "174/174"
   },
+  "cuda_smoke": {
+    "available": true,
+    "device": 0,
+    "dtype": "complex64",
+    "rank_reduced": true,
+    "output_shapes": [[1, 2], [1, 2], [1, 3, 1]],
+    "biorthogonal_overlap_error": 5.960464477539063e-08,
+    "passed": true
+  },
   "interpretation": "The dynamic retained-sector selector is a tested reusable contract for the next rectangular environment state. It is not yet wired into the square fixed-chi CTMRG move and does not change public solver admission."
 }

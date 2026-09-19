@@ -533,7 +533,9 @@ rank-deficient synthetic case proves that the edge becomes rectangular
 (`1 x d2 x 1`) instead of being padded or silently pseudoinverted; the full
 regression is now `174/174`. This is a reusable directional kernel, not yet a
 complete periodic CTMRG sweep: neighboring corner dimension propagation and
-normalization remain the next integration gate.
+normalization remain the next integration gate. A bounded CUDA complex64
+smoke also passes on device 0 with the same `1 x d2 x 1` output and
+`5.96e-8` biorthogonal overlap error.
 
 - For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
