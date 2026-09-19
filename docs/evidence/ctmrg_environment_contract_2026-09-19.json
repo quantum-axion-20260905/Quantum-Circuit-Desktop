@@ -26,6 +26,13 @@
   "verification": {
     "focused_tests": "3/3 passed",
     "full_agent_suite": "152/152 passed",
+    "cuda_product_smoke": {
+      "device": "cuda:0",
+      "dtype": "complex64",
+      "energy": -1.0,
+      "converged": true,
+      "map_id": "ctmrg-half-density-v1"
+    },
     "result_contains_environment_map": true,
     "research_result_contains_environment_map": true,
     "checkpoint_contains_environment_map": true,

@@ -131,7 +131,8 @@ features.
   fused-edge, directional-order, and gauge-convention metadata. Results,
   research envelopes, and checkpoints carry the map; resume rejects a map
   mismatch. The contract passes `152/152` tests and is recorded in
-  `docs/evidence/ctmrg_environment_contract_2026-09-19.json`. This freezes the
+  `docs/evidence/ctmrg_environment_contract_2026-09-19.json`; the bounded CUDA
+  product smoke also returned `E=-1.0` with the same map id. This freezes the
   baseline identity but does not yet prove gauge covariance; C2 is the next
   candidate-map implementation.
 
