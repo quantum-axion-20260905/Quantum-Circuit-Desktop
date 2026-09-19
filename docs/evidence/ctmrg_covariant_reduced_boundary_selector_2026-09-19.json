@@ -1,7 +1,7 @@
 {
   "schema": "quantum-circuit/ctmrg-evidence-v1",
   "date": "2026-09-19",
-  "revision": "0024a04",
+  "revision": "cf34524",
   "candidate": "covariant-bilinear",
   "environment_map": "ctmrg-covariant-bilinear-v1",
   "scope": {
@@ -62,7 +62,15 @@
     "saved_map_id": "ctmrg-covariant-bilinear-v1",
     "resumed_map_id": "ctmrg-covariant-bilinear-v1",
     "resumed_initial_environment_source": "checkpoint",
-    "note": "The full-rank selector is reconstructed deterministically from the checkpointed environment and versioned map; no hidden selector array is required for the current 1x1 path."
+    "covariant_frame_manifest": {
+      "schema": "quantum-circuit/ctmrg-covariant-frame-v1",
+      "multisite_site_count": 4,
+      "selector_summary_count": 16,
+      "cpu_roundtrip_passed": true,
+      "cuda_roundtrip_passed": true,
+      "cuda_resume_interaction_replay_abs_error": 2.98023224e-08
+    },
+    "note": "The selector is reconstructed deterministically from the checkpointed environment and versioned map; the new manifest records per-site/per-direction summaries and rejects a digest mismatch on resume."
   },
   "multisite_probe": {
     "unit_cell": [2, 2],
@@ -91,17 +99,17 @@
       "time_ms": 1086.252
     },
     "passed": true,
-    "interpretation": "The bounded public 2x2 covariant path preserves normalized onsite and horizontal Z tensor-product observables through one real periodic sweep on CPU and CUDA. Raw boundary entries can differ by an internal retained-basis frame and remain diagnostic. Full fixed-point interaction covariance, explicit multi-site checkpoint frame state, fresh gauge invariance, and convergence remain open gates."
+    "interpretation": "The bounded public 2x2 covariant path preserves normalized onsite and horizontal Z tensor-product observables through one real periodic sweep on CPU and CUDA. Raw boundary entries can differ by an internal retained-basis frame and remain diagnostic. Full fixed-point interaction covariance, fresh gauge invariance, and convergence remain open gates; the bounded checkpoint frame manifest is now covered."
   },
   "regression": {
     "command": "python -m unittest discover -s tests -p 'test_*.py'",
     "passed": true,
-    "tests_run": 166,
-    "duration_seconds": 41.798
+    "tests_run": 167,
+    "duration_seconds": 42.831
   },
   "admission": {
     "status": "needs_review",
     "production_ready": false,
-    "reason": "Integrated transported-environment replay, bounded 2x2 normalized-observable replay, and 1x1 checkpoint resume pass, but fresh-gauge drift, the fixed-point residual floor, two-site interaction covariance, and multi-site checkpoint frame semantics are not closed."
+    "reason": "Integrated transported-environment replay, bounded 2x2 onsite/two-site replay, and CPU/CUDA covariant frame-manifest resume pass, but fresh-gauge drift, the fixed-point residual floor, and longer-sweep interaction covariance are not closed."
   }
 }

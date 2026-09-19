@@ -409,7 +409,7 @@ using a pseudoinverse, and is wired into the real one-site `_ctm_move` path.
 The integrated four-direction replay now calls that real move rather than a
 hand-built prototype. CPU complex128 replay passes for seeds 17/29/41. The
 bounded CUDA complex64 smoke also passes, with maximum covariance-edge error
-`4.42e-7` against the declared `1e-6` gate. Full regression is now `166/166`;
+`4.42e-7` against the declared `1e-6` gate. Full regression is now `167/167`;
 commit `dcedbe8` also rejects the unsupported covariant sector-ensemble
 combination at payload validation instead of allowing a runtime rank failure.
 Evidence: `docs/evidence/ctmrg_covariant_reduced_boundary_selector_2026-09-19.json`.
@@ -418,7 +418,9 @@ The current 1x1 checkpoint path also round-trips the covariant map and resumes
 from the checkpointed environment with the same map id. Commit `1f944f8` also
 enables the covariant policy for bounded 2x2 cells and runs the actual periodic
 unit-cell sweep. Commit `0024a04` adds the bounded two-site interaction replay
-to that same gate.
+to that same gate. Commit `cf34524` adds a versioned per-site/per-direction
+retained-frame manifest, digest validation on resume, and CUDA-safe checkpoint
+host/device conversion.
 Because a multi-site boundary can be represented in a different retained
 internal frame after transport, its replay gate compares normalized onsite
 observables while retaining raw component error as a diagnostic. CPU
@@ -428,11 +430,13 @@ maximum errors of `1.3e-15--3.8e-15`; the raw component discrepancy is about
 replay now checks a horizontal `Z⊗Z` interaction with error
 `1.4e-16--2.0e-16`; a bounded CUDA complex64 2x2 smoke passes onsite replay at
 `1.15e-7` and interaction replay at `4.84e-8`, while raw component error is
-`1.21`. This is a real bounded research capability, but not full multi-site
-production admission: fixed-point interaction covariance, explicit
-retained-frame checkpoint state, and convergence remain separate gates. The
-next implementation is therefore frame-aware multi-site checkpoint validation,
-not a looser raw-component tolerance.
+`1.21`. The new 2x2 checkpoint manifest round-trips all 16 selector summaries
+and its digest on CPU and CUDA; the bounded CUDA resume also passes the
+interaction replay at `2.98e-8`. This is a real bounded research capability,
+but not full multi-site production admission: fixed-point interaction
+covariance and convergence remain separate gates. The next implementation is
+therefore fixed-point/longer-sweep validation, not a looser raw-component
+tolerance.
 
 This closes the local retained-boundary covariance seam, not Phase 4
 admission. Fresh paired-gauge drift at four iterations is still
