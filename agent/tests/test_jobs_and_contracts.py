@@ -100,6 +100,28 @@ class UnifiedApiTests(unittest.TestCase):
         self.assertIn("/jobs/ctmrg/dynamic/convergence", paths)
         self.assertIn("/jobs/ctmrg/dynamic/sectors", paths)
 
+    def test_ctmrg_study_preflight_prices_sequential_points(self):
+        from qc_agent.server import _scale_ctmrg_study_preflight
+
+        ready = _scale_ctmrg_study_preflight(
+            {"feasible": True, "status": "ready", "estimated_time_ms": 11, "warnings": []},
+            point_count=4,
+            max_time_ms=50,
+        )
+        self.assertEqual(ready["estimated_point_time_ms"], 11)
+        self.assertEqual(ready["estimated_total_time_ms"], 44)
+        self.assertEqual(ready["estimated_time_ms"], 44)
+        self.assertTrue(ready["feasible"])
+
+        rejected = _scale_ctmrg_study_preflight(
+            {"feasible": True, "status": "ready", "estimated_time_ms": 11, "warnings": []},
+            point_count=5,
+            max_time_ms=50,
+        )
+        self.assertFalse(rejected["feasible"])
+        self.assertEqual(rejected["status"], "rejected")
+        self.assertTrue(any("study time" in warning for warning in rejected["warnings"]))
+
     def test_async_physics_defaults_resolve_tensor_network_backend(self):
         from qc_agent.server import _async_backend, _async_parse
 

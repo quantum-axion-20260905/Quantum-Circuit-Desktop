@@ -4,6 +4,7 @@ from itertools import product
 from concurrent.futures import ThreadPoolExecutor
 from contextvars import ContextVar
 from functools import wraps
+import math
 from typing import Any, Literal
 import os
 import secrets
@@ -243,6 +244,32 @@ def _with_run_provenance(
         agent_version=app.version,
         seed=seed,
     )
+
+
+def _scale_ctmrg_study_preflight(
+    report: dict[str, Any],
+    *,
+    point_count: int,
+    max_time_ms: int,
+) -> dict[str, Any]:
+    """Price sequential CTMRG study points against the caller's full budget."""
+
+    points = max(1, int(point_count))
+    point_time = report.get("estimated_time_ms")
+    report["study_points"] = points
+    report["estimated_point_time_ms"] = point_time
+    if point_time is None:
+        return report
+    total_time = max(1, int(math.ceil(float(point_time) * points)))
+    report["estimated_time_ms"] = total_time
+    report["estimated_total_time_ms"] = total_time
+    if total_time > int(max_time_ms):
+        warning = f"estimated CTMRG study time {total_time} ms exceeds time budget {int(max_time_ms)} ms"
+        report.setdefault("warnings", []).append(warning)
+        report.setdefault("blocking_warnings", []).append(warning)
+        report["status"] = "rejected"
+        report["feasible"] = False
+    return report
 
 
 def _reference_run(payload: RunPayload) -> dict[str, Any]:
@@ -668,6 +695,11 @@ def jobs_ctmrg_convergence(payload: CTMRGConvergenceStudyPayload) -> dict[str, A
         "max_mem_mb": payload.max_mem_mb,
     })
     report = preflight_ctmrg(max_payload, gpu_free_mb=_gpu_free_mb(_hardware_snapshot()))
+    report = _scale_ctmrg_study_preflight(
+        report,
+        point_count=len(payload.environment_bond_dims),
+        max_time_ms=payload.max_time_ms,
+    )
     if not report.get("feasible", False):
         raise HTTPException(
             status_code=422,
@@ -703,7 +735,11 @@ def jobs_ctmrg_dynamic_convergence(payload: CTMRGConvergenceStudyPayload) -> dic
     })
     report = preflight_ctmrg(max_payload, gpu_free_mb=_gpu_free_mb(_hardware_snapshot()))
     report["dynamic_study"] = True
-    report["study_points"] = len(payload.environment_bond_dims)
+    report = _scale_ctmrg_study_preflight(
+        report,
+        point_count=len(payload.environment_bond_dims),
+        max_time_ms=payload.max_time_ms,
+    )
     if not report.get("feasible", False):
         raise HTTPException(
             status_code=422,
@@ -736,9 +772,17 @@ def jobs_ctmrg_dynamic_sectors(payload: CTMRGDynamicSectorStudyPayload) -> dict[
 
     resolved = _resolve_or_http(payload.backend, "ctmrg")
     require_gpu(cp)
-    report = preflight_ctmrg(payload.problem, gpu_free_mb=_gpu_free_mb(_hardware_snapshot()))
+    max_payload = payload.problem.model_copy(update={
+        "max_time_ms": payload.max_time_ms,
+        "max_mem_mb": payload.max_mem_mb,
+    })
+    report = preflight_ctmrg(max_payload, gpu_free_mb=_gpu_free_mb(_hardware_snapshot()))
     report["dynamic_sector_study"] = True
-    report["study_points"] = len(payload.initialization_seeds)
+    report = _scale_ctmrg_study_preflight(
+        report,
+        point_count=len(payload.initialization_seeds),
+        max_time_ms=payload.max_time_ms,
+    )
     if not report.get("feasible", False):
         raise HTTPException(
             status_code=422,
