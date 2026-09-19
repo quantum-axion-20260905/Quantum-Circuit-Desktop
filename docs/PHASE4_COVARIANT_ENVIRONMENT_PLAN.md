@@ -188,6 +188,9 @@ generic random fixture, transported deltas remain `1.13e-4--3.62e-4`.
 Therefore transport removes a degenerate-sector initialization artifact but
 does not solve the generic covariant truncation problem. Evidence:
 `docs/evidence/ctmrg_transported_gauge_probe_2026-09-19.json`.
+The result also records `initialization_sensitive` and the transported/fresh
+drift ratio, so downstream replay and UI layers do not have to infer whether
+transport actually helped from two unrelated numbers.
 
 Packet C4’s current baseline consistency gate also passes: the Torch unrolled
 and implicit CTMRG suite is `12/12`, including six bounded GPU tests, central

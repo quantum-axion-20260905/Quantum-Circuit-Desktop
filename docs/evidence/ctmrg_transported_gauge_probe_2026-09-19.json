@@ -1,7 +1,7 @@
 {
   "artifact": "ctmrg-transported-environment-gauge-probe",
   "date": "2026-09-19",
-  "revision": "0b3d128",
+  "revision": "8df7e62",
   "scope": {
     "projector_policy": "biorthogonal-bilinear",
     "unit_cell": [1, 1],
@@ -21,6 +21,8 @@
     "fresh_passed": false,
     "transported_max_abs_delta": 1.0719940197275063e-13,
     "transported_passed": true,
+    "initialization_sensitive": true,
+    "transported_improvement_ratio": 1.0719940197274866e-13,
     "classification": "unconverged",
     "interpretation": "transport removes the GHZ initialization-sector drift, but this does not establish covariance of a generic truncated fixed point"
   },
@@ -32,21 +34,27 @@
         "fresh_max_abs_delta": 0.000317095982938706,
         "fresh_passed": false,
         "transported_max_abs_delta": 0.00036206474892018503,
-        "transported_passed": false
+        "transported_passed": false,
+        "initialization_sensitive": false,
+        "transported_improvement_ratio": 1.141203323093184
       },
       {
         "seed": 29,
         "fresh_max_abs_delta": 5.147810215130888e-05,
         "fresh_passed": true,
         "transported_max_abs_delta": 0.00011328881691011206,
-        "transported_passed": false
+        "transported_passed": false,
+        "initialization_sensitive": false,
+        "transported_improvement_ratio": 2.200369663197815
       },
       {
         "seed": 41,
         "fresh_max_abs_delta": 6.0464985713243324e-05,
         "fresh_passed": true,
         "transported_max_abs_delta": 0.00022890085852858566,
-        "transported_passed": false
+        "transported_passed": false,
+        "initialization_sensitive": false,
+        "transported_improvement_ratio": 3.785727281999071
       }
     ]
   },
