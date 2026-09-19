@@ -181,6 +181,13 @@ Neither passes the `1e-4` gate, so the SVD variant was not admitted to the
 code path. Evidence:
 `docs/evidence/ctmrg_bilinear_projector_variant_probe_2026-09-19.json`.
 
+An extended eight-iteration retained-subspace probe confirms the same result:
+QR and biorthogonal-QR subspaces worsen the gauge gate, while SVD balancing
+only changes residual scale and leaves the paired-gauge drift unchanged.
+The next candidate must therefore change the reduced-boundary object itself,
+not merely orthogonalize or renormalize the current corner span. Evidence:
+`docs/evidence/ctmrg_bilinear_subspace_probe_2026-09-19.json`.
+
 The solver now exposes an internal transported-environment gauge diagnostic.
 On the GHZ fixture, fresh initialization drift is approximately `1.0`, while
 the explicitly transported resident environment gives `1.1e-13`; on the

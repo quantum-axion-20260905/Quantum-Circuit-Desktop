@@ -1,0 +1,40 @@
+{
+  "artifact": "ctmrg-bilinear-retained-subspace-probe",
+  "date": "2026-09-19",
+  "revision": "8df7e62",
+  "scope": {
+    "projector_policy": "biorthogonal-bilinear",
+    "unit_cell": [1, 1],
+    "virtual_bond_dim": 2,
+    "environment_bond_dim": 2,
+    "iterations": 8,
+    "dtype": "complex128",
+    "fixture": "deterministic random D=2 seeds 17/29/41; onsite Z=1 and nearest-neighbor ZZ=1",
+    "method": "in-memory projector substitution; no production code changed"
+  },
+  "variants": {
+    "raw-dual-span": [
+      {"seed": 17, "residual": 1.285601332827989e-16, "gauge_delta": 0.000317095982938706, "gauge_passed": false},
+      {"seed": 29, "residual": 8.8591346609466e-17, "gauge_delta": 5.147810215130888e-05, "gauge_passed": true},
+      {"seed": 41, "residual": 8.831587361951734e-17, "gauge_delta": 6.0464985713243324e-05, "gauge_passed": true}
+    ],
+    "qr-orthogonal-span": [
+      {"seed": 17, "residual": 8.992806499463768e-15, "gauge_delta": 0.08377820329754682, "gauge_passed": false},
+      {"seed": 29, "residual": 1.5543122344752192e-15, "gauge_delta": 0.0029145823395030895, "gauge_passed": false},
+      {"seed": 41, "residual": 1.5543122344752192e-15, "gauge_delta": 0.12405536200189124, "gauge_passed": false}
+    ],
+    "biorthogonal-qr": [
+      {"seed": 17, "residual": 5.417888360170764e-14, "gauge_delta": 0.004574755833250621, "gauge_passed": false},
+      {"seed": 29, "residual": 3.999931998399653e-06, "gauge_delta": 5.147810215161419e-05, "gauge_passed": true},
+      {"seed": 41, "residual": 3.999899991891098e-06, "gauge_delta": 6.04649857136319e-05, "gauge_passed": true}
+    ],
+    "svd-balanced": [
+      {"seed": 17, "residual": 2.8679627568695132e-05, "gauge_delta": 0.0003170959829389003, "gauge_passed": false},
+      {"seed": 29, "residual": 3.097785127159636e-05, "gauge_delta": 5.147810215219706e-05, "gauge_passed": true},
+      {"seed": 41, "residual": 9.540060019297414e-06, "gauge_delta": 6.04649856595918e-05, "gauge_passed": true}
+    ]
+  },
+  "decision": "retain-raw-opt-in-only",
+  "conclusion": "QR-based retained-subspace choices are materially worse. SVD balancing changes numerical residuals but does not improve paired-gauge drift. No alternate subspace construction is admitted; the next strategy must change the reduced-boundary object itself rather than only its internal basis normalization.",
+  "resource_note": "CPU-only bounded comparison; no GPU or RAM-heavy sweep"
+}
