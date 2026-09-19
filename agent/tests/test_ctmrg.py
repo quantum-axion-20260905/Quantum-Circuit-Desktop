@@ -1148,6 +1148,7 @@ class CTMRGTests(unittest.TestCase):
             }))
             fresh = run_ctmrg(np, payload.model_copy(update={"iterations": 4}))
             self.assertEqual(resumed["unit_cell"], [2, 2])
+            self.assertEqual(resumed["initial_environment_source"], "checkpoint")
             self.assertEqual(resumed["checkpoint"]["metadata"]["environment_count"], 4)
             self.assertAlmostEqual(resumed["energy"], fresh["energy"], places=6)
 

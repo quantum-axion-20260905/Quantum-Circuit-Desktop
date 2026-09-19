@@ -1673,6 +1673,7 @@ def run_ctmrg(
         discarded_total = float(metadata.get("discarded_weight_total", 0.0))
         residual = float(metadata.get("residual", math.inf))
         environments = _environments_from_arrays(arrays, len(tensors))
+        initial_environment_source = "checkpoint"
         checkpoint_info = manifest
 
     def save_iteration_checkpoint(iteration: int) -> None:
