@@ -764,6 +764,77 @@ class CTMRGTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             select_covariant_reduced_boundary_pair(np, left, singular_right, retained_dim=4)
 
+    def test_dynamic_covariant_boundary_frame_reports_full_rank_contract(self):
+        from qc_agent.core.ctmrg_gauge import (
+            select_covariant_dynamic_boundary_frame,
+            select_covariant_reduced_boundary_pair,
+        )
+
+        rng = np.random.default_rng(211)
+        left = (rng.normal(size=(8, 3)) + 1j * rng.normal(size=(8, 3))).astype(np.complex128)
+        right = (rng.normal(size=(8, 3)) + 1j * rng.normal(size=(8, 3))).astype(np.complex128)
+        dynamic_primal, dynamic_dual, dynamic_report = select_covariant_dynamic_boundary_frame(
+            np,
+            left,
+            right,
+            requested_dim=2,
+        )
+        reference_primal, reference_dual, reference_report = select_covariant_reduced_boundary_pair(
+            np,
+            left,
+            right,
+            retained_dim=2,
+        )
+
+        self.assertTrue(dynamic_report["passed"])
+        self.assertTrue(dynamic_report["dynamic_frame"])
+        self.assertFalse(dynamic_report["rank_reduced"])
+        self.assertEqual(dynamic_report["requested_retained_dim"], 2)
+        self.assertEqual(dynamic_report["retained_dim"], 2)
+        self.assertEqual(dynamic_report["rank_estimate"], 3)
+        self.assertEqual(dynamic_primal.shape, (8, 2))
+        self.assertTrue(np.allclose(dynamic_primal, reference_primal, atol=1e-10))
+        self.assertTrue(np.allclose(dynamic_dual, reference_dual, atol=1e-10))
+        self.assertEqual(dynamic_report["normalization"], reference_report["normalization"])
+        self.assertTrue(np.allclose(dynamic_primal.T @ dynamic_dual, np.eye(2), atol=1e-10))
+
+    def test_dynamic_covariant_boundary_frame_reduces_rank_explicitly(self):
+        from qc_agent.core.ctmrg_gauge import select_covariant_dynamic_boundary_frame
+
+        left = np.array(
+            [[1.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+            dtype=np.complex128,
+        )
+        right = np.array(
+            [[2.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+            dtype=np.complex128,
+        )
+        primal, dual, report = select_covariant_dynamic_boundary_frame(
+            np,
+            left,
+            right,
+            requested_dim=2,
+        )
+
+        self.assertTrue(report["passed"])
+        self.assertTrue(report["dynamic_frame"])
+        self.assertTrue(report["rank_reduced"])
+        self.assertEqual(report["requested_retained_dim"], 2)
+        self.assertEqual(report["rank_estimate"], 1)
+        self.assertEqual(report["retained_dim"], 1)
+        self.assertEqual(primal.shape, (3, 1))
+        self.assertEqual(dual.shape, (3, 1))
+        self.assertTrue(np.allclose(primal.T @ dual, np.eye(1), atol=1e-10))
+        self.assertFalse(report["fixed_chi_admission"])
+        self.assertTrue(any("rectangular" in item for item in report["limitations"]))
+
+    def test_dynamic_covariant_boundary_frame_rejects_empty_sector(self):
+        from qc_agent.core.ctmrg_gauge import select_covariant_dynamic_boundary_frame
+
+        zero = np.zeros((4, 2), dtype=np.complex128)
+        with self.assertRaisesRegex(ValueError, "no numerically retained sector"):
+            select_covariant_dynamic_boundary_frame(np, zero, zero, requested_dim=2)
+
     def test_directional_boundary_gauge_map_matches_all_one_site_absorptions(self):
         from qc_agent.core.ctmrg import _double_layer, _initialize_environment
         from qc_agent.core.ctmrg_gauge import (

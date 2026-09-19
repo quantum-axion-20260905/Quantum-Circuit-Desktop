@@ -1018,6 +1018,86 @@ def select_covariant_reduced_boundary_pair(
     }
 
 
+def select_covariant_dynamic_boundary_frame(
+    xp: Any,
+    left_factor: Any,
+    right_factor: Any,
+    requested_dim: int,
+    *,
+    relative_singular_floor: float = 1e-12,
+) -> tuple[Any, Any, dict[str, Any]]:
+    """Select the largest admissible covariant frame at a requested dimension.
+
+    This is the v2 seam for a dynamically retained CTMRG sector.  The fixed-
+    ``chi`` selector above intentionally rejects a deficient reduced overlap;
+    a rectangular environment map needs a different contract: it must expose
+    the effective rank and return a frame whose retained dimension is no
+    larger than that rank.  The invariant overlap ``L.T @ R`` is inspected
+    first, so no pseudoinverse or hidden regularization can manufacture a
+    sector that the factors do not support.
+
+    When the requested dimension is available, the established selector is
+    reused unchanged.  When the overlap is rank-deficient, the same reduced
+    overlap SVD construction is applied at its numerical rank.  The returned
+    report explicitly marks the result as a reduced frame; callers must not
+    pass it to the current square fixed-``chi`` CTMRG move until they adopt a
+    rectangular environment/state contract.
+    """
+
+    if getattr(left_factor, "ndim", None) != 2 or getattr(right_factor, "ndim", None) != 2:
+        raise ValueError("dynamic covariant boundary selection requires rank-2 factors")
+    if left_factor.shape != right_factor.shape:
+        raise ValueError("dynamic covariant boundary factors must have identical shapes")
+    _, columns = (int(size) for size in left_factor.shape)
+    requested = int(requested_dim)
+    if requested < 1 or requested > columns:
+        raise ValueError("requested_dim must be between one and the factor column count")
+    floor = float(relative_singular_floor)
+    if not math.isfinite(floor) or floor <= 0.0:
+        raise ValueError("relative_singular_floor must be finite and positive")
+
+    overlap = left_factor.T @ right_factor
+    _, singular, _ = xp.linalg.svd(overlap, full_matrices=False)
+    singular_host = [float(abs(value)) for value in _host_array(singular)]
+    scale = max(singular_host[0] if singular_host else 0.0, 1e-30)
+    threshold = scale * floor
+    rank_estimate = int(sum(value > threshold for value in singular_host))
+    if rank_estimate < 1:
+        raise ValueError("dynamic covariant boundary overlap has no numerically retained sector")
+
+    retained = min(requested, rank_estimate)
+    primal, dual, report = select_covariant_reduced_boundary_pair(
+        xp,
+        left_factor,
+        right_factor,
+        retained_dim=retained,
+        relative_singular_floor=relative_singular_floor,
+    )
+    report = dict(report)
+    report.update(
+        {
+            "schema": "quantum-circuit/ctmrg-covariant-dynamic-frame-v1",
+            "method": "invariant-reduced-overlap-dynamic-covariant-selector",
+            "requested_retained_dim": requested,
+            "retained_dim": retained,
+            "rank_estimate": rank_estimate,
+            "rank_reduced": bool(rank_estimate < requested),
+            "dynamic_frame": True,
+            "fixed_chi_admission": False,
+        }
+    )
+    limitations = list(report.get("limitations", []))
+    if rank_estimate < requested:
+        limitations.append(
+            "the requested sector was rank-deficient; the returned frame is rectangular and reduced"
+        )
+    limitations.append(
+        "the current square fixed-chi CTMRG move does not consume dynamic retained dimensions"
+    )
+    report["limitations"] = limitations
+    return primal, dual, report
+
+
 def transport_directional_bilinear_projector_pair(
     xp: Any,
     left_projector: Any,
