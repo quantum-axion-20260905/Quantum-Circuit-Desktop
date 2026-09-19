@@ -223,6 +223,18 @@ class ComputeContractTests(unittest.TestCase):
         )
         self.assertEqual(submission.kind, "ctmrg_boundary_mps_transfer_convergence")
 
+    def test_boundary_mps_transfer_gauge_covariance_is_a_first_class_async_kind(self):
+        submission = AsyncSubmission(
+            kind="ctmrg_boundary_mps_transfer_gauge_covariance",
+            payload={
+                "problem": {"virtual_bond_dim": 2},
+                "widths": [1, 2],
+                "boundary_bond_dims": [1, 4],
+                "cycles": 4,
+            },
+        )
+        self.assertEqual(submission.kind, "ctmrg_boundary_mps_transfer_gauge_covariance")
+
 
 if __name__ == "__main__":
     unittest.main()

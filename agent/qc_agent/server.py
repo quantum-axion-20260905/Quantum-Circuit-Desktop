@@ -41,6 +41,7 @@ from .plugins.models import (
     CTMRGDynamicSectorStudyPayload,
     CTMRGBoundaryMPSStudyPayload,
     CTMRGBoundaryMPSTransferStudyPayload,
+    CTMRGBoundaryMPSTransferGaugeStudyPayload,
     TEBDPayload,
 )
 from .plugins.registry import catalog as plugin_catalog
@@ -57,6 +58,7 @@ from .core.ctmrg_dynamic import (
 )
 from .core.ctmrg_boundary_mps import (
     run_boundary_mps_convergence_study,
+    run_boundary_mps_transfer_gauge_covariance_study,
     run_boundary_mps_transfer_convergence_study,
     tensors_from_payload,
 )
@@ -101,7 +103,7 @@ from .api.contracts import AsyncBudget, AsyncKind, AsyncSubmission
 from .metrics import metrics
 
 
-app = FastAPI(title="Quantum Compute Agent", version="0.8.0-alpha.4")
+app = FastAPI(title="Quantum Compute Agent", version="0.8.0-alpha.5")
 cors_origins = [
     origin.strip()
     for origin in os.environ.get(
@@ -922,6 +924,61 @@ def jobs_ctmrg_boundary_mps_transfer_convergence(payload: CTMRGBoundaryMPSTransf
     )
 
 
+@app.post("/jobs/ctmrg/boundary-mps-transfer-gauge-covariance")
+@_sync_gpu_guard
+def jobs_ctmrg_boundary_mps_transfer_gauge_covariance(
+    payload: CTMRGBoundaryMPSTransferGaugeStudyPayload,
+) -> dict[str, Any]:
+    """Replay row-transfer boundaries under a paired virtual gauge."""
+
+    resolved = _resolve_or_http(payload.backend, "ctmrg")
+    require_gpu(cp)
+    estimate_payload = payload.problem.model_copy(update={
+        "boundary_mps_transfer_fixed_point": True,
+        "boundary_mps_width": max(payload.widths),
+        "boundary_mps_bond_dim": max(payload.boundary_bond_dims),
+        "boundary_mps_transfer_cycles": payload.cycles,
+        "max_time_ms": payload.max_time_ms,
+        "max_mem_mb": payload.max_mem_mb,
+    })
+    report = preflight_ctmrg(estimate_payload, gpu_free_mb=_gpu_free_mb(_hardware_snapshot()))
+    report = _scale_ctmrg_study_preflight(
+        report,
+        point_count=3 * len(payload.widths) * len(payload.boundary_bond_dims),
+        max_time_ms=payload.max_time_ms,
+    )
+    report["boundary_mps_transfer_gauge_study"] = True
+    report["gauge_replay_runs_per_point"] = 3
+    if not report.get("feasible", False):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "boundary-MPS transfer gauge study rejected by preflight budget",
+                "warnings": report.get("warnings", []),
+                "estimated_peak_memory_mb": report.get("estimated_peak_memory_mb"),
+                "estimated_time_ms": report.get("estimated_time_ms"),
+            },
+        )
+    started_at = time.perf_counter()
+    try:
+        study = run_boundary_mps_transfer_gauge_covariance_study(
+            tensors_from_payload(payload.problem),
+            payload.problem.unit_cell,
+            widths=payload.widths,
+            boundary_bond_dims=payload.boundary_bond_dims,
+            cycles=payload.cycles,
+            cutoff=payload.cutoff,
+            tolerance=payload.tolerance,
+            gauge_tolerance=payload.gauge_tolerance,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    study["preflight"] = report
+    return _with_run_provenance(
+        study, payload, requested_backend=payload.backend, resolved_backend=resolved, started_at=started_at,
+    )
+
+
 @app.post("/jobs/preflight")
 def jobs_preflight(payload: PreflightPayload) -> dict[str, Any]:
     unresolved = _unresolved_parameters(payload)
@@ -1271,6 +1328,7 @@ def _async_parse(kind: AsyncKind, raw: dict[str, Any]) -> Any:
         "ctmrg_convergence": CTMRGConvergenceStudyPayload,
         "ctmrg_boundary_mps_convergence": CTMRGBoundaryMPSStudyPayload,
         "ctmrg_boundary_mps_transfer_convergence": CTMRGBoundaryMPSTransferStudyPayload,
+        "ctmrg_boundary_mps_transfer_gauge_covariance": CTMRGBoundaryMPSTransferGaugeStudyPayload,
         "tn_estimate": TNPayload,
         "tn_amplitudes": TNPayload,
         "sweep": SweepPayload,
@@ -1306,7 +1364,7 @@ def _async_backend(kind: AsyncKind, payload: Any) -> tuple[str, str]:
     if kind == "peps":
         # PEPS has the same fixed backend contract as TEBD.
         return _resolve_or_http(getattr(payload, "backend", "tensor-network"), "peps"), "peps"
-    if kind in ("ctmrg", "ctmrg_convergence", "ctmrg_boundary_mps_convergence", "ctmrg_boundary_mps_transfer_convergence"):
+    if kind in ("ctmrg", "ctmrg_convergence", "ctmrg_boundary_mps_convergence", "ctmrg_boundary_mps_transfer_convergence", "ctmrg_boundary_mps_transfer_gauge_covariance"):
         return _resolve_or_http(getattr(payload, "backend", "tensor-network"), "ctmrg"), "ctmrg"
     if kind == "ground_state":
         return _resolve_or_http(payload.backend, "ground_state"), "ground_state"
@@ -1418,6 +1476,23 @@ def _async_preflight(kind: AsyncKind, payload: Any, resolved: str, budget: dict[
             max_time_ms=max_time_ms,
         )
         report["boundary_mps_transfer_study"] = True
+    elif kind == "ctmrg_boundary_mps_transfer_gauge_covariance":
+        estimate_payload = payload.problem.model_copy(update={
+            "boundary_mps_transfer_fixed_point": True,
+            "boundary_mps_width": max(payload.widths),
+            "boundary_mps_bond_dim": max(payload.boundary_bond_dims),
+            "boundary_mps_transfer_cycles": payload.cycles,
+            "max_time_ms": max_time_ms,
+            "max_mem_mb": max_mem_mb,
+        })
+        report = preflight_ctmrg(estimate_payload, gpu_free_mb=free_mb)
+        report = _scale_ctmrg_study_preflight(
+            report,
+            point_count=3 * len(payload.widths) * len(payload.boundary_bond_dims),
+            max_time_ms=max_time_ms,
+        )
+        report["boundary_mps_transfer_gauge_study"] = True
+        report["gauge_replay_runs_per_point"] = 3
     elif kind == "tebd":
         report = preflight_tebd(bounded_payload, gpu_free_mb=free_mb)
     elif resolved == "reference":
@@ -1613,6 +1688,21 @@ def _async_compute(kind: AsyncKind, payload: Any, resolved: str, job: Any) -> di
             cycles=payload.cycles,
             cutoff=payload.cutoff,
             tolerance=payload.tolerance,
+        )
+    elif kind == "ctmrg_boundary_mps_transfer_gauge_covariance":
+        problem = payload.problem.model_copy(update={
+            "max_time_ms": max_time_ms,
+            "max_mem_mb": float(budget.get("max_mem_mb", getattr(payload.problem, "max_mem_mb", 4096))),
+        })
+        result = run_boundary_mps_transfer_gauge_covariance_study(
+            tensors_from_payload(problem),
+            problem.unit_cell,
+            widths=payload.widths,
+            boundary_bond_dims=payload.boundary_bond_dims,
+            cycles=payload.cycles,
+            cutoff=payload.cutoff,
+            tolerance=payload.tolerance,
+            gauge_tolerance=payload.gauge_tolerance,
         )
     elif kind == "ground_state":
         result = exact_ground_state(cp, payload)

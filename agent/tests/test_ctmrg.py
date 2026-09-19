@@ -2060,6 +2060,40 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(study["research_gate_summary"]["status"], "needs_review")
         self.assertTrue(all(point["final_residual"] == 0.0 for point in study["points"]))
 
+    def test_boundary_mps_transfer_gauge_study_transports_open_boundaries(self):
+        from qc_agent.core.ctmrg_boundary_mps import run_boundary_mps_transfer_gauge_covariance_study
+
+        rng = np.random.default_rng(83)
+        tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+        tensor = (tensor / np.linalg.norm(tensor)).astype(np.complex128)
+        study = run_boundary_mps_transfer_gauge_covariance_study(
+            [tensor],
+            [1, 1],
+            widths=[1, 2],
+            boundary_bond_dims=[1, 4],
+            cycles=8,
+            tolerance=1e-8,
+            gauge_tolerance=1e-8,
+        )
+
+        self.assertEqual(study["schema"], "quantum-circuit/boundary-mps-transfer-gauge-covariance-study-v1")
+        self.assertEqual(study["point_count"], 4)
+        self.assertEqual(study["passed_points"], 3)
+        self.assertTrue(all(point["raw_relative_patch_delta"] > 1e-3 for point in study["points"]))
+        width_one = [point for point in study["points"] if point["width"] == 1]
+        self.assertTrue(all(point["gauge_covariance_passed"] for point in width_one))
+        width_two_chi_one = next(
+            point for point in study["points"]
+            if point["width"] == 2 and point["boundary_bond_dim"] == 1
+        )
+        self.assertFalse(width_two_chi_one["gauge_covariance_passed"])
+        width_two_chi_four = next(
+            point for point in study["points"]
+            if point["width"] == 2 and point["boundary_bond_dim"] == 4
+        )
+        self.assertTrue(width_two_chi_four["gauge_covariance_passed"])
+        self.assertFalse(study["research_gate_summary"]["production_ready"])
+
     def test_plus_state_has_unit_x_expectation(self):
         payload = CTMRGPayload(
             terms=[PauliTerm(paulis={0: "X"}, coefficient=1.0)],

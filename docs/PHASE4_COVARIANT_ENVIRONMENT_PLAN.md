@@ -756,6 +756,19 @@ gives residual `1.89e-2` and discarded weight `2.24e-1`. None of the four
 points converged after six periods, so the added boundary-MPS layer exposes
 non-monotone truncation behavior rather than masking it.
 
+The paired-gauge boundary replay contract is now exposed at
+`/jobs/ctmrg/boundary-mps-transfer-gauge-covariance` and through the unified
+async API. Each point compares the original tensor, a raw-gauge negative
+control that incorrectly keeps all-ones open boundaries, and the correctly
+transported inverse-transpose fused top/side/bottom boundary vectors. On the
+random D=2 seed83 grid with widths `[1,2]` and boundary chi `[1,4]`, raw
+control deltas are `1.61--3.14`, while transported replay passes at width 1
+and width 2/chi 4 below `4e-16`; width 2/chi 1 remains red at `2.87e-1`
+because finite boundary-MPS truncation is not gauge-covariant at that chi.
+This closes an open-boundary transport seam, not the infinite-lattice gate:
+the Euclidean Rayleigh quotient remains a frame-dependent diagnostic and
+transfer-gap, chi-convergence, and variational checks stay independent.
+
 ### Current Phase 4 disposition
 
 The bounded dynamic boundary capability is complete as an opt-in research
@@ -771,7 +784,9 @@ contracts now exist. On the random D=2 seed83 grid, all four points remained
 unconverged: residuals ranged from `1.51e-4` to `1.89e-2`, and discarded
 weight reached `3.19e-1`. Width/chi improvement is therefore non-monotone and
 cannot be promoted as a solver shortcut. No local projector heuristic will be
-promoted in the meantime.
+promoted in the meantime. The new replay confirms that the next numerical
+strategy must be a gauge-aware retained-subspace/fixed-point method rather
+than another boundary tolerance or raw-frame comparison.
 
 ## 8. Definition of done
 

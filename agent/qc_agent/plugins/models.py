@@ -517,6 +517,55 @@ class CTMRGBoundaryMPSTransferStudyPayload(BaseModel):
         return self
 
 
+class CTMRGBoundaryMPSTransferGaugeStudyPayload(BaseModel):
+    """Bounded paired-gauge replay contract for row-transfer boundaries."""
+
+    problem: CTMRGPayload
+    widths: list[int] = Field(default_factory=lambda: [1, 2], min_length=1, max_length=4)
+    boundary_bond_dims: list[int] = Field(default_factory=lambda: [1, 4], min_length=1, max_length=4)
+    cycles: int = Field(default=8, ge=1, le=64)
+    cutoff: float = Field(default=0.0, ge=0.0, le=1.0)
+    tolerance: float = Field(default=1e-8, gt=0.0, le=1.0)
+    gauge_tolerance: float = Field(default=1e-8, gt=0.0, le=1.0)
+    backend: Literal["auto", "tensor-network"] = "auto"
+    max_time_ms: int = Field(default=120000, ge=100, le=3600000)
+    max_mem_mb: float = Field(default=4096, gt=0, le=1048576)
+
+    @field_validator("widths")
+    @classmethod
+    def validate_widths(cls, value: list[int]) -> list[int]:
+        normalized = [int(item) for item in value]
+        if any(item < 1 or item > 8 for item in normalized):
+            raise ValueError("boundary-MPS transfer gauge widths must be between 1 and 8")
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("boundary-MPS transfer gauge widths must be unique")
+        return normalized
+
+    @field_validator("boundary_bond_dims")
+    @classmethod
+    def validate_transfer_gauge_bond_dims(cls, value: list[int]) -> list[int]:
+        normalized = [int(item) for item in value]
+        if any(item < 1 or item > 128 for item in normalized):
+            raise ValueError("boundary-MPS transfer gauge bond dimensions must be between 1 and 128")
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("boundary-MPS transfer gauge bond dimensions must be unique")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_problem(self):
+        if len(self.widths) * len(self.boundary_bond_dims) > 8:
+            raise ValueError("boundary-MPS transfer gauge studies are limited to eight points")
+        if self.problem.optimization != "none":
+            raise ValueError("boundary-MPS transfer gauge studies require problem.optimization='none'")
+        if self.problem.environment_sector_policy != "single":
+            raise ValueError("boundary-MPS transfer gauge studies and symmetry-sector ensembles are separate experimental policies")
+        if self.problem.gauge_preconditioner != "none":
+            raise ValueError("boundary-MPS transfer gauge studies and virtual-gauge preconditioning are separate experimental policies")
+        if self.problem.virtual_bond_dim != 2:
+            raise ValueError("boundary-MPS transfer gauge studies currently require problem.virtual_bond_dim=2")
+        return self
+
+
 class PEPSPayload(BaseModel):
     """Finite 2D/3D PEPS simple-update evolution with bounded contraction.
 

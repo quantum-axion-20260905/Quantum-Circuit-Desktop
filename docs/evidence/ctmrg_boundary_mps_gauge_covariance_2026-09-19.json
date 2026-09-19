@@ -1,0 +1,73 @@
+{
+  "schema": "quantum-circuit/ctmrg-boundary-mps-gauge-evidence-v1",
+  "date": "2026-09-19",
+  "candidate": "boundary-mps-transfer-gauge-covariance-v1",
+  "scope": {
+    "unit_cell": [1, 1],
+    "virtual_bond_dim": 2,
+    "dtype": "complex128",
+    "seed": 83,
+    "widths": [1, 2],
+    "boundary_bond_dims": [1, 4],
+    "cycles": 8,
+    "gauge_tolerance": 1e-8
+  },
+  "contract": {
+    "raw_control": "gauged tensor with original all-ones open boundaries",
+    "transported_control": "gauged tensor with inverse-transpose fused top/side/bottom boundaries",
+    "finite_reference": "bounded open-cylinder contraction",
+    "reference_backend": "cpu-reference",
+    "production_ready": false
+  },
+  "points": [
+    {
+      "width": 1,
+      "boundary_bond_dim": 1,
+      "raw_relative_patch_delta": 3.144225022304513,
+      "transported_relative_patch_delta": 2.091810624201787e-16,
+      "gauge_covariance_passed": true
+    },
+    {
+      "width": 1,
+      "boundary_bond_dim": 4,
+      "raw_relative_patch_delta": 3.144225022304513,
+      "transported_relative_patch_delta": 2.091810624201787e-16,
+      "gauge_covariance_passed": true
+    },
+    {
+      "width": 2,
+      "boundary_bond_dim": 1,
+      "raw_relative_patch_delta": 1.608459824640431,
+      "transported_relative_patch_delta": 0.2866262131750376,
+      "gauge_covariance_passed": false
+    },
+    {
+      "width": 2,
+      "boundary_bond_dim": 4,
+      "raw_relative_patch_delta": 2.787065052630302,
+      "transported_relative_patch_delta": 3.9221162682998417e-16,
+      "gauge_covariance_passed": true
+    }
+  ],
+  "summary": {
+    "point_count": 4,
+    "passed_points": 3,
+    "raw_control_is_non_invariant": true,
+    "low_chi_truncation_remains_review_only": true,
+    "full_regression": "203/203"
+  },
+  "cuda_async_smoke": {
+    "available": true,
+    "device": 0,
+    "assigned_backend": "tensor-network",
+    "job_status": "done",
+    "schema": "quantum-circuit/boundary-mps-transfer-gauge-covariance-study-v1",
+    "preflight_feasible": true,
+    "gauge_replay_runs_per_point": 3
+  },
+  "limitations": [
+    "finite-cylinder evidence is not an infinite-lattice fixed-point proof",
+    "the Euclidean Rayleigh quotient is frame-dependent under non-unitary gauges",
+    "generic entangled CTMRG remains needs_review until transfer-gap, chi, and variational gates pass"
+  ]
+}

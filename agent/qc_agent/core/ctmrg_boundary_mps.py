@@ -92,17 +92,21 @@ def _row_mpo(
     x: int,
     width: int,
     ones: np.ndarray,
+    left_boundary: np.ndarray | None = None,
+    right_boundary: np.ndarray | None = None,
 ) -> np.ndarray:
     """Return one local MPO tensor in ``(left,right,input,output)`` order."""
 
+    left = ones if left_boundary is None else left_boundary
+    right = ones if right_boundary is None else right_boundary
     operator = np.transpose(layer, (2, 3, 0, 1))
     if width == 1:
-        return np.einsum("lrud,l,r->ud", operator, ones, ones, optimize=True)[None, None, :, :]
+        return np.einsum("lrud,l,r->ud", operator, left, right, optimize=True)[None, None, :, :]
     if x == 0:
-        reduced = np.einsum("lrud,l->rud", operator, ones, optimize=True)
+        reduced = np.einsum("lrud,l->rud", operator, left, optimize=True)
         return reduced[None, :, :, :]
     if x == width - 1:
-        reduced = np.einsum("lrud,r->lud", operator, ones, optimize=True)
+        reduced = np.einsum("lrud,r->lud", operator, right, optimize=True)
         return reduced[:, None, :, :]
     return operator
 
@@ -158,6 +162,37 @@ def _bottom_contract(boundary: list[np.ndarray], ones: np.ndarray) -> complex:
     return complex(environment[0])
 
 
+def _fused_boundary_gauge(gauge: np.ndarray) -> np.ndarray:
+    """Lift a ket virtual gauge to the ket/bra double-layer boundary leg."""
+
+    return np.kron(gauge, np.conjugate(gauge))
+
+
+def _paired_transported_boundary_vectors(tensor: np.ndarray) -> dict[str, np.ndarray]:
+    """Return open-boundary vectors for an exact paired virtual-gauge replay.
+
+    The finite-cylinder diagnostic contracts every open virtual leg with an
+    explicit vector.  After a paired PEPS gauge, those vectors must be moved
+    by the inverse-transpose fused action; reusing all-ones vectors would test
+    a different boundary condition and falsely report a physical change.
+    """
+
+    from .ctmrg_gauge import paired_virtual_gauge_matrices
+
+    up, down, left, right = paired_virtual_gauge_matrices(np, tensor)
+    fused = {
+        "up": _fused_boundary_gauge(np.asarray(up)),
+        "down": _fused_boundary_gauge(np.asarray(down)),
+        "left": _fused_boundary_gauge(np.asarray(left)),
+        "right": _fused_boundary_gauge(np.asarray(right)),
+    }
+    ones = np.ones((int(tensor.shape[1]) ** 2,), dtype=np.complex128)
+    return {
+        name: np.linalg.inv(value).T @ ones
+        for name, value in fused.items()
+    }
+
+
 def contract_patch(
     tensors: list[Any],
     unit_cell: list[int] | tuple[int, int],
@@ -167,6 +202,11 @@ def contract_patch(
     operators: dict[int, str] | None = None,
     max_bond_dim: int = 16,
     cutoff: float = 0.0,
+    initial_boundary_vector: np.ndarray | None = None,
+    left_boundary_vector: np.ndarray | None = None,
+    right_boundary_vector: np.ndarray | None = None,
+    bottom_boundary_vector: np.ndarray | None = None,
+    boundary_frame: str = "all-ones",
 ) -> tuple[complex, dict[str, Any]]:
     """Contract one finite open patch with a boundary-MPS row sweep."""
 
@@ -185,8 +225,24 @@ def contract_patch(
     virtual = int(normalized[0].shape[1])
     double_virtual = virtual * virtual
     ones = np.ones((double_virtual,), dtype=np.complex128)
+    initial_vector = ones if initial_boundary_vector is None else np.asarray(initial_boundary_vector, dtype=np.complex128)
+    left_vector = ones if left_boundary_vector is None else np.asarray(left_boundary_vector, dtype=np.complex128)
+    right_vector = ones if right_boundary_vector is None else np.asarray(right_boundary_vector, dtype=np.complex128)
+    bottom_vector = ones if bottom_boundary_vector is None else np.asarray(bottom_boundary_vector, dtype=np.complex128)
+    for name, vector in (
+        ("initial_boundary_vector", initial_vector),
+        ("left_boundary_vector", left_vector),
+        ("right_boundary_vector", right_vector),
+        ("bottom_boundary_vector", bottom_vector),
+    ):
+        if vector.shape != (double_virtual,):
+            raise ValueError(f"{name} must have shape ({double_virtual},)")
+        if not np.all(np.isfinite(vector.real)) or not np.all(np.isfinite(vector.imag)):
+            raise ValueError(f"{name} must contain finite values")
+    if not str(boundary_frame).strip():
+        raise ValueError("boundary_frame must be a non-empty label")
     requested = {int(site): str(label).upper() for site, label in (operators or {}).items()}
-    boundary = [np.ones((1, double_virtual, 1), dtype=np.complex128) for _ in range(width)]
+    boundary = [initial_vector.reshape(1, double_virtual, 1).copy() for _ in range(width)]
     discarded_total = 0.0
     max_used = 1
     rows: list[dict[str, Any]] = []
@@ -196,7 +252,16 @@ def contract_patch(
             cell_site = (x % cell_x) + cell_x * (y % cell_y)
             label = requested.get(y * width + x, "I")
             layer = _double_layer(normalized[cell_site], _pauli(label))
-            row.append(_row_mpo(layer, x=x, width=width, ones=ones))
+            row.append(
+                _row_mpo(
+                    layer,
+                    x=x,
+                    width=width,
+                    ones=ones,
+                    left_boundary=left_vector,
+                    right_boundary=right_vector,
+                )
+            )
         boundary = _apply_row_mpo(boundary, row)
         boundary, discarded, used = _compress(boundary, int(max_bond_dim), float(cutoff))
         discarded_total += discarded
@@ -206,12 +271,17 @@ def contract_patch(
             "boundary_bond_dim_used": used,
             "discarded_weight": float(discarded),
         })
-    value = _bottom_contract(boundary, ones)
+    value = _bottom_contract(boundary, bottom_vector)
     return value, {
         "method": "finite-cylinder-boundary-mps",
         "patch": [int(width), int(height)],
         "boundary_bond_dim_requested": int(max_bond_dim),
         "boundary_bond_dim_used": int(max_used),
+        "boundary_frame": str(boundary_frame),
+        "requested_initial_boundary_norm": float(np.linalg.norm(initial_vector)),
+        "left_boundary_norm": float(np.linalg.norm(left_vector)),
+        "right_boundary_norm": float(np.linalg.norm(right_vector)),
+        "bottom_boundary_norm": float(np.linalg.norm(bottom_vector)),
         "discarded_weight": float(discarded_total),
         "rows": rows,
         "rows_completed": int(height),
@@ -495,6 +565,10 @@ def run_boundary_mps_transfer_fixed_point(
     max_bond_dim: int,
     cutoff: float = 0.0,
     tolerance: float = 1e-8,
+    initial_boundary_vector: np.ndarray | None = None,
+    left_boundary_vector: np.ndarray | None = None,
+    right_boundary_vector: np.ndarray | None = None,
+    boundary_frame: str = "all-ones",
 ) -> dict[str, Any]:
     """Run a bounded row-transfer boundary-MPS fixed-point diagnostic.
 
@@ -535,8 +609,22 @@ def run_boundary_mps_transfer_fixed_point(
     virtual = int(expected_shape[1])
     double_virtual = virtual * virtual
     ones = np.ones((double_virtual,), dtype=np.complex128)
+    initial_vector = ones if initial_boundary_vector is None else np.asarray(initial_boundary_vector, dtype=np.complex128)
+    left_vector = ones if left_boundary_vector is None else np.asarray(left_boundary_vector, dtype=np.complex128)
+    right_vector = ones if right_boundary_vector is None else np.asarray(right_boundary_vector, dtype=np.complex128)
+    for name, vector in (
+        ("initial_boundary_vector", initial_vector),
+        ("left_boundary_vector", left_vector),
+        ("right_boundary_vector", right_vector),
+    ):
+        if vector.shape != (double_virtual,):
+            raise ValueError(f"{name} must have shape ({double_virtual},)")
+        if not np.all(np.isfinite(vector.real)) or not np.all(np.isfinite(vector.imag)):
+            raise ValueError(f"{name} must contain finite values")
+    if not str(boundary_frame).strip():
+        raise ValueError("boundary_frame must be a non-empty label")
     layers = [_double_layer(tensor) for tensor in normalized_tensors]
-    boundary = [np.ones((1, double_virtual, 1), dtype=np.complex128) for _ in range(int(width))]
+    boundary = [initial_vector.reshape(1, double_virtual, 1).copy() for _ in range(int(width))]
     boundary, previous_vector, initial_norm = _normalize_boundary(boundary)
 
     cycle_reports: list[dict[str, Any]] = []
@@ -557,6 +645,8 @@ def run_boundary_mps_transfer_fixed_point(
                     x=x,
                     width=int(width),
                     ones=ones,
+                    left_boundary=left_vector,
+                    right_boundary=right_vector,
                 )
                 for x in range(int(width))
             ]
@@ -619,6 +709,10 @@ def run_boundary_mps_transfer_fixed_point(
         "cycles_requested": int(cycles),
         "cycles_completed": len(cycle_reports),
         "boundary_bond_dim_requested": int(max_bond_dim),
+        "boundary_frame": str(boundary_frame),
+        "initial_boundary_norm": float(np.linalg.norm(initial_vector)),
+        "left_boundary_norm": float(np.linalg.norm(left_vector)),
+        "right_boundary_norm": float(np.linalg.norm(right_vector)),
         "cutoff": float(cutoff),
         "tolerance": float(tolerance),
         "virtual_bond_dim": virtual,
@@ -630,7 +724,7 @@ def run_boundary_mps_transfer_fixed_point(
         "materializes_statevector": False,
         "device": "cpu-reference",
         "limitations": [
-            "finite horizontal cylinder with open all-ones side boundaries",
+            "finite horizontal cylinder with explicit open side boundaries",
             "boundary-vector residual is not a gauge-invariant infinite-lattice proof",
             "compare width, bond dimension, cutoff, CTMRG chi, and independent finite references",
         ],
@@ -732,5 +826,196 @@ def run_boundary_mps_transfer_convergence_study(
             "points are independent finite-cylinder row-transfer contractions",
             "a converged boundary vector does not prove an infinite-lattice fixed point",
             "compare width, boundary chi, CTMRG chi, transfer gaps, and paired-gauge observables",
+        ],
+    }
+
+
+def run_boundary_mps_transfer_gauge_covariance_study(
+    tensors: list[Any],
+    unit_cell: list[int] | tuple[int, int],
+    *,
+    widths: list[int] | tuple[int, ...],
+    boundary_bond_dims: list[int] | tuple[int, ...],
+    cycles: int,
+    cutoff: float = 0.0,
+    tolerance: float = 1e-8,
+    gauge_tolerance: float = 1e-8,
+) -> dict[str, Any]:
+    """Replay a finite-cylinder transfer study under a transported PEPS gauge.
+
+    A virtual gauge changes the tensor entries and also changes every open
+    boundary vector.  This study runs three deliberately separate controls:
+    the original tensor, the gauged tensor with the old all-ones boundary
+    (negative control), and the gauged tensor with inverse-transpose fused
+    boundary vectors (covariant replay).  It therefore detects whether a
+    purported transfer improvement came from changing the physical boundary
+    condition.  The result is diagnostic-only and never promotes an
+    infinite-lattice solver.
+    """
+
+    normalized_widths = [int(value) for value in widths]
+    normalized_bonds = [int(value) for value in boundary_bond_dims]
+    if not normalized_widths or not normalized_bonds:
+        raise ValueError("boundary-MPS gauge study requires widths and bond dimensions")
+    if len(normalized_widths) * len(normalized_bonds) > 8:
+        raise ValueError("boundary-MPS gauge study is limited to eight points")
+    if not np.isfinite(float(gauge_tolerance)) or float(gauge_tolerance) <= 0.0:
+        raise ValueError("boundary-MPS gauge tolerance must be positive and finite")
+
+    cell_x, cell_y = (int(value) for value in unit_cell)
+    if len(tensors) != cell_x * cell_y:
+        raise ValueError("boundary-MPS gauge study tensor count does not match the unit cell")
+    normalized_tensors = [_host(tensor).astype(np.complex128, copy=False) for tensor in tensors]
+    if not normalized_tensors or int(normalized_tensors[0].shape[1]) != 2:
+        raise ValueError("the paired boundary-MPS gauge study currently requires virtual_bond_dim=2")
+
+    from .ctmrg_gauge import paired_virtual_gauge
+
+    gauged_tensors = [
+        _host(tensor).astype(np.complex128, copy=False)
+        for tensor in paired_virtual_gauge(np, normalized_tensors)
+    ]
+    transported = _paired_transported_boundary_vectors(normalized_tensors[0])
+
+    points: list[dict[str, Any]] = []
+    for width in normalized_widths:
+        for bond_dim in normalized_bonds:
+            base = run_boundary_mps_transfer_fixed_point(
+                normalized_tensors,
+                unit_cell,
+                width=width,
+                cycles=int(cycles),
+                max_bond_dim=bond_dim,
+                cutoff=float(cutoff),
+                tolerance=float(tolerance),
+            )
+            raw = run_boundary_mps_transfer_fixed_point(
+                gauged_tensors,
+                unit_cell,
+                width=width,
+                cycles=int(cycles),
+                max_bond_dim=bond_dim,
+                cutoff=float(cutoff),
+                tolerance=float(tolerance),
+            )
+            covariant = run_boundary_mps_transfer_fixed_point(
+                gauged_tensors,
+                unit_cell,
+                width=width,
+                cycles=int(cycles),
+                max_bond_dim=bond_dim,
+                cutoff=float(cutoff),
+                tolerance=float(tolerance),
+                initial_boundary_vector=transported["up"],
+                left_boundary_vector=transported["left"],
+                right_boundary_vector=transported["right"],
+                boundary_frame="paired-inverse-transpose-fused",
+            )
+            height = max(1, cell_y)
+            base_value, base_patch = contract_patch(
+                normalized_tensors,
+                unit_cell,
+                width=width,
+                height=height,
+                max_bond_dim=bond_dim,
+                cutoff=float(cutoff),
+            )
+            raw_value, raw_patch = contract_patch(
+                gauged_tensors,
+                unit_cell,
+                width=width,
+                height=height,
+                max_bond_dim=bond_dim,
+                cutoff=float(cutoff),
+            )
+            covariant_value, covariant_patch = contract_patch(
+                gauged_tensors,
+                unit_cell,
+                width=width,
+                height=height,
+                max_bond_dim=bond_dim,
+                cutoff=float(cutoff),
+                initial_boundary_vector=transported["up"],
+                left_boundary_vector=transported["left"],
+                right_boundary_vector=transported["right"],
+                bottom_boundary_vector=transported["down"],
+                boundary_frame="paired-inverse-transpose-fused",
+            )
+            base_rayleigh = float(base["cycle_reports"][-1]["transfer_rayleigh_quotient"]["abs"])
+            raw_rayleigh = float(raw["cycle_reports"][-1]["transfer_rayleigh_quotient"]["abs"])
+            covariant_rayleigh = float(covariant["cycle_reports"][-1]["transfer_rayleigh_quotient"]["abs"])
+            transported_delta = abs(covariant_value - base_value) / max(abs(base_value), 1e-30)
+            raw_delta = abs(raw_value - base_value) / max(abs(base_value), 1e-30)
+            rayleigh_delta = abs(covariant_rayleigh - base_rayleigh) / max(abs(base_rayleigh), 1e-30)
+            passed = bool(
+                np.isfinite(transported_delta)
+                and transported_delta <= float(gauge_tolerance)
+            )
+            points.append({
+                "width": width,
+                "boundary_bond_dim": bond_dim,
+                "finite_patch_height": height,
+                "base": {
+                    "final_residual": float(base["final_residual"]),
+                    "converged": bool(base["converged"]),
+                    "transfer_rayleigh_abs": base_rayleigh,
+                    "finite_patch_value": {"re": float(base_value.real), "im": float(base_value.imag)},
+                    "patch_diagnostics": base_patch,
+                },
+                "raw_gauge_negative_control": {
+                    "final_residual": float(raw["final_residual"]),
+                    "converged": bool(raw["converged"]),
+                    "transfer_rayleigh_abs": raw_rayleigh,
+                    "finite_patch_value": {"re": float(raw_value.real), "im": float(raw_value.imag)},
+                    "patch_diagnostics": raw_patch,
+                },
+                "transported_gauge": {
+                    "final_residual": float(covariant["final_residual"]),
+                    "converged": bool(covariant["converged"]),
+                    "transfer_rayleigh_abs": covariant_rayleigh,
+                    "finite_patch_value": {"re": float(covariant_value.real), "im": float(covariant_value.imag)},
+                    "patch_diagnostics": covariant_patch,
+                },
+                "raw_relative_patch_delta": float(raw_delta),
+                "transported_relative_patch_delta": float(transported_delta),
+                "transported_relative_frame_rayleigh_delta": float(rayleigh_delta),
+                "gauge_covariance_passed": passed,
+            })
+
+    return {
+        "schema": "quantum-circuit/boundary-mps-transfer-gauge-covariance-study-v1",
+        "status": "needs_review",
+        "method": "finite-cylinder-boundary-mps-transfer-gauge-covariance-study",
+        "unit_cell": [cell_x, cell_y],
+        "widths": normalized_widths,
+        "boundary_bond_dims": normalized_bonds,
+        "cycles": int(cycles),
+        "cutoff": float(cutoff),
+        "tolerance": float(tolerance),
+        "gauge_tolerance": float(gauge_tolerance),
+        "gauge_contract": {
+            "transform": "paired-invertible-virtual-gauge",
+            "boundary_transport": "inverse-transpose-fused-open-boundaries",
+            "negative_control": "gauged-tensor-with-original-all-ones-boundaries",
+            "transported_control": "gauged-tensor-with-transported-top-side-bottom-boundaries",
+            "boundary_vector_norms": {
+                name: float(np.linalg.norm(value)) for name, value in transported.items()
+            },
+        },
+        "points": points,
+        "point_count": len(points),
+        "passed_points": sum(bool(point["gauge_covariance_passed"]) for point in points),
+        "research_gate_summary": {
+            "status": "needs_review",
+            "production_ready": False,
+            "gauge_covariance_passed_points": sum(bool(point["gauge_covariance_passed"]) for point in points),
+            "points": len(points),
+            "reason": "boundary transport replay is necessary evidence but does not prove an infinite-lattice fixed point or CTMRG convergence",
+        },
+        "reference_backend": "cpu-reference",
+        "warnings": [
+            "the raw gauged control intentionally changes the open boundary condition",
+            "transported replay compares finite-cylinder contractions; the Euclidean Rayleigh diagnostic is frame-dependent under non-unitary gauges",
+            "non-unitary gauge transforms can interact with finite boundary-MPS truncation; inspect discarded weight and chi convergence",
         ],
     }

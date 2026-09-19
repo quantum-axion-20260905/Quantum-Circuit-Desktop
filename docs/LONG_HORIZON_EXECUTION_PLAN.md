@@ -107,6 +107,16 @@ features.
   unconverged, residuals are non-monotone, and discarded weight reaches about
   `0.319`. The result remains diagnostic evidence rather than admission.
 
+- The paired-gauge boundary replay is now a separate research contract at
+  `/jobs/ctmrg/boundary-mps-transfer-gauge-covariance` and in the unified
+  async API. It transports open top/side/bottom vectors with the
+  inverse-transpose fused virtual action and retains the old all-ones replay
+  as a negative control. The bounded random D=2 packet passes 3/4 points:
+  width 1 and width 2/chi 4 replay below `4e-16`, while width 2/chi 1 stays
+  at `2.87e-1` under truncation. This closes a boundary-transport correctness
+  seam but does not promote generic entangled CTMRG; transfer-gap,
+  chi-convergence, and variational gates remain open.
+
 - The optional Torch/CuPy autodiff runtime now has a deterministic Windows
   import seam: CuPy is primed before Torch in the standalone autodiff test
   module, matching the production server's CUDA loading order. This closes a
