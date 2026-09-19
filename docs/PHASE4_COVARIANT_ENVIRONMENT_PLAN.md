@@ -421,12 +421,16 @@ unit-cell sweep. Commit `0024a04` adds the bounded two-site interaction replay
 to that same gate. Commit `cf34524` adds a versioned per-site/per-direction
 retained-frame manifest, digest validation on resume, and CUDA-safe checkpoint
 host/device conversion.
+Commit `655aa2a` makes the covariant complex128 initialization floor explicit
+(`1e-9`) and reports it in the result; the baseline and complex64 floor remain
+`1e-6` for degenerate-sector stability.
 Because a multi-site boundary can be represented in a different retained
 internal frame after transport, its replay gate compares normalized onsite
 observables while retaining raw component error as a diagnostic. CPU
 complex128 2x2 runs at 2/4/8 iterations pass this observable replay with
-maximum errors of `1.3e-15--3.8e-15`; the raw component discrepancy is about
-`1.21--1.24` and the invariant residual remains near `1.6e-5`. The same CPU
+maximum errors remain below `4e-15`; the raw component discrepancy is about
+`1.21--1.24` and the complex128 invariant residual now remains near `1.6e-8`.
+The same CPU
 replay now checks a horizontal `Z⊗Z` interaction with error
 `1.4e-16--2.0e-16`; a bounded CUDA complex64 2x2 smoke passes onsite replay at
 `1.15e-7` and interaction replay at `4.84e-8`, while raw component error is
@@ -440,18 +444,20 @@ tolerance.
 
 The bounded longer-sweep campaign confirms that the remaining gate is
 algorithmic rather than a missing replay tolerance. CPU complex128 2x2 at 16
-iterations reduces fresh-gauge drift to `1.48e-5`, but the invariant residual
-still plateaus at `1.5996e-5`; CUDA complex64 at 2/4/8 iterations remains near
-`1.6e-5` as well. All bounded onsite and `Z⊗Z` replays stay green while the
-fixed-point classification remains `converged=false`. Evidence for this
-campaign is stored alongside the selector record.
+iterations reduces fresh-gauge drift to `1.48e-5` and holds the invariant
+residual near `1.6e-8`; CUDA complex64 at 2/4/8 iterations remains near
+`1.6e-5` because it keeps the more conservative `1e-6` floor. All bounded
+onsite and `Z⊗Z` replays stay green while the fixed-point classification
+remains `converged=false`. Evidence for this campaign is stored alongside the
+selector record.
 
 This closes the local retained-boundary covariance seam, not Phase 4
 admission. Fresh paired-gauge drift at four iterations is still
 `2.51e-3--4.96e-3` on the three CPU random seeds and `1.15e-2` on the bounded
 CUDA smoke. At 24 CPU iterations the drift falls to
-`1.49e-9, 4.56e-11, 1.29e-13`, but the invariant environment residual plateaus
-near `1.6e-5`, so the fixed-point classification remains `needs_review`.
+`1.49e-9, 4.56e-11, 1.29e-13`, while the complex128 invariant environment
+residual plateaus near `1.6e-8`; the transfer gap remains unresolved, so the
+fixed-point classification remains `needs_review`.
 The next numerical gate is covariant initialization/fixed-point convergence,
 not another projector normalization shortcut.
 

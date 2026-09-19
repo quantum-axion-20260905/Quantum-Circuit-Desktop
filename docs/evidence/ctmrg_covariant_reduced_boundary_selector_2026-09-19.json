@@ -1,7 +1,7 @@
 {
   "schema": "quantum-circuit/ctmrg-evidence-v1",
   "date": "2026-09-19",
-  "revision": "cf34524",
+  "revision": "655aa2a",
   "candidate": "covariant-bilinear",
   "environment_map": "ctmrg-covariant-bilinear-v1",
   "scope": {
@@ -28,24 +28,25 @@
     }
   },
   "cpu_fresh_gauge_probe": {
+    "initialization_regularizer": 1e-09,
     "iterations": {
       "4": {
         "gauge_drift_seeds_17_29_41": [0.002589729996144763, 0.0025090821663219815, 0.004957714225136155],
         "integrated_replay_passed": [true, true, true],
-        "residual_seeds_17_29_41": [1.5999024030932674e-05, 1.5999024030488584e-05, 1.599902403071063e-05]
+        "residual_seeds_17_29_41": [1.5999999103399887e-08, 1.5999999103399887e-08, 1.5999998992377584e-08]
       },
       "12": {
         "gauge_drift_seeds_17_29_41": [1.7507679278688792e-05, 2.8006831351064937e-06, 8.617670259336574e-08],
         "integrated_replay_passed": [true, true, true],
-        "residual_seeds_17_29_41": [1.5996976288956688e-05, 1.5996976288734643e-05, 1.5996976288956688e-05]
+        "residual_seeds_17_29_41": [1.5999997104998442e-08, 1.5999997327043047e-08, 1.5999997216020745e-08]
       },
       "24": {
         "gauge_drift_seeds_17_29_41": [1.4891952948570264e-09, 4.556423120749553e-11, 1.2915363223342524e-13],
         "integrated_replay_passed": [true, true, true],
-        "residual_seeds_17_29_41": [1.5993905167155376e-05, 1.599390516737742e-05, 1.5993905167710487e-05]
+        "residual_seeds_17_29_41": [1.599999388535167e-08, 1.5999993663307066e-08, 1.599999333024016e-08]
       }
     },
-    "interpretation": "The paired-gauge observable drift decays with more iterations, but the invariant environment residual plateaus near 1.6e-5 and the fixed-point gate remains needs_review. This is not production admission."
+    "interpretation": "The dtype-aware covariant initialization floor reduces the invariant residual plateau from approximately 1.6e-5 to approximately 1.6e-8 for complex128 without changing the observed paired-gauge drift trend. The transfer gap remains unresolved, so fixed-point admission is still needs_review."
   },
   "cuda_smoke": {
     "available": true,
@@ -83,7 +84,7 @@
       "maximum_normalized_observable_abs_error": [1.27675648e-15, 3.71924713e-15, 1.52655666e-15],
       "maximum_normalized_interaction_abs_error": [2.01227923e-16, 1.52655666e-16, 1.42247325e-16],
       "maximum_raw_component_relative_error": [1.20568709, 1.23742576, 1.23738297],
-      "residual": [1.5999536e-05, 1.5999024e-05, 1.59980001e-05],
+      "residual": [1.5999999880556004e-08, 1.599999921442219e-08, 1.5999998215221467e-08],
       "interaction_replay_passed": [true, true, true],
       "replay_passed": [true, true, true],
       "converged": [false, false, false]
@@ -105,11 +106,12 @@
     "unit_cell": [2, 2],
     "cpu_complex128": {
       "iterations": [2, 4, 8, 16],
-      "residual": [1.5999536e-05, 1.5999024e-05, 1.59980001e-05, 1.59959525e-05],
+      "initialization_regularizer": 1e-09,
+      "residual": [1.5999999880556004e-08, 1.599999921442219e-08, 1.5999998215221467e-08, 1.5999996216820023e-08],
       "fresh_gauge_drift": [0.00848149795, 0.0219246597, 0.00153400184, 1.48100813e-05],
-      "onsite_replay_abs_error": [1.27675648e-15, 3.71924713e-15, 1.52655666e-15, 4.72e-16],
-      "interaction_replay_abs_error": [2.01227923e-16, 1.52655666e-16, 1.42247325e-16, 5.03e-16],
-      "raw_component_relative_error": [1.20568709, 1.23742576, 1.23738297, 1.23738],
+      "onsite_replay_abs_error": [1.1657341758564144e-15, 3.5388358909926865e-16, 4.891920202254596e-16, 1.3530843112619095e-16],
+      "interaction_replay_abs_error": [1.3183898417423734e-16, 6.938893903907228e-17, 2.185751579730777e-16, 3.7470027081099033e-16],
+      "raw_component_relative_error": [1.2056870854014337, 1.2374257628739962, 1.2373829675350543, 1.2373797340913724],
       "converged": [false, false, false, false]
     },
     "cuda_complex64": {
@@ -121,13 +123,13 @@
       "raw_component_relative_error": [1.20569, 1.23743, 1.23738],
       "converged": [false, false, false]
     },
-    "interpretation": "Longer sweeps reduce finite-iteration paired-gauge drift but do not remove the approximately 1.6e-5 invariant residual floor; the next work must change fixed-point initialization, normalization, or convergence control rather than relax replay tolerances."
+    "interpretation": "The dtype-aware complex128 initialization reduces the 2x2 invariant residual floor to approximately 1.6e-8 while bounded physical replays remain green. The remaining gate is the unresolved transfer gap and fresh-gauge/fixed-point behavior, not a replay tolerance."
   },
   "regression": {
     "command": "python -m unittest discover -s tests -p 'test_*.py'",
     "passed": true,
     "tests_run": 167,
-    "duration_seconds": 42.831
+    "duration_seconds": 31.386
   },
   "admission": {
     "status": "needs_review",
