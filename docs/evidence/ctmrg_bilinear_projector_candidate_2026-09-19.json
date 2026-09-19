@@ -1,7 +1,7 @@
 {
   "artifact": "ctmrg-bilinear-biorthogonal-projector-candidate",
   "date": "2026-09-19",
-  "revision": "2177bd7",
+  "revision": "37e7898",
   "scope": {
     "projector_policy": "biorthogonal-bilinear",
     "unit_cell": [1, 1],
@@ -11,56 +11,70 @@
     "iterations": 8
   },
   "implementation": {
-    "boundary_overlap": "left_corner.T @ right_corner",
-    "left_projector": "left_corner @ inverse(boundary_overlap).T",
+    "boundary_overlap": "diagnostic only: left_corner.T @ right_corner",
+    "left_projector": "left_corner",
     "right_projector": "right_corner",
-    "edge_projection": "left_projector.T @ grown_edge @ right_projector",
+    "edge_projection": "left_projector.T @ grown_edge @ right_projector; middle leg transforms covariantly",
     "default_changed": false,
     "optimization_admitted": false,
     "unit_cell_limit": "1x1"
   },
   "verification": {
     "focused_tests": "3/3 passed",
-    "full_agent_suite": "157/157 passed",
+    "full_agent_suite": "158/158 passed",
     "environment_map_id": "ctmrg-biorthogonal-bilinear-v1",
     "transport_gate": true,
-    "ghz_reference_gate": true
+    "ghz_reference_gate": true,
+    "cuda_smoke": {
+      "device": "cuda",
+      "dtype": "complex64",
+      "energy": -0.024658665712922814,
+      "paired_gauge_delta": 0.034861743450164795,
+      "paired_gauge_gate": false,
+      "transport_gate": true,
+      "converged": false,
+      "fixed_point_classification": "unconverged"
+    }
   },
   "random_d2_gate": [
     {
       "seed": 17,
-      "energy": 0.020196124002179114,
-      "fixed_point_residual": 3.9968028886505635e-15,
+      "energy": 0.05061138985079258,
+      "fixed_point_residual": 1.285601332827989e-16,
       "converged": false,
-      "paired_gauge_delta": 0.06604027856669004,
+      "fixed_point_classification": "unconverged",
+      "paired_gauge_delta": 0.000317095982938706,
       "paired_gauge_gate": false
     },
     {
       "seed": 29,
-      "energy": -0.03524686069523936,
-      "fixed_point_residual": 6.661338147750939e-16,
-      "converged": false,
-      "paired_gauge_delta": 0.15629595128972754,
-      "paired_gauge_gate": false
+      "energy": -0.027756355584442467,
+      "fixed_point_residual": 8.8591346609466e-17,
+      "converged": true,
+      "fixed_point_classification": "converged",
+      "paired_gauge_delta": 5.147810215130888e-05,
+      "paired_gauge_gate": true
     },
     {
       "seed": 41,
-      "energy": 0.04986045771452327,
-      "fixed_point_residual": 4.440892098500626e-16,
-      "converged": false,
-      "paired_gauge_delta": 0.02700614207798513,
-      "paired_gauge_gate": false
+      "energy": 0.042331214145097884,
+      "fixed_point_residual": 8.831587361951734e-17,
+      "converged": true,
+      "fixed_point_classification": "converged",
+      "paired_gauge_delta": 3.6282842970414286e-05,
+      "paired_gauge_gate": true
     }
   ],
   "ghz_gate": {
     "reference_passed": true,
     "energy": 1.0,
     "converged": false,
-    "paired_gauge_delta": 1.0000000000000027,
+    "fixed_point_classification": "degenerate-needs-review",
+    "paired_gauge_delta": 1.0000000000000222,
     "paired_gauge_gate": false,
     "research_status": "needs_review"
   },
-  "decision": "reject-as-covariant-candidate-keep-opt-in-for-research-diagnostics",
-  "conclusion": "The bilinear dual span is algebraically well-defined and exposes a false-convergence failure: a tiny environment residual does not imply gauge-invariant physics. It is not admitted as a covariant production projector.",
-  "next_action": "retain the explicit transport/dual-basis primitives and derive a boundary-map projector that reports transfer-gap and invariant residual independently of the raw residual"
+  "decision": "keep-opt-in-promising-but-not-admitted",
+  "conclusion": "The raw dual-span projector materially reduces generic random D=2 gauge drift and passes the declared 1e-4 gate for two of three seeds. It still fails one seed and the degenerate GHZ gauge gate, so it is not a covariant production projector.",
+  "next_action": "combine raw dual-span projection with a symmetry/degeneracy-aware boundary map and run the full chi/2x2/autodiff gates before promotion"
 }
