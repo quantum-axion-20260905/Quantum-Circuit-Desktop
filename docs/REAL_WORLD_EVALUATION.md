@@ -269,6 +269,13 @@ target a covariant environment/fixed-point map rather than presenting larger
 χ as a solution. See
 `docs/evidence/ctmrg_gauge_convergence_probe_2026-09-18.json`.
 
+The existing pairwise polar-balance diagnostic was also compared directly. It
+reduced one random D=2 gauge drift from `6.91e-3` to `3.76e-3`, but this is
+still 37.6 times above the `1e-4` gate and its measured condition number
+increased. It therefore remains a diagnostic candidate, not an optimizer
+preconditioner; details are in
+`docs/evidence/ctmrg_gauge_preconditioner_effect_2026-09-19.json`.
+
 ## Phase 2 finite-2D boundary-MPS slice
 
 The bounded GPU boundary-MPS path was exercised on open 3×3 spin lattices

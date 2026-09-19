@@ -117,6 +117,12 @@ features.
   must make the environment/fixed-point map covariant. Evidence is recorded
   in `docs/evidence/ctmrg_gauge_convergence_probe_2026-09-18.json`.
 
+- The existing diagnostic `pairwise-polar-balance` candidate lowers one random
+  D=2 gauge drift from `6.91e-3` to `3.76e-3`, but remains 37.6x above the
+  `1e-4` gate and can worsen the virtual-leg condition number. It remains
+  explicitly outside optimizer/production paths; the measurement is recorded
+  in `docs/evidence/ctmrg_gauge_preconditioner_effect_2026-09-19.json`.
+
 ### Four-step delivery ladder for the active phase
 
 The following ladder is the working sequence. Each step produces a commit and

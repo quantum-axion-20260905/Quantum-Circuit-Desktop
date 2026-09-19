@@ -1,0 +1,30 @@
+{
+  "artifact": "ctmrg-gauge-preconditioner-effect",
+  "date": "2026-09-19",
+  "revision": "f579422",
+  "environment": {
+    "device": "cuda:0",
+    "gpu": "RTX 3060",
+    "dtype": "complex128",
+    "virtual_bond_dim": 2,
+    "environment_bond_dim": 2,
+    "iterations": 5,
+    "truncation_gradient": "differentiable-eigh"
+  },
+  "comparison": {
+    "raw_gauge_delta": 0.00690500934060011,
+    "preconditioned_gauge_delta": 0.0037626056105274225,
+    "admission_tolerance": 0.0001,
+    "preconditioner_iterations": 4,
+    "raw_vertical_pair_delta": 0.25590358517193035,
+    "raw_vertical_pair_delta_after": 0.10810609499006026,
+    "raw_horizontal_pair_delta": 0.19994230357538506,
+    "raw_horizontal_pair_delta_after": 0.13677324164829105,
+    "gauged_vertical_pair_delta_after": 0.07819328057904765,
+    "gauged_horizontal_pair_delta_after": 0.22757252337873132,
+    "raw_condition_number": 2.5618459172236325,
+    "preconditioned_condition_number": 5.824296680719061,
+    "gauged_preconditioned_condition_number": 11.37045559504664
+  },
+  "conclusion": "The bounded pairwise polar-balance candidate lowers one sampled gauge drift but remains 37.6x above the admission tolerance and can worsen conditioning. It stays diagnostic-only; a covariant environment/fixed-point method is still required."
+}
