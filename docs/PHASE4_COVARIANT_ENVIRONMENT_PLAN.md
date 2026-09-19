@@ -537,6 +537,22 @@ normalization remain the next integration gate. A bounded CUDA complex64
 smoke also passes on device 0 with the same `1 x d2 x 1` output and
 `5.96e-8` biorthogonal overlap error.
 
+Commit `3da4d92` closes that next gate for a bounded one-site path. The new
+`apply_dynamic_ctm_move` mirrors the existing left/right/top/bottom index
+contractions, transposes only the corners whose legacy square notation hid an
+axis reversal, and updates explicit top/left/bottom/right dimensions after
+each move. `run_dynamic_ctm_sweep` now executes all four directions with
+shape-preserving normalization. A random complex128 1x1 sweep reduces all
+four sides from `2` to `1`, and its paired-gauge replay preserves the
+normalized `Z` observable below `1e-10`; the full regression is `176/176`.
+The same bounded CUDA complex64 sweep passes on device 0 with maximum
+biorthogonal overlap error `5.96e-8`.
+
+This is the first real dynamic boundary sweep, but it is still not the public
+periodic solver: observable/interaction adapters, multi-site periodic state
+propagation, convergence diagnostics, and public checkpoint resume remain
+separate admission gates.
+
 - For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - For comparison, CPU random D=2 seeds 17/29/41 on the raw candidate: replay remains red, with maximum factor error
