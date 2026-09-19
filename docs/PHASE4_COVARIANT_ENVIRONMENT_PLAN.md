@@ -605,6 +605,14 @@ structure level. A public resume API and a paired-gauge replay that starts
 from the resumed multi-site state are still the final evidence gates for this
 packet.
 
+Commit `db1aa19` closes the paired-gauge resume gate at the dynamic state
+level. Two independently checkpointed 2x2 states (original and exactly
+paired-gauged) are loaded back, then their four normalized onsite Z values and
+horizontal ZZ interaction are compared; complex128 deltas remain below
+`1e-10`. The full regression is now `182/182`. This proves checkpoint
+integrity plus replay consistency for the bounded dynamic state, but it does
+not yet authorize the public payload path or optimization.
+
 - For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - For comparison, CPU random D=2 seeds 17/29/41 on the raw candidate: replay remains red, with maximum factor error

@@ -32,7 +32,8 @@
     "dynamic_periodic_cell_sweep": true,
     "dynamic_multi_site_runner": true,
     "dynamic_multi_site_checkpoint_resume": true,
-    "full_regression": "181/181"
+    "dynamic_resumed_multisite_gauge_replay": true,
+    "full_regression": "182/182"
   },
   "cuda_smoke": {
     "available": true,
