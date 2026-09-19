@@ -1458,3 +1458,145 @@ def run_dynamic_ctmrg_payload(
             "resumed": initial_source == "checkpoint",
         }
     return result, final
+
+
+def run_dynamic_ctmrg_convergence_study(
+    xp: Any,
+    payload: Any,
+    environment_bond_dims: list[int] | tuple[int, ...],
+) -> dict[str, Any]:
+    """Compare independent dynamic contractions across bounded environment sizes.
+
+    Each point starts from a fresh environment and has checkpoint/resume
+    disabled.  The study is deliberately a comparison tool, not a composite
+    solver: a small energy delta cannot override an unresolved transfer gap or
+    a shared-sector synchronization fallback.
+    """
+
+    normalized_dims = [int(value) for value in environment_bond_dims]
+    if not normalized_dims:
+        raise ValueError("dynamic CTMRG convergence study requires at least one environment dimension")
+    if len(normalized_dims) > 8:
+        raise ValueError("dynamic CTMRG convergence study is limited to eight points")
+    if any(value < 1 or value > 128 for value in normalized_dims):
+        raise ValueError("dynamic CTMRG environment dimensions must be between 1 and 128")
+    if len(set(normalized_dims)) != len(normalized_dims):
+        raise ValueError("dynamic CTMRG environment dimensions must be unique")
+    if getattr(payload, "optimization", "none") != "none":
+        raise ValueError("dynamic CTMRG convergence studies require optimization='none'")
+
+    points: list[dict[str, Any]] = []
+    previous_energy: float | None = None
+    previous_observables: list[float] | None = None
+    previous_interactions: list[float | None] | None = None
+    for dimension in normalized_dims:
+        point_payload = payload.model_copy(update={
+            "environment_bond_dim": dimension,
+            "checkpoint_path": None,
+            "resume_from": None,
+        })
+        result, _ = run_dynamic_ctmrg_payload(xp, point_payload)
+        energy = float(result["energy"])
+        observables = [float(item["value"]) for item in result.get("observables", [])]
+        interactions = [
+            None if item.get("value") is None else float(item["value"])
+            for item in result.get("interactions", [])
+        ]
+        observable_delta = None
+        if previous_observables is not None and len(previous_observables) == len(observables):
+            observable_delta = max(
+                (abs(current - previous) for current, previous in zip(observables, previous_observables)),
+                default=0.0,
+            )
+        interaction_delta = None
+        if previous_interactions is not None and len(previous_interactions) == len(interactions):
+            interaction_delta = max(
+                (
+                    abs(float(current) - float(previous))
+                    for current, previous in zip(interactions, previous_interactions)
+                    if current is not None and previous is not None
+                ),
+                default=0.0,
+            )
+        sweeps = list(result.get("dynamic_cell_sweep", []))
+        gaps = list(result["environment_diagnostics"].get("transfer_gap_by_site", []))
+        points.append({
+            "environment_bond_dim": dimension,
+            "requested_environment_dim": int(result.get("requested_environment_dim", dimension)),
+            "energy": energy,
+            "energy_complete": bool(result["energy_complete"]),
+            "energy_delta": None if previous_energy is None else energy - previous_energy,
+            "energy_abs_delta": None if previous_energy is None else abs(energy - previous_energy),
+            "observable_max_abs_delta": observable_delta,
+            "interaction_max_abs_delta": interaction_delta,
+            "residual": float(result["residual"]),
+            "converged": bool(result["converged"]),
+            "fixed_point_classification": result.get("fixed_point_classification", "unconverged"),
+            "transfer_gap_by_site": gaps,
+            "minimum_transfer_gap": min((float(value) for value in gaps if value is not None), default=None),
+            "retained_dimensions": result.get("environment_shape_manifests", []),
+            "synchronized_sector_retry": any(bool(item.get("synchronized_retry")) for item in sweeps),
+            "reference_validation": result.get("reference_validation"),
+            "boundary_mps_validation": result.get("boundary_mps_validation"),
+            "research_gate": result.get("research_gate"),
+            "research_gate_status": result.get("research_gate", {}).get("status"),
+            "research_gate_blocking_reasons": list(result.get("research_gate", {}).get("blocking_reasons", [])),
+        })
+        previous_energy = energy
+        previous_observables = observables
+        previous_interactions = interactions
+
+    blocking_reasons = sorted({
+        str(reason)
+        for point in points
+        for reason in point["research_gate_blocking_reasons"]
+    })
+    reference_errors = [
+        float(point["reference_validation"]["max_abs_error"])
+        for point in points
+        if isinstance(point.get("reference_validation"), dict)
+        and point["reference_validation"].get("max_abs_error") is not None
+    ]
+    return {
+        "schema": "quantum-circuit/ctmrg-dynamic-convergence-study-v1",
+        "status": "needs_review",
+        "method": "ipeps-ctmrg-dynamic-convergence-study",
+        "optimization": "none",
+        "unit_cell": list(payload.unit_cell),
+        "unit_cell_sites": math.prod(payload.unit_cell),
+        "points": points,
+        "reference_summary": {
+            "performed_points": sum(
+                1 for point in points
+                if isinstance(point.get("reference_validation"), dict)
+                and point["reference_validation"].get("performed")
+            ),
+            "passed_points": sum(
+                1 for point in points
+                if isinstance(point.get("reference_validation"), dict)
+                and point["reference_validation"].get("passed") is True
+            ),
+            "maximum_reference_error": max(reference_errors, default=None),
+        },
+        "research_gate_summary": {
+            "status": "needs_review",
+            "production_ready": False,
+            "points": len(points),
+            "passed_points": sum(point["research_gate_status"] == "passed" for point in points),
+            "review_points": sum(point["research_gate_status"] != "passed" for point in points),
+            "blocking_reasons": blocking_reasons,
+        },
+        "energy_summary": {
+            "minimum": min((point["energy"] for point in points), default=None),
+            "maximum": max((point["energy"] for point in points), default=None),
+            "absolute_range": (
+                max(point["energy"] for point in points) - min(point["energy"] for point in points)
+                if points else None
+            ),
+        },
+        "warnings": [
+            "each point is a fresh bounded dynamic contraction",
+            "energy stability does not override unresolved transfer-gap or reference gates",
+            "this study does not establish thermodynamic-limit convergence",
+        ],
+    }

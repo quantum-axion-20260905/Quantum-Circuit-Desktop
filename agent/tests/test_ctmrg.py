@@ -1256,6 +1256,36 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(result["boundary_mps_validation"]["passed"])
         self.assertTrue(result["research_gate"]["gates"]["boundary_mps_crosscheck"]["passed"])
 
+    def test_dynamic_convergence_study_reports_sector_and_reference_spread(self):
+        from qc_agent.core.ctmrg_dynamic import run_dynamic_ctmrg_convergence_study
+
+        payload = CTMRGPayload(
+            unit_cell=[2, 2],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=1,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=0.5,
+            )],
+            initial_state="up",
+            virtual_bond_dim=2,
+            environment_bond_dim=2,
+            dtype="complex128",
+            iterations=2,
+        )
+
+        study = run_dynamic_ctmrg_convergence_study(np, payload, [1, 2])
+
+        self.assertEqual(study["schema"], "quantum-circuit/ctmrg-dynamic-convergence-study-v1")
+        self.assertEqual(len(study["points"]), 2)
+        self.assertEqual(study["reference_summary"]["passed_points"], 2)
+        self.assertEqual(study["energy_summary"]["absolute_range"], 0.0)
+        self.assertEqual(study["points"][0]["minimum_transfer_gap"], 1.0)
+        self.assertLess(study["points"][1]["minimum_transfer_gap"], 1e-6)
+        self.assertEqual(study["research_gate_summary"]["status"], "needs_review")
+
     def test_dynamic_covariant_move_emits_rectangular_projection_shapes(self):
         from qc_agent.core.ctmrg_dynamic import apply_dynamic_covariant_bilinear_move
 

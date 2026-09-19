@@ -47,7 +47,7 @@ from .core.ground_state import exact_ground_state
 from .core.dmrg import run_dmrg
 from .core.peps import run_peps
 from .core.ctmrg import run_ctmrg, run_ctmrg_convergence_study
-from .core.ctmrg_dynamic import run_dynamic_ctmrg_payload
+from .core.ctmrg_dynamic import run_dynamic_ctmrg_convergence_study, run_dynamic_ctmrg_payload
 from .core.ctmrg_boundary_mps import run_boundary_mps_convergence_study, tensors_from_payload
 from .plugins.tebd import run_tebd
 from .provenance import with_provenance
@@ -676,6 +676,46 @@ def jobs_ctmrg_convergence(payload: CTMRGConvergenceStudyPayload) -> dict[str, A
     started_at = time.perf_counter()
     try:
         result = run_ctmrg_convergence_study(cp, payload.problem, payload.environment_bond_dims)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    result["preflight"] = report
+    return _with_run_provenance(
+        result, payload, requested_backend=payload.backend, resolved_backend=resolved, started_at=started_at,
+    )
+
+
+@app.post("/jobs/ctmrg/dynamic/convergence")
+@_sync_gpu_guard
+def jobs_ctmrg_dynamic_convergence(payload: CTMRGConvergenceStudyPayload) -> dict[str, Any]:
+    """Compare fresh bounded dynamic CTMRG points across environment dimensions."""
+
+    resolved = _resolve_or_http(payload.backend, "ctmrg")
+    require_gpu(cp)
+    max_payload = payload.problem.model_copy(update={
+        "environment_bond_dim": max(payload.environment_bond_dims),
+        "max_time_ms": payload.max_time_ms,
+        "max_mem_mb": payload.max_mem_mb,
+    })
+    report = preflight_ctmrg(max_payload, gpu_free_mb=_gpu_free_mb(_hardware_snapshot()))
+    report["dynamic_study"] = True
+    report["study_points"] = len(payload.environment_bond_dims)
+    if not report.get("feasible", False):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "dynamic CTMRG convergence study rejected by preflight budget",
+                "warnings": report.get("warnings", []),
+                "estimated_peak_memory_mb": report.get("estimated_peak_memory_mb"),
+                "estimated_time_ms": report.get("estimated_time_ms"),
+            },
+        )
+    started_at = time.perf_counter()
+    try:
+        result = run_dynamic_ctmrg_convergence_study(
+            cp,
+            payload.problem,
+            payload.environment_bond_dims,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     result["preflight"] = report

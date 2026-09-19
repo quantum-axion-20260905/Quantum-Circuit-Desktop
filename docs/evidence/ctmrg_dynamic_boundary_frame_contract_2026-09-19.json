@@ -45,7 +45,8 @@
     "dynamic_independent_reference_gate": true,
     "dynamic_torch_cpu_parity": true,
     "dynamic_boundary_mps_crosscheck": true,
-    "full_regression": "191/191"
+    "dynamic_convergence_study": true,
+    "full_regression": "192/192"
   },
   "cuda_smoke": {
     "available": true,
@@ -123,6 +124,17 @@
     "fresh_source": "fresh",
     "resumed_source": "checkpoint",
     "checkpoint_site_digest_count": 4,
+    "passed": true
+  },
+  "cuda_dynamic_convergence_study": {
+    "available": true,
+    "device": 0,
+    "dtype": "complex64",
+    "environment_bond_dims": [1, 2],
+    "reference_passed_points": 2,
+    "chi1_minimum_transfer_gap": 1.0,
+    "chi2_minimum_transfer_gap": 1.9669514017550682e-06,
+    "status": "needs_review",
     "passed": true
   },
   "cpu_entangled_negative_probe": {

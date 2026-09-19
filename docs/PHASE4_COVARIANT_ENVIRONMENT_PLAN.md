@@ -709,6 +709,13 @@ separate validation record and become a research gate only when requested. A
 bounded 2x2 product probe passes this cross-check; it remains finite-boundary
 evidence and does not replace the unresolved transfer-sector fixed-point gate.
 
+The dynamic backend now also exposes a fresh-point convergence study at
+`/jobs/ctmrg/dynamic/convergence`. It reports energy/observable deltas,
+retained dimensions, transfer-gap minima, reference errors, synchronization
+restarts, and per-point research gates. The bounded CPU and CUDA `[1, 2]`
+studies show the intended diagnostic split: the product energy and finite
+reference are stable, while the `chi=2` transfer sector remains unresolved.
+
 ## 8. Definition of done
 
 Done means the covariant candidate either passes Packet F and is promoted as a
