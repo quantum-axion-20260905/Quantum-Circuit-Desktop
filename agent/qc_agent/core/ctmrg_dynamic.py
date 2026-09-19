@@ -212,10 +212,15 @@ def _host_scalar(value: Any) -> float:
 
 
 def normalize_dynamic_ctm_environment(xp: Any, environment: DynamicCTMEnvironment) -> DynamicCTMEnvironment:
-    """Normalize every rectangular boundary tensor without changing its shape."""
+    """Normalize every rectangular boundary tensor without changing its shape.
+
+    The scale convention intentionally matches the existing square CTMRG
+    `_renormalize` path: max-absolute scaling, rather than an L2 norm, keeps
+    full-rank dynamic moves numerically comparable to the established map.
+    """
 
     def normalize(value: Any) -> Any:
-        scale = max(_host_scalar(xp.linalg.norm(value)), 1e-30)
+        scale = max(_host_scalar(xp.max(xp.abs(value))), 1e-30)
         return value / scale
 
     return DynamicCTMEnvironment(
