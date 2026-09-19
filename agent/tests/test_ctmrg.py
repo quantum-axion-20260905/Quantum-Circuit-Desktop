@@ -1048,6 +1048,42 @@ class CTMRGTests(unittest.TestCase):
         self.assertAlmostEqual(result["interactions"][0]["value"], -1.0, places=6)
         self.assertTrue(result["energy_complete"])
 
+    def test_two_site_move_propagates_projector_policy_to_ctm_move(self):
+        from qc_agent.core.ctmrg import (
+            _double_layer,
+            _initialize_environment,
+            _left_move_two_site,
+        )
+
+        rng = np.random.default_rng(73)
+        tensors = [
+            rng.normal(size=(2, 2, 2, 2, 2))
+            + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+            for _ in range(2)
+        ]
+        tensors = [tensor.astype(np.complex128) / np.linalg.norm(tensor) for tensor in tensors]
+        layers = [_double_layer(np, tensor) for tensor in tensors]
+        self_environment = _initialize_environment(np, layers[0], 2)
+        neighbor_environment = _initialize_environment(np, layers[1], 2)
+        _, half_discarded = _left_move_two_site(
+            np,
+            self_environment,
+            neighbor_environment,
+            layers[1],
+            2,
+            projector_method="half-density",
+        )
+        _, bilinear_discarded = _left_move_two_site(
+            np,
+            self_environment,
+            neighbor_environment,
+            layers[1],
+            2,
+            projector_method="biorthogonal-bilinear",
+        )
+        self.assertGreater(half_discarded, 0.0)
+        self.assertEqual(bilinear_discarded, 0.0)
+
     def test_vertical_checkerboard_and_multi_tensor_import(self):
         # Two D=1 tensors are serialized site-major: |up> followed by |down>.
         tensor_data = [[1.0, 0.0], [0.0, 0.0], [0.0, 0.0], [1.0, 0.0]]
