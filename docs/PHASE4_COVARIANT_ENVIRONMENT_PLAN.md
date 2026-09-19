@@ -1,0 +1,226 @@
+# Phase 4 large-work plan: covariant CTMRG environment
+
+## 1. Purpose
+
+The next major implementation is a gauge-covariant environment/fixed-point
+strategy for the bounded iPEPS/CTMRG backend. The current solver can contract
+useful product limits and narrow GHZ references, but a generic entangled D=2
+cell still changes its energy under an exact paired virtual-gauge transform.
+Increasing `chi` or the iteration count alone does not remove that drift.
+
+This work must make the truncated environment map respect the declared PEPS
+gauge convention before any generic entangled result is called production
+research output.
+
+The authoritative acceptance question is:
+
+> Does the same physical iPEPS, represented in two exactly paired virtual
+> gauges, produce the same declared energy/observables and consistent fixed
+> point diagnostics within the dtype and truncation budget?
+
+This plan deliberately does not promise a universal infinite-2D solver. It
+targets a bounded, reproducible D=2 research capability first.
+
+## 2. Scope and hard limits
+
+In scope:
+
+- one-site and existing 1x1–2x2 periodic unit cells;
+- physical dimension 2 and virtual dimension 1–2 for the first gate;
+- CPU NumPy reference and CUDA CuPy execution;
+- Torch unrolled and implicit objective paths using the same environment map;
+- full provenance, residuals, truncation, gauge, replay, and export metadata.
+
+Out of scope until this gate passes:
+
+- silently changing the default projector for all existing users;
+- optimizer admission for generic entangled cells;
+- large 3D contraction, high-entanglement chemistry, or frontend marketing
+  controls;
+- claiming that a finite boundary-MPS result is an infinite-lattice proof;
+- large GPU campaigns or host-RAM-heavy sweeps.
+
+Resource policy remains strict: every GPU run is bounded by preflight, the
+number of points is small and explicit, and unrelated high-RAM processes are
+not inspected, stopped, or competed with.
+
+## 3. Design principles
+
+1. The gauge convention is a first-class numerical contract, not a UI flag.
+2. Environment transport, truncation, normalization, and observables must use
+   the same bond orientation and inverse/conjugate convention.
+3. A gauge transform must be transported through the environment or the
+   environment must be rebuilt by a covariant rule; comparing two unrelated
+   boundary initializations is not a gauge proof.
+4. Residuals are reported in a basis-invariant form, but raw basis residuals
+   remain visible for debugging.
+5. A candidate is admitted only if it improves the complete gate set. A lower
+   energy or a lower local Gram mismatch alone is insufficient.
+6. CuPy, NumPy, and Torch paths must share the same logical map. A backend
+   implementation may differ in kernels, not in tensor ordering or stopping
+   semantics.
+7. Experimental strategies are opt-in and labelled `needs_review` until the
+   full evidence packet passes.
+
+## 4. Work packets
+
+### Packet A — freeze the gauge and environment contracts
+
+Deliverables:
+
+- document the exact virtual-leg transform for ket, bra, incoming, and
+  outgoing indices;
+- define how an environment corner/edge transforms under each leg gauge;
+- add a versioned environment-map identifier to CTMRG diagnostics and
+  checkpoints;
+- define a typed internal seam for `initialize -> sweep -> normalize ->
+  residual -> observable` so candidate maps can be compared without touching
+  HTTP or frontend code;
+- add negative checks for incompatible tensor/environment orientation.
+
+Acceptance:
+
+- D=1 product behavior is unchanged;
+- paired finite PEPS reference remains invariant to numerical tolerance;
+- an environment-map mismatch is rejected or reported, never silently mixed.
+
+### Packet B — implement one covariant candidate
+
+Implement exactly one candidate first, selected from the existing numerical
+seams after a small derivation:
+
+- transport the boundary basis with explicit left/right inverse maps;
+- build truncation projectors from a gauge-covariant reduced boundary object;
+- use biorthogonal/SVD projectors where the boundary map is non-Hermitian;
+- normalize corners, edges, and the transfer operator with explicit scale
+  metadata;
+- keep the current half-density and full-SVD paths available as baselines;
+- expose the candidate behind an opt-in internal policy, not the default.
+
+The implementation must preserve tensor shapes and site ordering for 1x1,
+2x1, 1x2, and 2x2 cells. Every candidate update must return discarded weight,
+condition information, raw residual, invariant residual, and the map version.
+
+### Packet C — deterministic fixed-point behavior
+
+Add a bounded fixed-point controller around the candidate map:
+
+- deterministic initialization and optional transported initialization;
+- residual comparison in invariant spectra plus a raw-basis diagnostic;
+- damping only as an explicit control, with the same value in NumPy/CuPy/Torch;
+- transfer-gap and near-degeneracy detection;
+- bounded multi-start only for diagnostic studies, with sector spread reported;
+- stop conditions that distinguish `converged`, `unconverged`, and
+  `degenerate/needs_review`.
+
+No convergence result may be promoted merely because the energy stopped moving.
+
+### Packet D — make autodiff use the same map
+
+- route Torch unrolled sweeps through the candidate environment map;
+- route the implicit fixed-point/adjoint path through exactly the same map;
+- keep differentiable truncation explicit and reject unsupported degeneracy;
+- report forward residual, transfer gap, adjoint residual, truncation policy,
+  and map version in the optimization result;
+- validate central differences on small entangled tensors before any optimizer
+  run is treated as evidence.
+
+### Packet E — evidence campaign, small and reproducible
+
+Run only the following bounded matrix first:
+
+| Family | Cell | dtype | chi | Purpose |
+| --- | --- | --- | --- | --- |
+| product | 1x1 | complex64/128 | 1–4 | exact regression |
+| canonical GHZ | 1x1 | complex128 | 2–4 | degenerate-sector behavior |
+| random D=2, seeds 17/29/41 | 1x1 | complex128 | 2–4 | gauge and chi gates |
+| random D=2, seeds 17/29 | 2x2 | complex128 | 2–3 | unit-cell ordering |
+| one CUDA random seed | 1x1 | complex64 | 2 | bounded GPU parity |
+
+For each point record:
+
+- energy, observables, variance, fixed-point residual, raw residual;
+- truncation/discarded weight and transfer gap;
+- paired-gauge energy/observable deltas;
+- chi/iteration differences;
+- finite periodic reference error where available;
+- boundary-MPS comparison only as an independent diagnostic;
+- GPU memory/time and exact request fingerprint.
+
+### Packet F — admission decision
+
+The candidate is `passed` only if all applicable gates pass:
+
+- D=1 energy/reference regression remains exact;
+- canonical GHZ reference remains within its declared tolerance;
+- random D=2 complex128 paired-gauge drift is `<=1e-4` for all three 1x1
+  seeds at the declared converged point;
+- the 2x2 sample does not show a new orientation/order-dependent failure;
+- increasing chi produces a stable, documented convergence trend rather than
+  a cherry-picked point;
+- discarded weight and transfer-gap diagnostics are finite and interpretable;
+- differentiable-eigh central-difference error is `<=1e-3` on the selected
+  complex128 components;
+- implicit adjoint residual is within its declared tolerance and the transfer
+  gap is resolved;
+- no condition safeguard is bypassed and no warning is suppressed.
+
+If any gate fails, the candidate remains opt-in `needs_review`, the evidence is
+kept, and the next iteration changes one numerical assumption at a time.
+
+## 5. API and architecture changes
+
+The public request contract should gain a versioned environment-policy field
+only after Packet A defines its semantics. The field must be validated by
+preflight and included in:
+
+- synchronous CTMRG results;
+- async job manifests;
+- checkpoints and resume validation;
+- convergence-study points and aggregate summaries;
+- replay/export artifacts;
+- frontend capability metadata.
+
+The numerical candidate belongs in `agent/qc_agent/core/`, not in the server or
+domain plugins. The server should only resolve, preflight, schedule, and
+serialize it. The spin/materials plugins should continue to provide models and
+observables without duplicating environment math.
+
+## 6. Verification cadence
+
+Each packet follows this order:
+
+1. CPU unit/reference test;
+2. focused CUDA smoke with a small tensor;
+3. relevant backend suite;
+4. evidence JSON with exact revision and limits;
+5. plan/evaluation update;
+6. coherent commit and GitHub push.
+
+The active packet is never silently widened. Frontend controls are added only
+after Packet F passes; until then the UI may show diagnostics and the explicit
+`needs_review` status but must not present the candidate as a production
+solver.
+
+## 7. Expected checkpoints
+
+This is one large goal, but it is intentionally divided into checkpoints:
+
+- C1: contract and baseline tests;
+- C2: candidate map on CPU product/GHZ;
+- C3: CUDA parity and fixed-point diagnostics;
+- C4: autodiff/implicit consistency;
+- C5: random D=2 and 2x2 evidence;
+- C6: admission decision and release-note update.
+
+The goal may continue across multiple sessions. A checkpoint is complete only
+when its tests and evidence are committed; a green job without a scientific
+gate is not completion.
+
+## 8. Definition of done
+
+Done means the covariant candidate either passes Packet F and is promoted as a
+bounded research capability, or its failure is fully characterized and the
+next numerical strategy is explicitly chosen. In both cases the old baseline
+remains reproducible, the capability matrix is honest, and no generic
+entangled result is labelled production-ready without the required evidence.

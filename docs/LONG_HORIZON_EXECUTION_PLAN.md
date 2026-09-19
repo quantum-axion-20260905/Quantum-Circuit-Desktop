@@ -564,6 +564,11 @@ research claims.
 
 ## Current next packet
 
+The detailed implementation plan for the next large packet is
+`docs/PHASE4_COVARIANT_ENVIRONMENT_PLAN.md`. It is the execution companion to
+this long-horizon roadmap and defines checkpoints C1–C6, bounded evidence, and
+the admission gate before any generic entangled frontend promotion.
+
 The next implementation packet is Phase 4 variational research-grade convergence:
 
 - keep the recorded GPU χ/iteration campaign and the new D=2 gradient gate as
