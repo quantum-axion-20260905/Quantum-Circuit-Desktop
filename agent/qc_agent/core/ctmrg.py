@@ -990,22 +990,26 @@ def _directional_boundary_factors(
         first = xp.einsum("ab,buc->auc", environment.C1, environment.T1).reshape(-1, environment.T1.shape[2])
         second = xp.einsum("gh,hdi->gdi", environment.C4, environment.T3).reshape(-1, environment.T3.shape[2])
         grown = xp.einsum("alg,udlr->augdr", environment.T4, double_layer)
-        grown = xp.transpose(grown, (0, 1, 4, 2, 3)).reshape(first.shape[0], d2, second.shape[0])
+        grown = _transpose(xp, grown, (0, 1, 4, 2, 3)).reshape(first.shape[0], d2, second.shape[0])
     elif direction == "right":
         first = xp.einsum("ce,buc->eub", environment.C2, environment.T1).reshape(-1, environment.T1.shape[0])
         second = xp.einsum("im,hdi->mdh", environment.C3, environment.T3).reshape(-1, environment.T3.shape[0])
         grown = xp.einsum("erm,udlr->eumdl", environment.T2, double_layer)
-        grown = xp.transpose(grown, (0, 1, 4, 2, 3)).reshape(first.shape[0], d2, second.shape[0])
+        grown = _transpose(xp, grown, (0, 1, 4, 2, 3)).reshape(first.shape[0], d2, second.shape[0])
     elif direction == "top":
         first = xp.einsum("ab,alg->blg", environment.C1, environment.T4).reshape(-1, environment.T4.shape[2])
         second = xp.einsum("ce,erm->crm", environment.C2, environment.T2).reshape(-1, environment.T2.shape[2])
         grown = xp.einsum("buc,udlr->bcdlr", environment.T1, double_layer)
-        grown = xp.transpose(grown, (0, 3, 2, 1, 4)).reshape(first.shape[0], d2, second.shape[0])
+        grown = _transpose(xp, grown, (0, 3, 2, 1, 4)).reshape(first.shape[0], d2, second.shape[0])
     elif direction == "bottom":
-        first = xp.transpose(xp.einsum("gh,alg->hal", environment.C4, environment.T4), (0, 2, 1)).reshape(-1, environment.T4.shape[0])
+        first = _transpose(
+            xp,
+            xp.einsum("gh,alg->hal", environment.C4, environment.T4),
+            (0, 2, 1),
+        ).reshape(-1, environment.T4.shape[0])
         second = xp.einsum("im,erm->ire", environment.C3, environment.T2).reshape(-1, environment.T2.shape[0])
         grown = xp.einsum("hdi,udlr->hiulr", environment.T3, double_layer)
-        grown = xp.transpose(grown, (0, 3, 2, 1, 4)).reshape(first.shape[0], d2, second.shape[0])
+        grown = _transpose(xp, grown, (0, 3, 2, 1, 4)).reshape(first.shape[0], d2, second.shape[0])
     else:
         raise ValueError(f"unsupported directional boundary factor {direction!r}")
     return first, second, grown
@@ -1110,6 +1114,208 @@ def _directional_boundary_transport_validation(
             "this validates one-site absorption transport on a resident environment",
             "it does not select a retained subspace or prove a converged truncated fixed point",
             "the fresh paired-gauge fixed-point gate remains separate",
+        ],
+    }
+
+
+def _directional_bilinear_sweep_covariance_replay(
+    xp: Any,
+    environment: CTMEnvironment,
+    gauged_environment: CTMEnvironment,
+    layer: Any,
+    gauged_layer: Any,
+    virtual_gauges: tuple[Any, Any, Any, Any],
+    boundary_dim: int,
+    chi: int,
+    *,
+    sweeps: int = 1,
+) -> dict[str, Any]:
+    """Replay bounded bilinear moves and expose covariance loss by direction.
+
+    The local transport gate proves that one absorption has the correct
+    enlarged-boundary algebra.  It does not prove that the retained corner
+    basis produced by that absorption remains a valid transported basis for
+    the next absorption.  This replay executes the actual one-site move
+    sequence from a resident environment and its explicitly transported
+    partner, checking the factor maps before every move and the projected edge
+    after every move.  It is intentionally diagnostic-only: no solver state is
+    changed and a failing replay cannot silently promote the candidate.
+    """
+
+    if int(sweeps) < 1:
+        raise ValueError("sweeps must be positive")
+    if int(boundary_dim) < 1 or int(chi) < 1:
+        raise ValueError("boundary_dim and chi must be positive")
+
+    move_by_direction = {
+        "left": _left_move,
+        "right": _right_move,
+        "top": _top_move,
+        "bottom": _bottom_move,
+    }
+    edge_by_direction = {
+        "left": "T4",
+        "right": "T2",
+        "top": "T1",
+        "bottom": "T3",
+    }
+    directions = ("left", "right", "top", "bottom")
+    current = environment
+    current_gauged = gauged_environment
+    reports: list[dict[str, Any]] = []
+
+    def relative_error(actual: Any, expected: Any) -> float:
+        scale = max(_max_abs(xp, expected), 1e-30)
+        return float(_host(xp.linalg.norm(actual - expected))) / scale
+
+    def edge(environment_value: CTMEnvironment, direction: str) -> Any:
+        return getattr(environment_value, edge_by_direction[direction])
+
+    for sweep_index in range(int(sweeps)):
+        for direction in directions:
+            first, second, grown = _directional_boundary_factors(
+                xp, current, layer, direction
+            )
+            gauged_first, gauged_second, gauged_grown = _directional_boundary_factors(
+                xp, current_gauged, gauged_layer, direction
+            )
+            maps = directional_boundary_gauge_map(
+                xp,
+                virtual_gauges,
+                boundary_dim=int(boundary_dim),
+                direction=direction,
+            )
+            transported_left, transported_right, projector_report = (
+                transport_directional_bilinear_projector_pair(
+                    xp,
+                    first,
+                    second,
+                    virtual_gauges,
+                    boundary_dim=int(boundary_dim),
+                    direction=direction,
+                )
+            )
+            predicted_grown = xp.einsum(
+                "ab,bic,oi,dc->aod",
+                maps["grown_row"],
+                grown,
+                maps["grown_middle"],
+                maps["grown_col"],
+            )
+            expected_projection = xp.einsum(
+                "oi,aid->aod",
+                maps["grown_middle"],
+                xp.einsum("ia,idj,jb->adb", first, grown, second),
+            )
+            transported_projection = xp.einsum(
+                "ia,idj,jb->adb",
+                transported_left,
+                gauged_grown,
+                transported_right,
+            )
+            tolerance = 1e-6 if "64" in str(first.dtype) else 1e-10
+            factor_errors = {
+                "corner_left_relative_error": relative_error(
+                    gauged_first, maps["corner_left"] @ first
+                ),
+                "corner_right_relative_error": relative_error(
+                    gauged_second, maps["corner_right"] @ second
+                ),
+                "grown_edge_relative_error": relative_error(
+                    gauged_grown, predicted_grown
+                ),
+                "projected_edge_relative_error": relative_error(
+                    transported_projection, expected_projection
+                ),
+            }
+
+            move = move_by_direction[direction]
+            next_environment, discarded = move(
+                xp,
+                current,
+                layer,
+                int(chi),
+                projector_method="biorthogonal-bilinear",
+            )
+            next_gauged_environment, gauged_discarded = move(
+                xp,
+                current_gauged,
+                gauged_layer,
+                int(chi),
+                projector_method="biorthogonal-bilinear",
+            )
+            actual_gauged_edge = edge(next_gauged_environment, direction)
+            moved_edge_error = relative_error(
+                actual_gauged_edge,
+                transported_projection,
+            )
+            contraction_before = _real(
+                _environment_contraction(xp, current, layer)
+            )
+            gauged_contraction_before = _real(
+                _environment_contraction(xp, current_gauged, gauged_layer)
+            )
+            contraction_after = _real(
+                _environment_contraction(xp, next_environment, layer)
+            )
+            gauged_contraction_after = _real(
+                _environment_contraction(xp, next_gauged_environment, gauged_layer)
+            )
+            before_scale = max(abs(contraction_before), abs(gauged_contraction_before), 1e-30)
+            after_scale = max(abs(contraction_after), abs(gauged_contraction_after), 1e-30)
+            before_contraction_error = abs(
+                contraction_before - gauged_contraction_before
+            ) / before_scale
+            after_contraction_error = abs(
+                contraction_after - gauged_contraction_after
+            ) / after_scale
+            reports.append({
+                "sweep": sweep_index + 1,
+                "direction": direction,
+                "factor_errors": factor_errors,
+                "projector_transport": projector_report,
+                "moved_edge_relative_error": moved_edge_error,
+                "contraction_before_relative_error": before_contraction_error,
+                "contraction_after_relative_error": after_contraction_error,
+                "discarded_weight": float(discarded),
+                "gauged_discarded_weight": float(gauged_discarded),
+                "tolerance": tolerance,
+                "passed": bool(
+                    all(value <= tolerance for value in factor_errors.values())
+                    and moved_edge_error <= tolerance
+                    and projector_report.get("passed", False)
+                ),
+            })
+            current = next_environment
+            current_gauged = next_gauged_environment
+
+    return {
+        "performed": True,
+        "method": "bounded-directional-bilinear-sweep-covariance-replay",
+        "sweeps": int(sweeps),
+        "directions_per_sweep": list(directions),
+        "steps": reports,
+        "maximum_factor_relative_error": max(
+            (
+                max(item["factor_errors"].values())
+                for item in reports
+            ),
+            default=0.0,
+        ),
+        "maximum_moved_edge_relative_error": max(
+            (float(item["moved_edge_relative_error"]) for item in reports),
+            default=0.0,
+        ),
+        "maximum_after_contraction_relative_error": max(
+            (float(item["contraction_after_relative_error"]) for item in reports),
+            default=0.0,
+        ),
+        "passed": bool(all(item["passed"] for item in reports)),
+        "limitations": [
+            "this is a bounded one-site replay from an explicitly transported environment",
+            "it does not select or optimize a retained subspace",
+            "multi-site periodic sweep covariance and thermodynamic fixed-point admission remain open",
+            "the replay is diagnostic-only and cannot promote biorthogonal-bilinear to production",
         ],
     }
 
@@ -2104,6 +2310,10 @@ def run_ctmrg(
         "performed": False,
         "reason": "not run for this request",
     }
+    directional_sweep_covariance_replay: dict[str, Any] = {
+        "performed": False,
+        "reason": "not run for this request",
+    }
     if bool(getattr(payload, "gauge_validation", False)):
         if int(payload.virtual_bond_dim) <= 1:
             gauge_validation["reason"] = "virtual_bond_dim=1 has no non-trivial virtual gauge probe"
@@ -2196,6 +2406,17 @@ def run_ctmrg(
                     paired_virtual_gauge_matrices(xp, tensors[0]),
                     boundary_dim=int(environments[0].C1.shape[0]),
                 )
+                directional_sweep_covariance_replay = _directional_bilinear_sweep_covariance_replay(
+                    xp,
+                    environments[0],
+                    transported_environments[0],
+                    layers[0],
+                    gauged_layers[0],
+                    paired_virtual_gauge_matrices(xp, tensors[0]),
+                    boundary_dim=int(environments[0].C1.shape[0]),
+                    chi=int(payload.environment_bond_dim),
+                    sweeps=1,
+                )
                 transported_gauged_result = run_ctmrg(
                     xp,
                     probe_payload,
@@ -2239,6 +2460,10 @@ def run_ctmrg(
                 warnings.append(
                     "biorthogonal-bilinear transported-environment gauge probe is diagnostic-only; fresh paired-gauge validation remains the admission gate"
                 )
+                if not directional_sweep_covariance_replay["passed"]:
+                    warnings.append(
+                        "biorthogonal-bilinear bounded directional sweep replay still loses covariance; tracked retained-basis transport remains unresolved"
+                    )
             if not gauge_validation["passed"]:
                 warnings.append(
                     f"virtual-gauge validation exceeded tolerance: max observable/energy delta {gauge_validation['max_abs_delta']:.3e}"
@@ -2354,6 +2579,7 @@ def run_ctmrg(
             "environment_transport_validation": environment_transport_validation,
             "transported_gauge_validation": transported_gauge_validation,
             "directional_boundary_transport_validation": directional_boundary_transport_validation,
+            "directional_sweep_covariance_replay": directional_sweep_covariance_replay,
             "gauge_conditioning": gauge_conditioning,
             "gauge_preconditioning": gauge_preconditioning,
             "research_gate": research_gate,
@@ -2400,6 +2626,7 @@ def run_ctmrg(
         "environment_transport_validation": environment_transport_validation,
         "transported_gauge_validation": transported_gauge_validation,
         "directional_boundary_transport_validation": directional_boundary_transport_validation,
+        "directional_sweep_covariance_replay": directional_sweep_covariance_replay,
         "gauge_conditioning": gauge_conditioning,
         "gauge_preconditioning": gauge_preconditioning,
         "research_gate": research_gate,

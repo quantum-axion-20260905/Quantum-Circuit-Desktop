@@ -146,6 +146,18 @@ class CTMRGTests(unittest.TestCase):
             len(result["directional_boundary_transport_validation"]["directions"]),
             4,
         )
+        replay = result["directional_sweep_covariance_replay"]
+        self.assertTrue(replay["performed"])
+        self.assertEqual(
+            [step["direction"] for step in replay["steps"]],
+            ["left", "right", "top", "bottom"],
+        )
+        # The one-site algebra is green, but the retained corner basis loses
+        # covariance at the top move.  Keep this negative result explicit so
+        # a future implementation cannot accidentally hide the admission gap.
+        self.assertFalse(replay["passed"])
+        top_step = next(step for step in replay["steps"] if step["direction"] == "top")
+        self.assertGreater(top_step["factor_errors"]["corner_left_relative_error"], 1e-3)
         self.assertTrue(any("paired-gauge probe fails" in warning for warning in result["warnings"]))
         self.assertTrue(any("no principled discarded-weight estimate" in warning for warning in result["warnings"]))
 
