@@ -660,7 +660,7 @@ and passes the bounded CPU/CUDA 1x1 and 2x2 onsite/two-site observable
 covariance gates; fresh initialization, fixed-point convergence, and
 multi-site checkpoint semantics still block admission.
 
-Commit `pending` (rectangular-frame hardening) generalizes the dynamic selector
+Commit `812af88` (rectangular-frame hardening) generalizes the dynamic selector
 to genuinely rectangular left/right factor column counts. A multi-site
 periodic boundary can otherwise reach an opaque low-level contraction error
 when one retained row/column sector shrinks before its neighbor. The selector
