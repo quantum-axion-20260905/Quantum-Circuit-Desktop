@@ -1123,6 +1123,57 @@ class CTMRGTests(unittest.TestCase):
         self.assertIsNotNone(gauged_interaction)
         self.assertLess(abs(interaction - gauged_interaction), 1e-10)
 
+    def test_dynamic_two_by_two_runner_reports_energy_and_transfer_diagnostics(self):
+        from qc_agent.core.ctmrg import _double_layer, _initialize_environment
+        from qc_agent.core.ctmrg_dynamic import (
+            BoundaryDimensions,
+            DynamicCTMEnvironment,
+            run_dynamic_ctmrg_cell,
+        )
+
+        tensors: list[np.ndarray] = []
+        environments: list[DynamicCTMEnvironment] = []
+        for _ in range(4):
+            tensor = np.zeros((2, 2, 2, 2, 2), dtype=np.complex128)
+            tensor[0, 0, 0, 0, 0] = 1.0
+            tensors.append(tensor)
+            layer = _double_layer(np, tensor)
+            base = _initialize_environment(np, layer, 2, regularizer=1e-9)
+            environments.append(
+                DynamicCTMEnvironment(*base.tensors(), dimensions=BoundaryDimensions.uniform(2))
+            )
+        interaction = IPEPSInteraction(
+            left_site=0,
+            right_site=1,
+            displacement=[1, 0],
+            left_pauli="Z",
+            right_pauli="Z",
+            coefficient=0.5,
+        )
+
+        result, final = run_dynamic_ctmrg_cell(
+            np,
+            tensors,
+            environments,
+            (2, 2),
+            requested_dim=1,
+            iterations=2,
+            terms=(PauliTerm(paulis={0: "Z"}, coefficient=1.0),),
+            interactions=(interaction,),
+        )
+
+        self.assertEqual(result["status"], "needs_review")
+        self.assertEqual(result["unit_cell"], [2, 2])
+        self.assertTrue(result["energy_complete"])
+        self.assertAlmostEqual(result["observables"][0]["value"], 1.0, places=10)
+        self.assertAlmostEqual(result["interactions"][0]["value"], 1.0, places=10)
+        self.assertAlmostEqual(result["energy"], 1.5, places=10)
+        self.assertEqual(len(result["environment_diagnostics"]["transfer_gap_by_site"]), 4)
+        self.assertTrue(all(value == 1.0 for value in result["environment_diagnostics"]["transfer_gap_by_site"]))
+        self.assertEqual(len(result["dynamic_cell_sweep"]), 2)
+        self.assertEqual(len(final), 4)
+        self.assertTrue(all(environment.dimensions.to_dict() == {"top": 1, "left": 1, "bottom": 1, "right": 1} for environment in final))
+
     def test_directional_boundary_gauge_map_matches_all_one_site_absorptions(self):
         from qc_agent.core.ctmrg import _double_layer, _initialize_environment
         from qc_agent.core.ctmrg_gauge import (

@@ -829,3 +829,211 @@ def run_dynamic_ctmrg_one_site(
         "research_result": research_result.to_dict(),
     }
     return result, current
+
+
+def run_dynamic_ctmrg_cell(
+    xp: Any,
+    tensors: list[Any],
+    environments: list[DynamicCTMEnvironment],
+    unit_cell: tuple[int, int],
+    *,
+    requested_dim: int,
+    iterations: int = 4,
+    tolerance: float = 1e-8,
+    terms: tuple[Any, ...] = (),
+    interactions: tuple[Any, ...] = (),
+    directions: tuple[str, ...] = ("left", "right", "top", "bottom"),
+    relative_singular_floor: float = 1e-12,
+    normalize: bool = True,
+) -> tuple[dict[str, Any], list[DynamicCTMEnvironment]]:
+    """Run the bounded dynamic periodic 1x1--2x2 research path."""
+
+    nx, ny = (int(value) for value in unit_cell)
+    site_count = nx * ny
+    if len(tensors) != site_count or len(environments) != site_count:
+        raise ValueError("dynamic CTMRG cell runner tensor/environment count mismatch")
+    if any(getattr(tensor, "ndim", None) != 5 or int(tensor.shape[0]) != 2 for tensor in tensors):
+        raise ValueError("dynamic CTMRG cell runner requires physical-dimension-2 rank-5 tensors")
+    if int(iterations) < 1:
+        raise ValueError("dynamic CTMRG cell runner iterations must be positive")
+    if not math.isfinite(float(tolerance)) or float(tolerance) <= 0.0:
+        raise ValueError("dynamic CTMRG cell runner tolerance must be finite and positive")
+
+    from .contracts import ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
+    from .ctmrg import (
+        _double_layer,
+        _environment_contraction,
+        _environment_diagnostics,
+        _interaction_expectation_cell,
+        _term_expectation,
+    )
+
+    layers = [_double_layer(xp, tensor) for tensor in tensors]
+    current = list(environments)
+    convergence_points: list[Any] = []
+    sweep_reports: list[dict[str, Any]] = []
+    converged = False
+    discarded_total = 0.0
+    for iteration in range(1, int(iterations) + 1):
+        before = list(current)
+        current, sweep_report = run_dynamic_ctm_cell_sweep(
+            xp,
+            current,
+            layers,
+            unit_cell,
+            requested_dim,
+            directions=directions,
+            relative_singular_floor=relative_singular_floor,
+            normalize=normalize,
+        )
+        residual = max(
+            _dynamic_environment_residual(xp, old, new)
+            for old, new in zip(before, current)
+        )
+        discarded = sum(float(item.get("discarded_weight", 0.0)) for item in sweep_report["reports"])
+        discarded_total += discarded
+        sweep_report = dict(sweep_report)
+        sweep_report["iteration"] = iteration
+        sweep_report["residual"] = residual
+        sweep_reports.append(sweep_report)
+        convergence_points.append(ConvergencePoint(
+            iteration=iteration,
+            residual=residual,
+            environment_dim=max(
+                max(environment.dimensions.to_dict().values()) for environment in current
+            ),
+            discarded_weight=discarded,
+        ))
+        if residual <= float(tolerance) and iteration > 1:
+            converged = True
+            break
+
+    norms = [
+        _host_scalar(_environment_contraction(xp, environment, layer))
+        for environment, layer in zip(current, layers)
+    ]
+    norm_value = sum(norms) / max(1, len(norms))
+    observables: list[dict[str, Any]] = []
+    energy = 0.0
+    energy_complete = True
+    for term in terms:
+        if len(term.paulis) > 1:
+            raise ValueError("dynamic cell runner onsite terms must act on at most one site")
+        site = int(next(iter(term.paulis), 0))
+        if site < 0 or site >= site_count:
+            raise ValueError("dynamic cell runner term site exceeds the unit cell")
+        value = float(_term_expectation(xp, current[site], tensors[site], term))
+        coefficient = float(getattr(term, "coefficient", 1.0))
+        observables.append({
+            "site": site,
+            "paulis": {int(index): str(pauli) for index, pauli in term.paulis.items()},
+            "coefficient": coefficient,
+            "value": value,
+            "contribution": coefficient * value,
+        })
+        energy += coefficient * value
+
+    interaction_values: list[dict[str, Any]] = []
+    for interaction in interactions:
+        left_site = int(interaction.left_site)
+        right_site = int(interaction.right_site)
+        if not 0 <= left_site < site_count or not 0 <= right_site < site_count:
+            raise ValueError("dynamic cell runner interaction site exceeds the unit cell")
+        value = _interaction_expectation_cell(
+            xp,
+            current,
+            tensors,
+            left_site,
+            right_site,
+            list(interaction.displacement),
+            str(interaction.left_pauli),
+            str(interaction.right_pauli),
+        )
+        coefficient = float(getattr(interaction, "coefficient", 1.0))
+        interaction_values.append({
+            "left_site": left_site,
+            "right_site": right_site,
+            "displacement": list(interaction.displacement),
+            "left_pauli": str(interaction.left_pauli),
+            "right_pauli": str(interaction.right_pauli),
+            "coefficient": coefficient,
+            "value": None if value is None else float(value),
+            "contribution": None if value is None else coefficient * float(value),
+        })
+        if value is None:
+            energy_complete = False
+        else:
+            energy += coefficient * float(value)
+
+    diagnostics = _environment_diagnostics(xp, current)
+    final_residual = float(convergence_points[-1].residual if convergence_points else math.inf)
+    classification = "converged" if converged else "unconverged"
+    if any(value is None for value in diagnostics["correlation_lengths_by_site"]):
+        classification = "degenerate-needs-review"
+    research_result = ResearchResult(
+        status="needs_review",
+        method="ctmrg-dynamic-covariant-v2",
+        representation="ipeps-dynamic-boundary",
+        metrics={
+            "norm": norm_value,
+            "energy": float(energy),
+            "energy_complete": bool(energy_complete),
+            "residual": final_residual,
+            "fixed_point_classification": classification,
+            "requested_environment_dim": int(requested_dim),
+            "retained_dimensions": [environment.dimensions.to_dict() for environment in current],
+            **diagnostics,
+        },
+        truncation=TruncationReport(
+            discarded_weight=float(discarded_total),
+            max_environment_dim=max(
+                max(environment.dimensions.to_dict().values()) for environment in current
+            ),
+        ),
+        convergence=ConvergenceReport(
+            converged=converged,
+            classification=classification,
+            criterion=f"dynamic cell spectral residual <= {float(tolerance):.3e} with transfer-gap diagnostics",
+            points=convergence_points,
+            warnings=[] if converged else ["bounded dynamic cell sweep did not reach its residual tolerance"],
+        ),
+        warnings=[
+            "dynamic covariant CTMRG is an experimental bounded periodic path",
+            "production admission still requires broader unit cells and optimization gates",
+        ],
+        limitations=[
+            "this runner is bounded to 1x1--2x2 periodic cells",
+            "dynamic retained dimensions are not yet integrated into public CTMRG payload policy",
+            "transfer-gap diagnostics are reported but do not prove thermodynamic-limit convergence",
+        ],
+        provenance={
+            "sweep_schema": "quantum-circuit/ctmrg-dynamic-cell-sweep-v1",
+            "relative_singular_floor": float(relative_singular_floor),
+        },
+        details={
+            "unit_cell": [nx, ny],
+            "environment_shape_manifests": [environment.shape_manifest() for environment in current],
+            "sweep_reports": sweep_reports,
+        },
+    )
+    result = {
+        "schema": "quantum-circuit/research-result-v1",
+        "status": "needs_review",
+        "method": "ctmrg-dynamic-covariant-v2",
+        "representation": "ipeps-dynamic-boundary",
+        "unit_cell": [nx, ny],
+        "unit_cell_sites": site_count,
+        "norm": norm_value,
+        "energy": float(energy),
+        "energy_complete": bool(energy_complete),
+        "observables": observables,
+        "interactions": interaction_values,
+        "converged": converged,
+        "residual": final_residual,
+        "fixed_point_classification": classification,
+        "environment_diagnostics": diagnostics,
+        "environment_shape_manifests": [environment.shape_manifest() for environment in current],
+        "dynamic_cell_sweep": sweep_reports,
+        "research_result": research_result.to_dict(),
+    }
+    return result, current
