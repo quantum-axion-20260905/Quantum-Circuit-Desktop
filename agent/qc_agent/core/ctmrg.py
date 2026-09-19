@@ -230,6 +230,7 @@ def _initialize_environment(
     chi: int,
     *,
     sector_seed: int | None = None,
+    regularizer: float = 1e-6,
 ) -> CTMEnvironment:
     """Create a deterministic, full-support CTM boundary.
 
@@ -238,7 +239,9 @@ def _initialize_environment(
     fixed points (for example a GHZ-like D=2 iPEPS).  A tiny positive
     full-support component regularizes that initialization without changing
     the normalized fixed point; it also prevents an otherwise valid two-site
-    observable from becoming an accidental ``0/0`` contraction.
+    observable from becoming an accidental ``0/0`` contraction. The caller
+    may choose a dtype- and projector-specific floor, which is reported by
+    the public result for reproducibility.
     """
     d2 = int(double_layer.shape[0])
     dtype = double_layer.dtype
@@ -291,12 +294,13 @@ def _initialize_environment(
             else:
                 edge_values = xp.asarray(edge_values, dtype=dtype)
             edge[index, :, index] = edge_values
-    # Keep a deterministic non-zero overlap with every boundary sector.  The
-    # floor is deliberately shared by complex64 and complex128: a much
-    # smaller complex128 perturbation lets degenerate SVD sectors choose a
-    # different boundary branch on the first sweep, which can turn the
-    # canonical D=2 GHZ fixed point into a false symmetry-broken result.
-    regularizer = 1e-6
+    # Keep a deterministic non-zero overlap with every boundary sector. The
+    # baseline is shared by complex64 and complex128; the covariant complex128
+    # candidate deliberately supplies a smaller floor at the call site because
+    # its invariant residual is sensitive to this initialization background.
+    if not math.isfinite(float(regularizer)) or float(regularizer) < 0.0:
+        raise ValueError("CTMRG environment initialization regularizer must be finite and non-negative")
+    regularizer = float(regularizer)
     corner = corner + regularizer * xp.ones_like(corner)
     if sector_seed is None:
         edge = edge + regularizer * xp.ones_like(edge)
@@ -2617,9 +2621,24 @@ def run_ctmrg(
     layers = [_double_layer(xp, tensor) for tensor in tensors]
     chi = int(payload.environment_bond_dim)
     if initial_environments is None:
-        environments = [_initialize_environment(xp, layer, chi, sector_seed=_environment_seed) for layer in layers]
+        initialization_regularizer = (
+            1e-9
+            if payload.ctmrg_projector == "covariant-bilinear" and payload.dtype == "complex128"
+            else 1e-6
+        )
+        environments = [
+            _initialize_environment(
+                xp,
+                layer,
+                chi,
+                sector_seed=_environment_seed,
+                regularizer=initialization_regularizer,
+            )
+            for layer in layers
+        ]
         initial_environment_source = "deterministic-seed"
     else:
+        initialization_regularizer = None
         if len(initial_environments) != len(layers):
             raise ValueError("initial_environments count does not match the CTMRG unit cell")
         environments = []
@@ -3415,6 +3434,7 @@ def run_ctmrg(
         "environment_sector_policy": payload.environment_sector_policy,
         "environment_damping": float(payload.environment_damping),
         "initial_environment_source": initial_environment_source,
+        "environment_initialization_regularizer": initialization_regularizer,
         "unit_cell": unit_cell,
         "unit_cell_sites": len(tensors),
         "tensor_source": (

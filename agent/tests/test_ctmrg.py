@@ -306,6 +306,7 @@ class CTMRGTests(unittest.TestCase):
         ))
         self.assertEqual(result["unit_cell"], [2, 2])
         self.assertEqual(result["environment_map"]["map_id"], "ctmrg-covariant-bilinear-v1")
+        self.assertEqual(result["environment_initialization_regularizer"], 1e-9)
         replay = result["covariant_reduced_boundary_sweep_replay"]
         self.assertTrue(replay["performed"])
         self.assertTrue(replay["passed"])
