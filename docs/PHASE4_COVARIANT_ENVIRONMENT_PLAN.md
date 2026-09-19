@@ -525,6 +525,16 @@ agreement; the full regression is now `173/173`. The dynamic state still has
 no public move kernel, so checkpoint support alone does not promote it to a
 solver capability.
 
+Commit `7fd8e62` adds the first contraction kernel for this state:
+`apply_dynamic_covariant_bilinear_move`. It consumes enlarged left/right
+factors and a grown edge, applies the invariant primal/dual selector, and
+returns the projected corners and edge with their actual output shapes. A
+rank-deficient synthetic case proves that the edge becomes rectangular
+(`1 x d2 x 1`) instead of being padded or silently pseudoinverted; the full
+regression is now `174/174`. This is a reusable directional kernel, not yet a
+complete periodic CTMRG sweep: neighboring corner dimension propagation and
+normalization remain the next integration gate.
+
 - For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - For comparison, CPU random D=2 seeds 17/29/41 on the raw candidate: replay remains red, with maximum factor error

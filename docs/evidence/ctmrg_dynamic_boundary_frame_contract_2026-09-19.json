@@ -25,7 +25,8 @@
     "empty_sector_rejection": true,
     "rectangular_environment_shape_contract": true,
     "dynamic_checkpoint_roundtrip": true,
-    "full_regression": "173/173"
+    "dynamic_covariant_move_kernel": true,
+    "full_regression": "174/174"
   },
   "interpretation": "The dynamic retained-sector selector is a tested reusable contract for the next rectangular environment state. It is not yet wired into the square fixed-chi CTMRG move and does not change public solver admission."
 }
