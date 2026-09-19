@@ -103,6 +103,14 @@ as a conditioning baseline, but it does not remove off-diagonal or
 environment-fixed-point gauge sensitivity. Evidence:
 `docs/evidence/ctmrg_diagonal_bond_balance_2026-09-19.json`.
 
+The same packet now also contains an explicit transport primitive:
+`transport_ctm_environment` applies the fused `G tensor G*` double-layer map
+and inverse-transpose edge action. Its resident-environment contraction gate
+passes at approximately `2e-15` relative error for a random complex128 D=2
+tensor. This is an algebraic seam for replay and transported fixed-point
+experiments, not yet a covariant truncation algorithm. Evidence:
+`docs/evidence/ctmrg_environment_transport_2026-09-19.json`.
+
 The bounded random D=2 gate improved for seeds 17/29/41, but remained above
 the declared `1e-4` paired-gauge tolerance for all three seeds. Therefore the
 default projector, optimization paths, and production admission remain

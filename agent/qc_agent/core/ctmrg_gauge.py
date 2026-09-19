@@ -538,23 +538,91 @@ def paired_virtual_gauge(xp: Any, tensors: list[Any]) -> list[Any]:
 
     if not tensors:
         return []
-    dtype = tensors[0].dtype
-    device = getattr(tensors[0], "device", None)
-    matrix = xp.asarray([[1.2 + 0.1j, 0.2 - 0.1j], [0.0 + 0.2j, 0.8 - 0.05j]], dtype=dtype)
-    if device is not None and getattr(xp, "__name__", "") == "torch":
-        matrix = matrix.to(device=device)
-    inverse_transpose = xp.linalg.inv(matrix).T
+    matrices = paired_virtual_gauge_matrices(xp, tensors[0])
+    up, down, left, right = matrices
     return [
         xp.einsum(
             "sUDLR,uU,dD,lL,rR->sudlr",
             tensor,
-            inverse_transpose,
-            matrix,
-            inverse_transpose,
-            matrix,
+            up,
+            down,
+            left,
+            right,
         )
         for tensor in tensors
     ]
+
+
+def paired_virtual_gauge_matrices(xp: Any, tensor: Any) -> tuple[Any, Any, Any, Any]:
+    """Return the explicit ``(up, down, left, right)`` virtual gauges.
+
+    The returned tuple is the exact convention used by
+    :func:`paired_virtual_gauge`: down/right receive ``G`` and up/left receive
+    ``G**(-T)``.  Keeping the matrices available lets the environment
+    transport probe use the same convention instead of reconstructing a
+    second, potentially inconsistent gauge rule.
+    """
+
+    dtype = tensor.dtype
+    device = getattr(tensor, "device", None)
+    matrix = xp.asarray(
+        [[1.2 + 0.1j, 0.2 - 0.1j], [0.0 + 0.2j, 0.8 - 0.05j]],
+        dtype=dtype,
+    )
+    if device is not None and getattr(xp, "__name__", "") == "torch":
+        matrix = matrix.to(device=device)
+    inverse_transpose = xp.linalg.inv(matrix).T
+    return inverse_transpose, matrix, inverse_transpose, matrix
+
+
+def transport_ctm_environment(
+    xp: Any,
+    environment: Any,
+    tensor: Any,
+    *,
+    virtual_gauges: tuple[Any, Any, Any, Any] | None = None,
+) -> Any:
+    """Transport edge tensors under an explicit paired virtual gauge.
+
+    The double layer transforms on a fused virtual leg as ``G ⊗ G*``.  Its
+    adjacent CTM edge therefore receives the inverse-transpose action so that
+    the ordinary (non-conjugating) contraction of edge and local double layer
+    is unchanged.  Corner tensors and the internal boundary basis are kept in
+    the same basis; changing that basis is a separate CTM similarity gauge.
+
+    This is an explicit covariant transport primitive, not an automatic
+    canonicalizer.  It is useful for fixed-point transport, replay, and a
+    paired-gauge reference gate because it makes the algebraic convention
+    executable and testable.
+    """
+
+    gauges = virtual_gauges or paired_virtual_gauge_matrices(xp, tensor)
+    up, down, left, right = gauges
+
+    def fused_inverse_transpose(gauge: Any) -> Any:
+        fused = xp.kron(gauge, xp.conj(gauge))
+        return xp.linalg.inv(fused).T
+
+    edge_transforms = (
+        fused_inverse_transpose(up),
+        fused_inverse_transpose(right),
+        fused_inverse_transpose(down),
+        fused_inverse_transpose(left),
+    )
+    T1 = _apply_leg_transform(xp, environment.T1, 1, edge_transforms[0])
+    T2 = _apply_leg_transform(xp, environment.T2, 1, edge_transforms[1])
+    T3 = _apply_leg_transform(xp, environment.T3, 1, edge_transforms[2])
+    T4 = _apply_leg_transform(xp, environment.T4, 1, edge_transforms[3])
+    return type(environment)(
+        environment.C1,
+        environment.C2,
+        environment.C3,
+        environment.C4,
+        T1,
+        T2,
+        T3,
+        T4,
+    )
 
 
 def gauge_validation_result(

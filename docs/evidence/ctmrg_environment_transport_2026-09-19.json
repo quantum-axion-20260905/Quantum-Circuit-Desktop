@@ -1,0 +1,34 @@
+{
+  "artifact": "ctmrg-explicit-environment-transport",
+  "date": "2026-09-19",
+  "revision": "working-tree",
+  "scope": "Phase 4 C2 algebraic covariant transport primitive",
+  "convention": {
+    "virtual_tensor_gauge": "up/left=G^-T, down/right=G",
+    "fused_double_layer_gauge": "G_leg tensor kron conjugate(G_leg)",
+    "ctm_edge_action": "inverse-transpose on the fused virtual edge index",
+    "boundary_basis": "kept fixed; CTM similarity transport is a separate operation"
+  },
+  "verification": {
+    "focused_transport_test": "passed",
+    "random_seed": 17,
+    "dtype": "complex128",
+    "environment_bond_dim": 2,
+    "local_norm_relative_error": 2.0264660600433297e-15,
+    "local_observable_absolute_error": "below 1e-10",
+    "full_agent_suite": "155/155 passed",
+    "cuda_smoke": {
+      "device": "cuda",
+      "dtype": "complex64",
+      "relative_error": 2.904735652009549e-07,
+      "environment_bond_dim": 2
+    }
+  },
+  "decision": "keep-as-explicit-covariant-transport-primitive",
+  "limitations": [
+    "This proves algebraic contraction transport for a resident environment, not a gauge-invariant truncated fixed point.",
+    "The current CTMRG truncation projectors still need a transported boundary basis or a genuinely covariant reduced-boundary object.",
+    "No default projector, optimization path, or production admission was changed."
+  ],
+  "next_action": "use the transport primitive to build and test a boundary-basis-aware truncation step"
+}

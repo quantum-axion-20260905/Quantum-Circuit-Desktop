@@ -262,6 +262,44 @@ class CTMRGTests(unittest.TestCase):
         )
         self.assertEqual(payload.gauge_preconditioner, "diagonal-bond-balance")
 
+    def test_transport_ctm_environment_preserves_local_double_layer_contraction(self):
+        from qc_agent.core.ctmrg import (
+            _double_layer,
+            _environment_contraction,
+            _initialize_environment,
+            _term_expectation,
+        )
+        from qc_agent.core.ctmrg_gauge import paired_virtual_gauge, transport_ctm_environment
+
+        rng = np.random.default_rng(17)
+        tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+        tensor = (tensor / np.linalg.norm(tensor)).astype(np.complex128)
+        gauged = paired_virtual_gauge(np, [tensor])[0]
+        environment = _initialize_environment(np, _double_layer(np, tensor), 2)
+        transported = transport_ctm_environment(np, environment, tensor)
+
+        original_norm = _environment_contraction(
+            np, environment, _double_layer(np, tensor)
+        )
+        transported_norm = _environment_contraction(
+            np, transported, _double_layer(np, gauged)
+        )
+        self.assertTrue(np.allclose(original_norm, transported_norm, atol=1e-12, rtol=1e-12))
+
+        original_z = _term_expectation(
+            np,
+            environment,
+            tensor,
+            PauliTerm(paulis={0: "Z"}, coefficient=1.0),
+        )
+        transported_z = _term_expectation(
+            np,
+            transported,
+            gauged,
+            PauliTerm(paulis={0: "Z"}, coefficient=1.0),
+        )
+        self.assertAlmostEqual(original_z, transported_z, places=10)
+
     def test_bond_aware_preconditioner_preserves_2x1_finite_reference(self):
         from qc_agent.core.ctmrg_gauge import pairwise_virtual_gauge_preconditioner
 
