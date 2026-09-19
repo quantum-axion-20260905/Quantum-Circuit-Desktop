@@ -1162,6 +1162,7 @@ class CTMRGTests(unittest.TestCase):
             environment_bond_dim=2,
             dtype="complex128",
             iterations=2,
+            dynamic_initialization_seed=7,
         )
         with TemporaryDirectory() as directory:
             checkpoint = os.path.join(directory, "dynamic-payload.npz")
@@ -1188,6 +1189,8 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(first["checkpoint"]["resumable"], True)
         self.assertEqual(resumed["initial_environment_source"], "checkpoint")
         self.assertEqual(resumed["checkpoint"]["resumable"], False)
+        self.assertEqual(first["environment_initialization_sector_seed"], 7)
+        self.assertEqual(resumed["environment_initialization_sector_seed"], 7)
         self.assertAlmostEqual(first["energy"], 0.5, places=10)
         self.assertAlmostEqual(resumed["energy"], 0.5, places=10)
         self.assertTrue(first["research_gate"]["gates"]["independent_reference"]["passed"])
@@ -2920,6 +2923,37 @@ class CTMRGTests(unittest.TestCase):
                 ),
                 environment_bond_dims=[1, 2],
             )
+
+    def test_dynamic_sector_study_reports_seed_sensitive_research_contract(self):
+        from qc_agent.core.ctmrg_dynamic import run_dynamic_ctmrg_sector_study
+
+        payload = CTMRGPayload(
+            unit_cell=[2, 2],
+            initial_state="up",
+            virtual_bond_dim=2,
+            environment_bond_dim=2,
+            dtype="complex128",
+            iterations=4,
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=1,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=0.5,
+            )],
+        )
+        study = run_dynamic_ctmrg_sector_study(np, payload, [None, 1])
+
+        self.assertEqual(study["schema"], "quantum-circuit/ctmrg-dynamic-sector-study-v1")
+        self.assertEqual(study["method"], "ipeps-ctmrg-dynamic-sector-study")
+        self.assertEqual(study["sector_summary"]["requested_seeds"], [None, 1])
+        self.assertEqual([point["initialization_sector_seed"] for point in study["points"]], [None, 1])
+        self.assertEqual(len(study["points"]), 2)
+        self.assertTrue(all(point["environment_bond_dim"] == 2 for point in study["points"]))
+        self.assertEqual(study["research_gate_summary"]["status"], "needs_review")
+        self.assertFalse(study["research_gate_summary"]["production_ready"])
+        self.assertTrue(any("does not select a physically preferred fixed point" in warning for warning in study["warnings"]))
 
 
 if __name__ == "__main__":

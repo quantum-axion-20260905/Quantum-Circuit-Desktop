@@ -231,6 +231,7 @@ class CTMRGPayload(BaseModel):
     environment_bond_dim: int = Field(default=16, ge=1, le=128)
     ctmrg_projector: Literal["half-density", "full-svd", "biorthogonal-bilinear", "covariant-bilinear"] = "half-density"
     environment_sector_policy: Literal["single", "symmetry-ensemble"] = "single"
+    dynamic_initialization_seed: int | None = Field(default=None, ge=0, le=1048575)
     gauge_preconditioner: Literal["none", "pairwise-polar-balance", "diagonal-bond-balance"] = "none"
     gauge_preconditioner_iterations: int = Field(default=4, ge=1, le=16)
     environment_damping: float = Field(default=1.0, gt=0.0, le=1.0)
@@ -391,6 +392,34 @@ class CTMRGConvergenceStudyPayload(BaseModel):
     def validate_problem(self):
         if self.problem.optimization != "none":
             raise ValueError("CTMRG convergence studies require problem.optimization='none'")
+        return self
+
+
+class CTMRGDynamicSectorStudyPayload(BaseModel):
+    """Explicit dynamic CTMRG initialization-sector comparison contract."""
+
+    problem: CTMRGPayload
+    initialization_seeds: list[int | None] = Field(default_factory=lambda: [None], min_length=1, max_length=8)
+    backend: Literal["auto", "tensor-network"] = "auto"
+    max_time_ms: int = Field(default=120000, ge=100, le=3600000)
+    max_mem_mb: float = Field(default=4096, gt=0, le=1048576)
+
+    @field_validator("initialization_seeds")
+    @classmethod
+    def validate_initialization_seeds(cls, value: list[int | None]) -> list[int | None]:
+        normalized = [None if item is None else int(item) for item in value]
+        if any(item is not None and (item < 0 or item > 1048575) for item in normalized):
+            raise ValueError("dynamic initialization seeds must be between 0 and 1048575")
+        if len({"default" if item is None else item for item in normalized}) != len(normalized):
+            raise ValueError("dynamic initialization seeds must be unique")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_problem(self):
+        if self.problem.optimization != "none":
+            raise ValueError("dynamic sector studies require problem.optimization='none'")
+        if self.problem.environment_sector_policy != "single":
+            raise ValueError("dynamic sector studies require environment_sector_policy='single'")
         return self
 
 

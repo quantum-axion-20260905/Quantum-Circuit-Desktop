@@ -98,6 +98,7 @@ class UnifiedApiTests(unittest.TestCase):
         paths = {route.path for route in app.routes if hasattr(route, "path")}
         self.assertIn("/jobs/ctmrg/dynamic", paths)
         self.assertIn("/jobs/ctmrg/dynamic/convergence", paths)
+        self.assertIn("/jobs/ctmrg/dynamic/sectors", paths)
 
     def test_async_physics_defaults_resolve_tensor_network_backend(self):
         from qc_agent.server import _async_backend, _async_parse

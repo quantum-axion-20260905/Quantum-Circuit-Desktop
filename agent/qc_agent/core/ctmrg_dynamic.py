@@ -1314,6 +1314,7 @@ def run_dynamic_ctmrg_payload(
     layers = [_double_layer(xp, tensor) for tensor in tensors]
     cell_sites = len(tensors)
     initialization_regularizer = 1e-9 if str(payload.dtype) == "complex128" else 1e-6
+    initialization_sector_seed = getattr(payload, "dynamic_initialization_seed", None)
     selected_resume = resume_from or getattr(payload, "resume_from", None)
     selected_checkpoint = checkpoint_path or getattr(payload, "checkpoint_path", None)
     request_payload = payload.model_dump(mode="json") if hasattr(payload, "model_dump") else dict(payload.__dict__)
@@ -1343,6 +1344,7 @@ def run_dynamic_ctmrg_payload(
                     xp,
                     layer,
                     int(payload.environment_bond_dim),
+                    sector_seed=None if initialization_sector_seed is None else int(initialization_sector_seed),
                     regularizer=initialization_regularizer,
                 ).tensors(),
                 dimensions=BoundaryDimensions.uniform(int(payload.environment_bond_dim)),
@@ -1417,12 +1419,14 @@ def run_dynamic_ctmrg_payload(
     research_result["details"]["reference_validation"] = reference_validation
     research_result["details"]["research_gate"] = research_gate
     research_result["details"]["boundary_mps_validation"] = boundary_mps_validation
+    research_result["details"]["environment_initialization_sector_seed"] = initialization_sector_seed
     research_result["metrics"] = dict(research_result.get("metrics", {}))
     research_result["metrics"]["reference_max_abs_error"] = reference_validation.get("max_abs_error")
     result["research_result"] = research_result
     result["backend"] = "tensor-network-ctmrg-dynamic"
     result["initial_environment_source"] = initial_source
     result["environment_initialization_regularizer"] = initialization_regularizer
+    result["environment_initialization_sector_seed"] = initialization_sector_seed
     result["requested_environment_dim"] = requested_environment_dim
 
     completed_step = start_iteration + len(result["dynamic_cell_sweep"])
@@ -1441,6 +1445,7 @@ def run_dynamic_ctmrg_payload(
                 "unit_cell": list(unit_cell),
                 "requested_environment_dim": requested_environment_dim,
                 "environment_initialization_regularizer": initialization_regularizer,
+                "environment_initialization_sector_seed": initialization_sector_seed,
                 "initial_environment_source": initial_source,
             },
         )
@@ -1523,6 +1528,7 @@ def run_dynamic_ctmrg_convergence_study(
         points.append({
             "environment_bond_dim": dimension,
             "requested_environment_dim": int(result.get("requested_environment_dim", dimension)),
+            "initialization_sector_seed": result.get("environment_initialization_sector_seed"),
             "energy": energy,
             "energy_complete": bool(result["energy_complete"]),
             "energy_delta": None if previous_energy is None else energy - previous_energy,
@@ -1597,6 +1603,102 @@ def run_dynamic_ctmrg_convergence_study(
         "warnings": [
             "each point is a fresh bounded dynamic contraction",
             "energy stability does not override unresolved transfer-gap or reference gates",
+            "this study does not establish thermodynamic-limit convergence",
+        ],
+    }
+
+
+def run_dynamic_ctmrg_sector_study(
+    xp: Any,
+    payload: Any,
+    initialization_seeds: list[int | None] | tuple[int | None, ...],
+) -> dict[str, Any]:
+    """Compare fresh dynamic fixed-point probes across deterministic sectors."""
+
+    normalized_seeds = [None if seed is None else int(seed) for seed in initialization_seeds]
+    if not normalized_seeds:
+        raise ValueError("dynamic CTMRG sector study requires at least one initialization seed")
+    if len(normalized_seeds) > 8:
+        raise ValueError("dynamic CTMRG sector study is limited to eight points")
+    if any(seed is not None and (seed < 0 or seed > 1048575) for seed in normalized_seeds):
+        raise ValueError("dynamic initialization seeds must be between 0 and 1048575")
+    if len({"default" if seed is None else seed for seed in normalized_seeds}) != len(normalized_seeds):
+        raise ValueError("dynamic initialization seeds must be unique")
+    if getattr(payload, "environment_sector_policy", "single") != "single":
+        raise ValueError("dynamic sector studies require environment_sector_policy='single'")
+    if getattr(payload, "optimization", "none") != "none":
+        raise ValueError("dynamic sector studies require optimization='none'")
+
+    points: list[dict[str, Any]] = []
+    for seed in normalized_seeds:
+        point_payload = payload.model_copy(update={
+            "dynamic_initialization_seed": seed,
+            "checkpoint_path": None,
+            "resume_from": None,
+        })
+        result, _ = run_dynamic_ctmrg_payload(xp, point_payload)
+        sweeps = list(result.get("dynamic_cell_sweep", []))
+        gaps = list(result["environment_diagnostics"].get("transfer_gap_by_site", []))
+        reference = result.get("reference_validation") or {}
+        research_gate = result.get("research_gate") or {}
+        points.append({
+            "initialization_sector_seed": seed,
+            "environment_bond_dim": int(payload.environment_bond_dim),
+            "energy": float(result["energy"]),
+            "energy_complete": bool(result["energy_complete"]),
+            "residual": float(result["residual"]),
+            "converged": bool(result["converged"]),
+            "fixed_point_classification": result.get("fixed_point_classification", "unconverged"),
+            "transfer_gap_by_site": gaps,
+            "minimum_transfer_gap": min((float(value) for value in gaps if value is not None), default=None),
+            "synchronized_sector_retry": any(bool(item.get("synchronized_retry")) for item in sweeps),
+            "retained_dimensions": result.get("environment_shape_manifests", []),
+            "reference_validation": reference,
+            "research_gate": research_gate,
+            "research_gate_status": research_gate.get("status"),
+            "research_gate_blocking_reasons": list(research_gate.get("blocking_reasons", [])),
+        })
+
+    energies = [float(point["energy"]) for point in points]
+    minimum_gaps = [
+        float(point["minimum_transfer_gap"])
+        for point in points
+        if point["minimum_transfer_gap"] is not None
+    ]
+    blocking_reasons = sorted({
+        str(reason)
+        for point in points
+        for reason in point["research_gate_blocking_reasons"]
+    })
+    return {
+        "schema": "quantum-circuit/ctmrg-dynamic-sector-study-v1",
+        "status": "needs_review",
+        "method": "ipeps-ctmrg-dynamic-sector-study",
+        "optimization": "none",
+        "unit_cell": list(payload.unit_cell),
+        "unit_cell_sites": math.prod(payload.unit_cell),
+        "environment_bond_dim": int(payload.environment_bond_dim),
+        "points": points,
+        "sector_summary": {
+            "requested_seeds": normalized_seeds,
+            "energy_minimum": min(energies, default=None),
+            "energy_maximum": max(energies, default=None),
+            "energy_absolute_range": max(energies) - min(energies) if energies else None,
+            "minimum_transfer_gap": min(minimum_gaps, default=None),
+            "maximum_transfer_gap": max(minimum_gaps, default=None),
+            "synchronized_retry_points": sum(bool(point["synchronized_sector_retry"]) for point in points),
+        },
+        "research_gate_summary": {
+            "status": "needs_review",
+            "production_ready": False,
+            "points": len(points),
+            "passed_points": sum(point["research_gate_status"] == "passed" for point in points),
+            "review_points": sum(point["research_gate_status"] != "passed" for point in points),
+            "blocking_reasons": blocking_reasons,
+        },
+        "warnings": [
+            "sector points are fresh deterministic initializations, not a symmetry-sector ensemble average",
+            "sector sensitivity is evidence for review and does not select a physically preferred fixed point automatically",
             "this study does not establish thermodynamic-limit convergence",
         ],
     }
