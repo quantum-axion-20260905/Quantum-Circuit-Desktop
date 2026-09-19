@@ -1,7 +1,7 @@
 {
   "artifact": "ctmrg-directional-enlarged-boundary-gauge-map",
   "date": "2026-09-19",
-  "revision": "9ba083b",
+  "revision": "953be70",
   "scope": "Phase 4 C2 directional K derivation seam",
   "directions": ["left", "right", "top", "bottom"],
   "map_contract": {
@@ -18,6 +18,14 @@
     "all_direction_factor_relations": "passed",
     "bilinear_projected_grown_edge_transport": "passed",
     "directional_projector_transport_seam": "passed",
+    "run_result_directional_transport_gate": true,
+    "run_result_maximum_relative_error": 7.306670477456259e-16,
+    "run_result_directions": {
+      "left": 6.6665492753172315e-16,
+      "right": 4.0719053501601197e-16,
+      "top": 5.935136405414323e-16,
+      "bottom": 7.306670477456259e-16
+    },
     "maximum_observed_relative_error": 6.731875860700754e-16,
     "projected_edge_error": "below 1e-10",
     "full_agent_suite": "160/160 passed"

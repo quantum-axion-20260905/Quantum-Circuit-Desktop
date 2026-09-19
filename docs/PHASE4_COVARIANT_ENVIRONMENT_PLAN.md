@@ -166,7 +166,10 @@ separates edge covariance from the still-open corner-basis update and is now
 the seam used by the raw dual-span candidate.
 The directional map and projector-pair transport are now exposed together as
 a tested four-direction seam; it still does not infer a gauge or choose a
-retained subspace.
+retained subspace. The same seam now runs inside the bilinear CTMRG gauge
+validation result: a bounded GHZ run passes all four directions with maximum
+relative error `7.31e-16`. Evidence:
+`docs/evidence/ctmrg_directional_boundary_map_2026-09-19.json`.
 
 A bounded chi probe for seed 17 was run at chi=2 and chi=3. In CPU
 complex128, both points remain unconverged and the normalized residual rises
