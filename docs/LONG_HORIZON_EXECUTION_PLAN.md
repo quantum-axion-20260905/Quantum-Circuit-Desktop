@@ -22,8 +22,8 @@ features.
 ### Active status — 2026-09-18
 
 - Active phase: Phase 4, CTMRG/iPEPS research admission.
-- Current release: `v0.7.1`; the next release is not tagged until the Phase 4
-  gate passes.
+- Current development release: `v0.8.0-alpha.1`; this is a prerelease research
+  instrument and not a Phase 4 production admission.
 - Current useful capability: bounded product-state CTMRG and the canonical
   D=2 GHZ transfer-fixed-point reference both have declared gates; generic
   entangled `D>1` results remain `needs_review`.
@@ -202,9 +202,10 @@ diagnostics, replay, and at least one independent reference are stable. This
 keeps the desktop useful during the long build without creating controls for
 algorithms that are not yet scientifically supported.
 
-The authoritative current release is v0.7.1: a bounded spin-lattice vertical
-slice covering Ising, Heisenberg, XXZ, MPS/DMRG/TEBD, and finite open-2D
-boundary-MPS/PEPS.
+The latest stable release is v0.7.1: a bounded spin-lattice vertical slice
+covering Ising, Heisenberg, XXZ, MPS/DMRG/TEBD, and finite open-2D
+boundary-MPS/PEPS. The current development prerelease is v0.8.0-alpha.1 and
+adds the opt-in CTMRG sector diagnostics described above.
 
 ## Long-term target
 

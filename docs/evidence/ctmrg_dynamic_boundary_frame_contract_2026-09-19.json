@@ -1,7 +1,7 @@
 {
   "schema": "quantum-circuit/ctmrg-evidence-v1",
   "date": "2026-09-19",
-  "revision": "38dcef5",
+  "revision": "c9536f3",
   "candidate": "covariant-bilinear-v2-contract",
   "environment_map": "ctmrg-covariant-dynamic-frame-v1",
   "scope": {
@@ -47,7 +47,10 @@
     "dynamic_boundary_mps_crosscheck": true,
     "dynamic_convergence_study": true,
     "cuda_dynamic_convergence_endpoint": true,
-    "full_regression": "192/192"
+    "dynamic_initialization_seed_contract": true,
+    "dynamic_sector_study": true,
+    "cuda_dynamic_sector_endpoint": true,
+    "full_regression": "193/193"
   },
   "cuda_smoke": {
     "available": true,
@@ -138,6 +141,19 @@
     "status": "needs_review",
     "passed": true
   },
+  "cuda_dynamic_sector_study": {
+    "available": true,
+    "device": 0,
+    "dtype": "complex64",
+    "initialization_seeds": [null, 1],
+    "energy_absolute_range": 0.0,
+    "minimum_transfer_gap": 1.9669514017550682e-06,
+    "maximum_transfer_gap": 0.15348947048187256,
+    "research_gate_statuses": ["needs_review", "needs_review"],
+    "provenance_backend": "tensor-network",
+    "status": "needs_review",
+    "passed": true
+  },
   "cpu_entangled_negative_probe": {
     "available": true,
     "seed": 83,
@@ -156,5 +172,5 @@
     "production_ready": false,
     "passed": true
   },
-  "interpretation": "The dynamic retained-sector selector is a tested reusable contract for the next rectangular environment state. It is not yet wired into the square fixed-chi CTMRG move and does not change public solver admission."
+  "interpretation": "The dynamic retained-sector selector is a tested reusable contract for the next rectangular environment state. The opt-in sector study now makes deterministic initialization sensitivity measurable, but it is not an ensemble average, does not select a physical sector, and does not change public solver admission."
 }

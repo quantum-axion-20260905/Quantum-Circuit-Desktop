@@ -716,6 +716,16 @@ restarts, and per-point research gates. The bounded CPU and CUDA `[1, 2]`
 studies show the intended diagnostic split: the product energy and finite
 reference are stable, while the `chi=2` transfer sector remains unresolved.
 
+Commit `c9536f3` adds the next diagnostic seam: the dynamic payload records an
+optional deterministic initialization-sector seed, and
+`/jobs/ctmrg/dynamic/sectors` compares up to eight fresh seeds under the same
+bounded GPU preflight. The study reports seed-wise energy, residual,
+transfer-gap, retained-shape, reference, and research-gate records. It is
+deliberately not an ensemble average and never chooses a physically preferred
+sector automatically. CPU regression is now `193/193`; the bounded CUDA
+complex64 endpoint smoke with seeds `[null, 1]` passed preflight and provenance,
+while both points correctly remained `needs_review`.
+
 ### Current Phase 4 disposition
 
 The bounded dynamic boundary capability is complete as an opt-in research
