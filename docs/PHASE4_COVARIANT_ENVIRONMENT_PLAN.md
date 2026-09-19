@@ -451,6 +451,13 @@ At the current 2x2 complex128 point the four transfer gaps are approximately
 `2.0e-9`, so the declared finite correlation length is correctly withheld and
 the fixed-point classification remains `degenerate-needs-review`.
 
+Several bounded replacement probes were rejected with evidence rather than
+silently folded into the candidate: full-SVD increases 1x1 drift to `0.323`,
+the SVD-root selector breaks the one-site replay, and global preconditioning or
+under-damping worsens 2x2 drift in at least one tested regime. The selected
+v1 full-rank linear-solve frame remains the least-wrong map; the next change
+must address the transfer-sector representation itself.
+
 The bounded longer-sweep campaign confirms that the remaining gate is
 algorithmic rather than a missing replay tolerance. CPU complex128 2x2 at 16
 iterations reduces fresh-gauge drift to `1.48e-5` and holds the invariant

@@ -132,6 +132,42 @@
     },
     "interpretation": "The dtype-aware complex128 initialization reduces the 2x2 invariant residual floor to approximately 1.6e-8 while bounded physical replays remain green. The remaining gate is the unresolved transfer gap and fresh-gauge/fixed-point behavior, not a replay tolerance."
   },
+  "alternative_strategy_probes": {
+    "full_svd": {
+      "cpu_complex128_1x1_iterations_12": {
+        "residual": 0.4942193331606588,
+        "fresh_gauge_drift": 0.32346525696694467,
+        "correlation_length": 0.997278241886675
+      },
+      "cpu_complex128_2x2_iterations_8": {
+        "residual": 0.00021764199799367834,
+        "fresh_gauge_drift": 0.2946342835483498,
+        "correlation_length": null
+      },
+      "decision": "rejected_for_covariant_candidate; both gauge and residual gates are worse"
+    },
+    "svd_root_selector_probe": {
+      "cpu_complex128_1x1_iterations_24": {
+        "residual": 2.4721361624457927e-09,
+        "fresh_gauge_drift": 0.28066460272324534,
+        "replay_passed": false
+      },
+      "cpu_complex128_2x2_iterations_16": {
+        "residual": 2.4721363844903976e-09,
+        "fresh_gauge_drift": 0.00839818317053408,
+        "replay_passed": true
+      },
+      "decision": "rejected; invariant SVD-root balancing breaks the one-site covariance gate"
+    },
+    "preconditioner_and_damping": {
+      "pairwise_polar_2x2_iterations_12_fresh_gauge_drift": 0.03310003243576902,
+      "diagonal_balance_2x2_iterations_12_fresh_gauge_drift": 0.0057879424164650264,
+      "damping_0_5_2x2_iterations_24_fresh_gauge_drift": 0.11042830371393035,
+      "damping_0_75_2x2_iterations_24_fresh_gauge_drift": 2.4950034737465654e-05,
+      "decision": "not promoted globally; preconditioning/damping are problem-dependent and do not resolve the transfer gap"
+    },
+    "selected_strategy": "covariant-bilinear-v1 with full-rank transposed linear-solve dual frame and dtype-aware initialization"
+  },
   "regression": {
     "command": "python -m unittest discover -s tests -p 'test_*.py'",
     "passed": true,
