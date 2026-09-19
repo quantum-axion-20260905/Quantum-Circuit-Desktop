@@ -1014,6 +1014,83 @@ class CTMRGTests(unittest.TestCase):
         self.assertAlmostEqual(result["norm"], 1.0, places=8)
         self.assertAlmostEqual(resumed_interaction, 1.0, places=8)
 
+    def test_dynamic_resumed_multisite_state_preserves_paired_gauge_replay(self):
+        from qc_agent.core.checkpoints import load_dynamic_ctm_checkpoint, save_dynamic_ctm_checkpoint
+        from qc_agent.core.contracts import CheckpointManifest
+        from qc_agent.core.ctmrg import _double_layer, _initialize_environment, _interaction_expectation_cell, _term_expectation
+        from qc_agent.core.ctmrg_dynamic import (
+            BoundaryDimensions,
+            DynamicCTMEnvironment,
+            run_dynamic_ctm_cell_sweep,
+        )
+        from qc_agent.core.ctmrg_gauge import paired_virtual_gauge, transport_ctm_environment
+
+        rng = np.random.default_rng(37)
+        tensors: list[np.ndarray] = []
+        gauged_tensors: list[np.ndarray] = []
+        layers: list[np.ndarray] = []
+        gauged_layers: list[np.ndarray] = []
+        environments: list[DynamicCTMEnvironment] = []
+        gauged_environments: list[DynamicCTMEnvironment] = []
+        for _ in range(4):
+            tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+            tensor = (tensor / np.linalg.norm(tensor)).astype(np.complex128)
+            gauged_tensor = paired_virtual_gauge(np, [tensor])[0]
+            layer = _double_layer(np, tensor)
+            gauged_layer = _double_layer(np, gauged_tensor)
+            base = _initialize_environment(np, layer, 2, regularizer=1e-9)
+            gauged_base = transport_ctm_environment(np, base, gauged_tensor)
+            tensors.append(tensor)
+            gauged_tensors.append(gauged_tensor)
+            layers.append(layer)
+            gauged_layers.append(gauged_layer)
+            environments.append(DynamicCTMEnvironment(*base.tensors(), dimensions=BoundaryDimensions.uniform(2)))
+            gauged_environments.append(DynamicCTMEnvironment(*gauged_base.tensors(), dimensions=BoundaryDimensions.uniform(2)))
+        final, report = run_dynamic_ctm_cell_sweep(np, environments, layers, (2, 2), 1)
+        gauged_final, gauged_report = run_dynamic_ctm_cell_sweep(np, gauged_environments, gauged_layers, (2, 2), 1)
+        manifest_kwargs = {
+            "method": "ipeps-ctmrg-contraction",
+            "representation": "ipeps-dynamic-boundary",
+            "dtype": "complex128",
+            "device": "cpu",
+            "step": 1,
+            "created_at": "2026-09-19T00:00:00Z",
+        }
+        original_manifest = CheckpointManifest(
+            checkpoint_id="dynamic-replay-original",
+            request_sha256=hashlib.sha256(b"dynamic-replay-original").hexdigest(),
+            **manifest_kwargs,
+        )
+        gauged_manifest = CheckpointManifest(
+            checkpoint_id="dynamic-replay-gauged",
+            request_sha256=hashlib.sha256(b"dynamic-replay-gauged").hexdigest(),
+            **manifest_kwargs,
+        )
+        with TemporaryDirectory() as directory:
+            original_path = os.path.join(directory, "original.npz")
+            gauged_path = os.path.join(directory, "gauged.npz")
+            save_dynamic_ctm_checkpoint(original_path, final, original_manifest)
+            save_dynamic_ctm_checkpoint(gauged_path, gauged_final, gauged_manifest)
+            _, resumed = load_dynamic_ctm_checkpoint(original_path, np)
+            _, resumed_gauged = load_dynamic_ctm_checkpoint(gauged_path, np)
+
+        values = [
+            _term_expectation(np, resumed[index], tensors[index], PauliTerm(paulis={0: "Z"}, coefficient=1.0))
+            for index in range(4)
+        ]
+        gauged_values = [
+            _term_expectation(np, resumed_gauged[index], gauged_tensors[index], PauliTerm(paulis={0: "Z"}, coefficient=1.0))
+            for index in range(4)
+        ]
+        interaction = _interaction_expectation_cell(np, resumed, tensors, 0, 1, [1, 0], "Z", "Z")
+        gauged_interaction = _interaction_expectation_cell(
+            np, resumed_gauged, gauged_tensors, 0, 1, [1, 0], "Z", "Z"
+        )
+        self.assertTrue(report["all_passed"])
+        self.assertTrue(gauged_report["all_passed"])
+        self.assertLess(max(abs(a - b) for a, b in zip(values, gauged_values)), 1e-10)
+        self.assertLess(abs(interaction - gauged_interaction), 1e-10)
+
     def test_dynamic_covariant_move_emits_rectangular_projection_shapes(self):
         from qc_agent.core.ctmrg_dynamic import apply_dynamic_covariant_bilinear_move
 
