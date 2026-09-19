@@ -443,6 +443,7 @@ class CTMRGTests(unittest.TestCase):
             paired_virtual_gauge_matrices,
             transport_bilinear_projector_pair,
             transport_biorthogonal_boundary_basis,
+            transport_directional_bilinear_projector_pair,
         )
 
         rng = np.random.default_rng(29)
@@ -482,6 +483,19 @@ class CTMRGTests(unittest.TestCase):
                     atol=1e-10,
                 )
             )
+            left_probe = rng.normal(size=(8, 2)) + 1j * rng.normal(size=(8, 2))
+            right_probe = rng.normal(size=(8, 2)) + 1j * rng.normal(size=(8, 2))
+            _, _, directional_report = transport_directional_bilinear_projector_pair(
+                np,
+                left_probe,
+                right_probe,
+                virtual_gauges,
+                boundary_dim=2,
+                direction=direction,
+            )
+            self.assertTrue(directional_report["passed"])
+            self.assertEqual(directional_report["direction"], direction)
+            self.assertEqual(directional_report["factor_contract"]["middle"], "grown_middle")
 
     def test_directional_boundary_gauge_map_matches_all_one_site_absorptions(self):
         from qc_agent.core.ctmrg import _double_layer, _initialize_environment

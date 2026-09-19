@@ -812,6 +812,58 @@ def transport_bilinear_projector_pair(
     }
 
 
+def transport_directional_bilinear_projector_pair(
+    xp: Any,
+    left_projector: Any,
+    right_projector: Any,
+    virtual_gauges: tuple[Any, Any, Any, Any],
+    boundary_dim: int,
+    direction: str,
+) -> tuple[Any, Any, dict[str, Any]]:
+    """Transport a bilinear projector pair through one directional absorption.
+
+    This is the tracked-sweep seam: derive the enlarged-boundary factors from
+    the declared virtual gauge and immediately apply the inverse-transpose
+    bilinear rule to the projector pair.  It intentionally does not infer a
+    gauge or choose a retained subspace; callers must provide the current pair
+    and use the returned report as a research diagnostic.
+    """
+
+    factors = directional_boundary_gauge_map(
+        xp,
+        virtual_gauges,
+        boundary_dim=int(boundary_dim),
+        direction=direction,
+    )
+    transported_left, transported_right, report = transport_bilinear_projector_pair(
+        xp,
+        left_projector,
+        right_projector,
+        factors["grown_row"],
+        factors["grown_col"],
+    )
+    report.update({
+        "direction": direction,
+        "boundary_dim": int(boundary_dim),
+        "factor_contract": {
+            "row": "grown_row",
+            "column": "grown_col",
+            "middle": "grown_middle",
+        },
+        "directional_map": {
+            "corner_left_shape": list(factors["corner_left"].shape),
+            "corner_right_shape": list(factors["corner_right"].shape),
+            "grown_row_shape": list(factors["grown_row"].shape),
+            "grown_middle_shape": list(factors["grown_middle"].shape),
+            "grown_col_shape": list(factors["grown_col"].shape),
+        },
+        "limitations": list(report.get("limitations", [])) + [
+            "corner basis absorption and retained-subspace selection remain caller responsibilities",
+        ],
+    })
+    return transported_left, transported_right, report
+
+
 def gauge_validation_result(
     before: dict[str, Any],
     after: dict[str, Any],
