@@ -52,11 +52,12 @@ class BoundaryDimensions:
 class DynamicCTMEnvironment:
     """A rectangular CTM boundary with explicit directional dimensions.
 
-    Corner ordering follows the existing ``CTMEnvironment`` convention:
-    ``C1`` is top-left, ``C2`` top-right, ``C3`` bottom-right, and ``C4``
-    bottom-left.  ``T1``/``T3`` run along the top/bottom sides and
-    ``T2``/``T4`` along the right/left sides.  The fused double-layer leg is
-    the middle edge axis and is intentionally not constrained here.
+    Corner ordering follows the existing ``CTMEnvironment`` contraction
+    indices: ``C1`` is ``(left, top)``, ``C2`` is ``(top, right)``, ``C3``
+    is ``(bottom, right)``, and ``C4`` is ``(left, bottom)``. ``T1``/``T3``
+    run along the top/bottom sides and ``T2``/``T4`` along the right/left
+    sides. The fused double-layer leg is the middle edge axis and is
+    intentionally not constrained here.
     """
 
     C1: Any
@@ -81,10 +82,10 @@ class DynamicCTMEnvironment:
     def validate_shapes(self) -> None:
         dims = self.dimensions
         corner_shapes = {
-            "C1": (dims.top, dims.left),
+            "C1": (dims.left, dims.top),
             "C2": (dims.top, dims.right),
             "C3": (dims.bottom, dims.right),
-            "C4": (dims.bottom, dims.left),
+            "C4": (dims.left, dims.bottom),
         }
         edge_shapes = {
             "T1": dims.top,
@@ -188,3 +189,223 @@ def apply_dynamic_covariant_bilinear_move(
         }
     )
     return new_left, new_right, new_edge, report
+
+
+def _transpose(xp: Any, value: Any, axes: tuple[int, ...]) -> Any:
+    if getattr(xp, "__name__", "") == "torch":
+        return value.permute(*axes)
+    return value.transpose(axes)
+
+
+def _host_scalar(value: Any) -> float:
+    detach = getattr(value, "detach", None)
+    if callable(detach):
+        value = detach()
+    cpu = getattr(value, "cpu", None)
+    if callable(cpu):
+        value = cpu()
+    try:
+        value = value.get()
+    except AttributeError:
+        pass
+    return float(value)
+
+
+def normalize_dynamic_ctm_environment(xp: Any, environment: DynamicCTMEnvironment) -> DynamicCTMEnvironment:
+    """Normalize every rectangular boundary tensor without changing its shape."""
+
+    def normalize(value: Any) -> Any:
+        scale = max(_host_scalar(xp.linalg.norm(value)), 1e-30)
+        return value / scale
+
+    return DynamicCTMEnvironment(
+        *(normalize(value) for value in environment.tensors()),
+        dimensions=environment.dimensions,
+        map_id=environment.map_id,
+    )
+
+
+def apply_dynamic_ctm_move(
+    xp: Any,
+    environment: DynamicCTMEnvironment,
+    double_layer: Any,
+    direction: str,
+    requested_dim: int,
+    *,
+    relative_singular_floor: float = 1e-12,
+    normalize: bool = True,
+) -> tuple[DynamicCTMEnvironment, dict[str, Any]]:
+    """Apply one real directional rectangular CTMRG absorption.
+
+    The contractions mirror the index ordering of the existing square
+    ``_left_move``/``_right_move``/``_top_move``/``_bottom_move`` routines.
+    Only the retained boundary side is allowed to change; the neighboring
+    corner dimensions are carried explicitly by ``BoundaryDimensions``.
+    """
+
+    direction = str(direction).lower()
+    if direction not in {"left", "right", "top", "bottom"}:
+        raise ValueError("dynamic CTMRG direction must be left, right, top, or bottom")
+    if getattr(double_layer, "ndim", None) != 4:
+        raise ValueError("dynamic CTMRG move requires a rank-4 double layer")
+    d2 = int(double_layer.shape[0])
+    dims = environment.dimensions
+
+    if direction == "left":
+        c1_g = xp.einsum("ab,buc->auc", environment.C1, environment.T1).reshape(
+            -1, environment.T1.shape[2]
+        )
+        c4_g = xp.einsum("gh,hdi->gdi", environment.C4, environment.T3).reshape(
+            -1, environment.T3.shape[2]
+        )
+        t4_g = xp.einsum("alg,udlr->augdr", environment.T4, double_layer)
+        t4_g = _transpose(xp, t4_g, (0, 1, 4, 2, 3)).reshape(c1_g.shape[0], d2, c4_g.shape[0])
+        c1, c4, t4, report = apply_dynamic_covariant_bilinear_move(
+            xp, c1_g, c4_g, t4_g, requested_dim, relative_singular_floor=relative_singular_floor
+        )
+        next_environment = DynamicCTMEnvironment(
+            c1,
+            environment.C2,
+            environment.C3,
+            c4,
+            environment.T1,
+            environment.T2,
+            environment.T3,
+            t4,
+            dimensions=BoundaryDimensions(
+                top=dims.top, left=report["retained_dim"], bottom=dims.bottom, right=dims.right
+            ),
+            map_id=environment.map_id,
+        )
+    elif direction == "right":
+        c2_g = xp.einsum("ce,buc->eub", environment.C2, environment.T1).reshape(
+            -1, environment.T1.shape[0]
+        )
+        c3_g = xp.einsum("im,hdi->mdh", environment.C3, environment.T3).reshape(
+            -1, environment.T3.shape[0]
+        )
+        t2_g = xp.einsum("erm,udlr->eumdl", environment.T2, double_layer)
+        t2_g = _transpose(xp, t2_g, (0, 1, 4, 2, 3)).reshape(c2_g.shape[0], d2, c3_g.shape[0])
+        c2, c3, t2, report = apply_dynamic_covariant_bilinear_move(
+            xp, c2_g, c3_g, t2_g, requested_dim, relative_singular_floor=relative_singular_floor
+        )
+        c2 = _transpose(xp, c2, (1, 0))
+        c3 = _transpose(xp, c3, (1, 0))
+        next_environment = DynamicCTMEnvironment(
+            environment.C1,
+            c2,
+            c3,
+            environment.C4,
+            environment.T1,
+            t2,
+            environment.T3,
+            environment.T4,
+            dimensions=BoundaryDimensions(
+                top=dims.top, left=dims.left, bottom=dims.bottom, right=report["retained_dim"]
+            ),
+            map_id=environment.map_id,
+        )
+    elif direction == "top":
+        c1_g = xp.einsum("ab,alg->blg", environment.C1, environment.T4).reshape(
+            -1, environment.T4.shape[2]
+        )
+        c2_g = xp.einsum("ce,erm->crm", environment.C2, environment.T2).reshape(
+            -1, environment.T2.shape[2]
+        )
+        t1_g = xp.einsum("buc,udlr->bcdlr", environment.T1, double_layer)
+        t1_g = _transpose(xp, t1_g, (0, 3, 2, 1, 4)).reshape(c1_g.shape[0], d2, c2_g.shape[0])
+        c1, c2, t1, report = apply_dynamic_covariant_bilinear_move(
+            xp, c1_g, c2_g, t1_g, requested_dim, relative_singular_floor=relative_singular_floor
+        )
+        c1 = _transpose(xp, c1, (1, 0))
+        next_environment = DynamicCTMEnvironment(
+            c1,
+            c2,
+            environment.C3,
+            environment.C4,
+            t1,
+            environment.T2,
+            environment.T3,
+            environment.T4,
+            dimensions=BoundaryDimensions(
+                top=report["retained_dim"], left=dims.left, bottom=dims.bottom, right=dims.right
+            ),
+            map_id=environment.map_id,
+        )
+    else:
+        c4_g = _transpose(
+            xp,
+            xp.einsum("gh,alg->hal", environment.C4, environment.T4),
+            (0, 2, 1),
+        ).reshape(-1, environment.T4.shape[0])
+        c3_g = xp.einsum("im,erm->ire", environment.C3, environment.T2).reshape(
+            -1, environment.T2.shape[0]
+        )
+        t3_g = xp.einsum("hdi,udlr->hiulr", environment.T3, double_layer)
+        t3_g = _transpose(xp, t3_g, (0, 3, 2, 1, 4)).reshape(c4_g.shape[0], d2, c3_g.shape[0])
+        c4, c3, t3, report = apply_dynamic_covariant_bilinear_move(
+            xp, c4_g, c3_g, t3_g, requested_dim, relative_singular_floor=relative_singular_floor
+        )
+        c4 = _transpose(xp, c4, (1, 0))
+        next_environment = DynamicCTMEnvironment(
+            environment.C1,
+            environment.C2,
+            c3,
+            c4,
+            environment.T1,
+            environment.T2,
+            t3,
+            environment.T4,
+            dimensions=BoundaryDimensions(
+                top=dims.top, left=dims.left, bottom=report["retained_dim"], right=dims.right
+            ),
+            map_id=environment.map_id,
+        )
+
+    report = dict(report)
+    report["direction"] = direction
+    report["dimensions_before"] = dims.to_dict()
+    report["dimensions_after"] = next_environment.dimensions.to_dict()
+    if normalize:
+        next_environment = normalize_dynamic_ctm_environment(xp, next_environment)
+        report["normalized"] = True
+    else:
+        report["normalized"] = False
+    return next_environment, report
+
+
+def run_dynamic_ctm_sweep(
+    xp: Any,
+    environment: DynamicCTMEnvironment,
+    double_layer: Any,
+    requested_dim: int,
+    *,
+    directions: tuple[str, ...] = ("left", "right", "top", "bottom"),
+    relative_singular_floor: float = 1e-12,
+    normalize: bool = True,
+) -> tuple[DynamicCTMEnvironment, dict[str, Any]]:
+    """Run a bounded one-site four-direction dynamic boundary sweep."""
+
+    current = environment
+    reports: list[dict[str, Any]] = []
+    for direction in directions:
+        current, report = apply_dynamic_ctm_move(
+            xp,
+            current,
+            double_layer,
+            direction,
+            requested_dim,
+            relative_singular_floor=relative_singular_floor,
+            normalize=normalize,
+        )
+        reports.append(report)
+    return current, {
+        "schema": "quantum-circuit/ctmrg-dynamic-sweep-v1",
+        "performed": True,
+        "directions": list(directions),
+        "requested_dim": int(requested_dim),
+        "reports": reports,
+        "dimensions_initial": environment.dimensions.to_dict(),
+        "dimensions_final": current.dimensions.to_dict(),
+        "all_passed": bool(all(item.get("passed", False) for item in reports)),
+    }

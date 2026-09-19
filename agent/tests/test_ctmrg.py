@@ -841,10 +841,10 @@ class CTMRGTests(unittest.TestCase):
 
         dimensions = BoundaryDimensions(top=2, left=3, bottom=4, right=5)
         environment = DynamicCTMEnvironment(
-            C1=np.zeros((2, 3), dtype=np.complex128),
+            C1=np.zeros((3, 2), dtype=np.complex128),
             C2=np.zeros((2, 5), dtype=np.complex128),
             C3=np.zeros((4, 5), dtype=np.complex128),
-            C4=np.zeros((4, 3), dtype=np.complex128),
+            C4=np.zeros((3, 4), dtype=np.complex128),
             T1=np.zeros((2, 7, 2), dtype=np.complex128),
             T2=np.zeros((5, 7, 5), dtype=np.complex128),
             T3=np.zeros((4, 7, 4), dtype=np.complex128),
@@ -855,7 +855,7 @@ class CTMRGTests(unittest.TestCase):
         manifest = environment.shape_manifest()
         self.assertEqual(manifest["schema"], "quantum-circuit/ctmrg-dynamic-boundary-v1")
         self.assertEqual(manifest["dimensions"], {"top": 2, "left": 3, "bottom": 4, "right": 5})
-        self.assertEqual(manifest["corners"]["C4"], [4, 3])
+        self.assertEqual(manifest["corners"]["C4"], [3, 4])
         self.assertEqual(manifest["edges"]["T2"], [5, 7, 5])
 
     def test_dynamic_ctm_environment_rejects_directional_shape_mismatch(self):
@@ -882,10 +882,10 @@ class CTMRGTests(unittest.TestCase):
 
         dimensions = BoundaryDimensions(top=2, left=3, bottom=4, right=5)
         environment = DynamicCTMEnvironment(
-            C1=np.arange(6, dtype=np.complex128).reshape(2, 3),
+            C1=np.arange(6, dtype=np.complex128).reshape(3, 2),
             C2=np.arange(10, dtype=np.complex128).reshape(2, 5),
             C3=np.arange(20, dtype=np.complex128).reshape(4, 5),
-            C4=np.arange(12, dtype=np.complex128).reshape(4, 3),
+            C4=np.arange(12, dtype=np.complex128).reshape(3, 4),
             T1=np.arange(28, dtype=np.complex128).reshape(2, 7, 2),
             T2=np.arange(35, dtype=np.complex128).reshape(5, 7, 1).repeat(5, axis=2),
             T3=np.arange(28, dtype=np.complex128).reshape(4, 7, 1).repeat(4, axis=2),
@@ -938,6 +938,81 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(new_right.shape, (1, 2))
         self.assertEqual(new_edge.shape, (1, 3, 1))
         self.assertEqual(report["output_edge_shape"], [1, 3, 1])
+
+    def test_dynamic_ctm_sweep_propagates_all_four_boundary_dimensions(self):
+        from qc_agent.core.ctmrg import _double_layer, _initialize_environment
+        from qc_agent.core.ctmrg_dynamic import (
+            BoundaryDimensions,
+            DynamicCTMEnvironment,
+            run_dynamic_ctm_sweep,
+        )
+
+        rng = np.random.default_rng(317)
+        tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+        tensor = (tensor / np.linalg.norm(tensor)).astype(np.complex128)
+        double_layer = _double_layer(np, tensor)
+        base = _initialize_environment(np, double_layer, 2, regularizer=1e-9)
+        environment = DynamicCTMEnvironment(
+            *base.tensors(),
+            dimensions=BoundaryDimensions.uniform(2),
+        )
+
+        final, report = run_dynamic_ctm_sweep(
+            np,
+            environment,
+            double_layer,
+            requested_dim=1,
+        )
+
+        self.assertTrue(report["performed"])
+        self.assertTrue(report["all_passed"])
+        self.assertEqual(report["directions"], ["left", "right", "top", "bottom"])
+        self.assertEqual(report["dimensions_final"], {"top": 1, "left": 1, "bottom": 1, "right": 1})
+        self.assertEqual([tuple(value.shape) for value in final.tensors()], [
+            (1, 1), (1, 1), (1, 1), (1, 1),
+            (1, 4, 1), (1, 4, 1), (1, 4, 1), (1, 4, 1),
+        ])
+        self.assertTrue(all(item["normalized"] for item in report["reports"]))
+        self.assertTrue(all(np.isfinite(np.linalg.norm(value)) for value in final.tensors()))
+
+    def test_dynamic_ctm_sweep_preserves_normalized_gauge_observable(self):
+        from qc_agent.core.ctmrg import _double_layer, _initialize_environment, _term_expectation
+        from qc_agent.core.ctmrg_dynamic import (
+            BoundaryDimensions,
+            DynamicCTMEnvironment,
+            run_dynamic_ctm_sweep,
+        )
+        from qc_agent.core.ctmrg_gauge import paired_virtual_gauge, transport_ctm_environment
+
+        rng = np.random.default_rng(17)
+        tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+        tensor = (tensor / np.linalg.norm(tensor)).astype(np.complex128)
+        gauged_tensor = paired_virtual_gauge(np, [tensor])[0]
+        double_layer = _double_layer(np, tensor)
+        gauged_double_layer = _double_layer(np, gauged_tensor)
+        base = _initialize_environment(np, double_layer, 2, regularizer=1e-9)
+        gauged_base = transport_ctm_environment(np, base, gauged_tensor)
+        environment = DynamicCTMEnvironment(*base.tensors(), dimensions=BoundaryDimensions.uniform(2))
+        gauged_environment = DynamicCTMEnvironment(
+            *gauged_base.tensors(),
+            dimensions=BoundaryDimensions.uniform(2),
+        )
+
+        final, report = run_dynamic_ctm_sweep(np, environment, double_layer, requested_dim=1)
+        gauged_final, gauged_report = run_dynamic_ctm_sweep(
+            np,
+            gauged_environment,
+            gauged_double_layer,
+            requested_dim=1,
+        )
+        term = PauliTerm(paulis={0: "Z"}, coefficient=1.0)
+        value = _term_expectation(np, final, tensor, term)
+        gauged_value = _term_expectation(np, gauged_final, gauged_tensor, term)
+
+        self.assertTrue(report["all_passed"])
+        self.assertTrue(gauged_report["all_passed"])
+        self.assertLess(abs(value - gauged_value), 1e-10)
+        self.assertEqual(final.dimensions.to_dict(), gauged_final.dimensions.to_dict())
 
     def test_directional_boundary_gauge_map_matches_all_one_site_absorptions(self):
         from qc_agent.core.ctmrg import _double_layer, _initialize_environment
