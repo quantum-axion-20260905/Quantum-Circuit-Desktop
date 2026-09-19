@@ -1,7 +1,7 @@
 {
   "schema": "quantum-circuit/ctmrg-evidence-v1",
   "date": "2026-09-19",
-  "revision": "a3c69e8",
+  "revision": "812af88",
   "candidate": "covariant-bilinear-v2-contract",
   "environment_map": "ctmrg-covariant-dynamic-frame-v1",
   "scope": {
@@ -37,7 +37,9 @@
     "dynamic_resume_request_identity_guard": true,
     "dynamic_unresolved_transfer_gap_guard": true,
     "dynamic_explicit_server_route": true,
-    "full_regression": "185/185"
+    "dynamic_rectangular_factor_columns": true,
+    "dynamic_neighbor_compatibility_guard": true,
+    "full_regression": "187/187"
   },
   "cuda_smoke": {
     "available": true,
