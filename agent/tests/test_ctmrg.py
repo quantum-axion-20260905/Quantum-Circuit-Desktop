@@ -1,4 +1,5 @@
 import math
+import hashlib
 import os
 from tempfile import TemporaryDirectory
 import unittest
@@ -873,6 +874,42 @@ class CTMRGTests(unittest.TestCase):
                 T4=np.zeros((2, 4, 2)),
                 dimensions=dimensions,
             )
+
+    def test_dynamic_ctm_checkpoint_roundtrip_validates_shape_digest(self):
+        from qc_agent.core.checkpoints import load_dynamic_ctm_checkpoint, save_dynamic_ctm_checkpoint
+        from qc_agent.core.contracts import CheckpointManifest
+        from qc_agent.core.ctmrg_dynamic import BoundaryDimensions, DynamicCTMEnvironment
+
+        dimensions = BoundaryDimensions(top=2, left=3, bottom=4, right=5)
+        environment = DynamicCTMEnvironment(
+            C1=np.arange(6, dtype=np.complex128).reshape(2, 3),
+            C2=np.arange(10, dtype=np.complex128).reshape(2, 5),
+            C3=np.arange(20, dtype=np.complex128).reshape(4, 5),
+            C4=np.arange(12, dtype=np.complex128).reshape(4, 3),
+            T1=np.arange(28, dtype=np.complex128).reshape(2, 7, 2),
+            T2=np.arange(35, dtype=np.complex128).reshape(5, 7, 1).repeat(5, axis=2),
+            T3=np.arange(28, dtype=np.complex128).reshape(4, 7, 1).repeat(4, axis=2),
+            T4=np.arange(21, dtype=np.complex128).reshape(3, 7, 1).repeat(3, axis=2),
+            dimensions=dimensions,
+        )
+        manifest = CheckpointManifest(
+            checkpoint_id="dynamic-test",
+            request_sha256=hashlib.sha256(b"dynamic-test").hexdigest(),
+            method="ipeps-ctmrg-contraction",
+            representation="ipeps-dynamic-boundary",
+            dtype="complex128",
+            device="cpu",
+            step=3,
+            created_at="2026-09-19T00:00:00Z",
+        )
+        with TemporaryDirectory() as directory:
+            path = os.path.join(directory, "dynamic.npz")
+            saved = save_dynamic_ctm_checkpoint(path, environment, manifest)
+            loaded_manifest, loaded = load_dynamic_ctm_checkpoint(path, np)
+
+        self.assertEqual(saved["metadata"]["dynamic_boundary_digest"], loaded_manifest["metadata"]["dynamic_boundary_digest"])
+        self.assertEqual(loaded.shape_manifest(), environment.shape_manifest())
+        self.assertTrue(all(np.array_equal(actual, expected) for actual, expected in zip(loaded.tensors(), environment.tensors())))
 
     def test_directional_boundary_gauge_map_matches_all_one_site_absorptions(self):
         from qc_agent.core.ctmrg import _double_layer, _initialize_environment

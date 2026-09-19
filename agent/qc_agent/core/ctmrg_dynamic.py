@@ -10,6 +10,8 @@ code depend on the same directional vocabulary.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 from typing import Any
 
 
@@ -124,3 +126,9 @@ class DynamicCTMEnvironment:
             },
         }
 
+
+def dynamic_boundary_manifest_digest(manifest: dict[str, Any]) -> str:
+    """Return the canonical digest for a rectangular boundary shape manifest."""
+
+    canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()

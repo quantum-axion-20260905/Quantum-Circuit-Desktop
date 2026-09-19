@@ -17,6 +17,12 @@ from typing import Any
 import numpy as np
 
 from .contracts import CHECKPOINT_SCHEMA, CheckpointManifest
+from .ctmrg_dynamic import (
+    DYNAMIC_BOUNDARY_SCHEMA,
+    BoundaryDimensions,
+    DynamicCTMEnvironment,
+    dynamic_boundary_manifest_digest,
+)
 
 
 _TENSOR_NAME = re.compile(r"tensor_(\d+)$")
@@ -432,3 +438,115 @@ def load_ctm_checkpoint(
             setattr(environment, name, arrays[f"{prefix}{name}"])
         _validate_ctm_environment(environment)
     return manifest, arrays
+
+
+def save_dynamic_ctm_checkpoint(
+    path: str | os.PathLike[str],
+    environment: DynamicCTMEnvironment,
+    manifest: CheckpointManifest,
+) -> dict[str, Any]:
+    """Atomically persist a rectangular dynamic CTM environment.
+
+    This format is deliberately separate from ``save_ctm_checkpoint``.  A
+    square fixed-``chi`` checkpoint must never be resumed as a dynamic state,
+    and the shape manifest/digest makes directional retained dimensions part
+    of the resumability contract rather than incidental array metadata.
+    """
+
+    if not isinstance(environment, DynamicCTMEnvironment):
+        raise ValueError("dynamic CTMRG checkpoint requires a DynamicCTMEnvironment")
+    environment.validate_shapes()
+    if manifest.representation != "ipeps-dynamic-boundary":
+        raise ValueError("dynamic CTMRG checkpoint representation must be ipeps-dynamic-boundary")
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    manifest_dict = manifest.to_dict()
+    metadata = dict(manifest_dict.get("metadata", {}))
+    shape_manifest = environment.shape_manifest()
+    metadata.setdefault("representation", "ipeps-dynamic-boundary")
+    metadata["dynamic_boundary_state"] = shape_manifest
+    metadata["dynamic_boundary_digest"] = dynamic_boundary_manifest_digest(shape_manifest)
+    manifest_dict["metadata"] = metadata
+    arrays = {
+        f"dynamic_{name}": _to_host(getattr(environment, name))
+        for name in _CTM_NAMES
+    }
+
+    temporary_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", dir=target.parent, prefix=f".{target.name}.", suffix=".tmp", delete=False
+        ) as handle:
+            temporary_path = handle.name
+            np.savez_compressed(
+                handle,
+                manifest=np.asarray(json.dumps(manifest_dict, sort_keys=True)),
+                **arrays,
+            )
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, target)
+    except Exception:
+        if temporary_path:
+            try:
+                os.unlink(temporary_path)
+            except FileNotFoundError:
+                pass
+        raise
+    return manifest_dict
+
+
+def load_dynamic_ctm_checkpoint(
+    path: str | os.PathLike[str],
+    xp: Any = np,
+) -> tuple[dict[str, Any], DynamicCTMEnvironment]:
+    """Load a rectangular dynamic CTM checkpoint and verify its shape digest."""
+
+    source = Path(path)
+    with np.load(source, allow_pickle=False) as archive:
+        if "manifest" not in archive.files:
+            raise ValueError("dynamic CTMRG checkpoint is missing its manifest")
+        raw_manifest = archive["manifest"].item()
+        manifest = json.loads(str(raw_manifest))
+        if manifest.get("schema") != CHECKPOINT_SCHEMA:
+            raise ValueError("unsupported checkpoint schema")
+        if manifest.get("method") != "ipeps-ctmrg-contraction":
+            raise ValueError("checkpoint method is not ipeps-ctmrg-contraction")
+        if manifest.get("representation") != "ipeps-dynamic-boundary":
+            raise ValueError("checkpoint representation is not ipeps-dynamic-boundary")
+        if not manifest.get("resumable", False):
+            raise ValueError("checkpoint is marked non-resumable")
+        metadata = manifest.get("metadata", {})
+        shape_manifest = metadata.get("dynamic_boundary_state")
+        expected_digest = metadata.get("dynamic_boundary_digest")
+        if not isinstance(shape_manifest, dict) or not isinstance(expected_digest, str):
+            raise ValueError("dynamic CTMRG checkpoint is missing its shape manifest or digest")
+        if shape_manifest.get("schema") != DYNAMIC_BOUNDARY_SCHEMA:
+            raise ValueError("unsupported dynamic CTMRG boundary schema")
+        if dynamic_boundary_manifest_digest(shape_manifest) != expected_digest:
+            raise ValueError("dynamic CTMRG boundary shape digest mismatch")
+        arrays: dict[str, Any] = {}
+        for name in _CTM_NAMES:
+            entry = f"dynamic_{name}"
+            if entry not in archive.files:
+                raise ValueError("dynamic CTMRG checkpoint is missing one or more environment tensors")
+            arrays[name] = xp.asarray(archive[entry])
+        dimensions = shape_manifest.get("dimensions", {})
+        try:
+            boundary_dimensions = BoundaryDimensions(
+                top=int(dimensions["top"]),
+                left=int(dimensions["left"]),
+                bottom=int(dimensions["bottom"]),
+                right=int(dimensions["right"]),
+            )
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError("dynamic CTMRG checkpoint has invalid boundary dimensions") from error
+        environment = DynamicCTMEnvironment(
+            **{name: arrays[name] for name in _CTM_NAMES},
+            dimensions=boundary_dimensions,
+            map_id=str(shape_manifest.get("map_id", "")),
+        )
+        actual_manifest = environment.shape_manifest()
+        if actual_manifest != shape_manifest:
+            raise ValueError("dynamic CTMRG checkpoint tensor shapes do not match its shape manifest")
+    return manifest, environment
