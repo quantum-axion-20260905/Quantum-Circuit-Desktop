@@ -630,6 +630,13 @@ request SHA-256 and unit-cell metadata with the checkpoint before any dynamic
 move is executed. A mismatch is rejected explicitly; the regression remains
 `183/183`.
 
+Commit `b46f5bb` adds the explicit `/jobs/ctmrg/dynamic` server route. It uses
+the same GPU preflight and provenance wrapper as the existing CTMRG endpoint,
+but keeps dynamic execution opt-in and preserves its `needs_review` result
+status and diagnostics. Route registration is covered in the API contract
+tests; the full regression is now `185/185`. The default `/jobs/ctmrg` route
+and optimization paths remain unchanged.
+
 Commit `b09a955` adds a negative entangled 2x2 admission test. A deterministic
 random D=2 payload reaches a residual near `1.6e-8`, but its four transfer gaps
 remain approximately `2e-9`; the runner therefore reports

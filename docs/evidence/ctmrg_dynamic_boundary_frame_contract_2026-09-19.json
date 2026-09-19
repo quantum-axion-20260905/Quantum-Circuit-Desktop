@@ -36,7 +36,8 @@
     "dynamic_payload_api": true,
     "dynamic_resume_request_identity_guard": true,
     "dynamic_unresolved_transfer_gap_guard": true,
-    "full_regression": "184/184"
+    "dynamic_explicit_server_route": true,
+    "full_regression": "185/185"
   },
   "cuda_smoke": {
     "available": true,
