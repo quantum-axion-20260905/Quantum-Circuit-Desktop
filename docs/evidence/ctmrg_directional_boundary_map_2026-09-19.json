@@ -1,7 +1,7 @@
 {
   "artifact": "ctmrg-directional-enlarged-boundary-gauge-map",
   "date": "2026-09-19",
-  "revision": "c2e40b0",
+  "revision": "a265366",
   "scope": "Phase 4 C2 directional K derivation seam",
   "directions": ["left", "right", "top", "bottom"],
   "map_contract": {
@@ -19,7 +19,7 @@
     "bilinear_projected_grown_edge_transport": "passed",
     "maximum_observed_relative_error": 6.731875860700754e-16,
     "projected_edge_error": "below 1e-10",
-    "full_agent_suite": "pending after projector-pair seam"
+    "full_agent_suite": "158/158 passed"
   },
   "conclusion": "The left/right/top/bottom enlarged-boundary K factors now match the actual one-site absorption index order to roundoff. This removes a major source of guessed Kronecker ordering before a dual projector is attempted.",
   "limitations": [
