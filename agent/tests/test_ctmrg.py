@@ -1014,6 +1014,47 @@ class CTMRGTests(unittest.TestCase):
         self.assertLess(abs(value - gauged_value), 1e-10)
         self.assertEqual(final.dimensions.to_dict(), gauged_final.dimensions.to_dict())
 
+    def test_dynamic_one_site_runner_returns_research_result_and_state(self):
+        from qc_agent.core.ctmrg import _double_layer, _initialize_environment
+        from qc_agent.core.ctmrg_dynamic import (
+            BoundaryDimensions,
+            DynamicCTMEnvironment,
+            run_dynamic_ctmrg_one_site,
+        )
+
+        tensor = np.zeros((2, 2, 2, 2, 2), dtype=np.complex128)
+        tensor[0, 0, 0, 0, 0] = 1.0
+        layer = _double_layer(np, tensor)
+        base = _initialize_environment(np, layer, 2, regularizer=1e-9)
+        environment = DynamicCTMEnvironment(*base.tensors(), dimensions=BoundaryDimensions.uniform(2))
+        interaction = IPEPSInteraction(
+            left_site=0,
+            right_site=0,
+            displacement=[1, 0],
+            left_pauli="Z",
+            right_pauli="Z",
+            coefficient=0.5,
+        )
+
+        result, final = run_dynamic_ctmrg_one_site(
+            np,
+            tensor,
+            environment,
+            requested_dim=1,
+            iterations=2,
+            terms=(PauliTerm(paulis={0: "Z"}, coefficient=1.0),),
+            interactions=(interaction,),
+        )
+
+        self.assertEqual(result["status"], "needs_review")
+        self.assertEqual(result["method"], "ctmrg-dynamic-covariant-v2")
+        self.assertEqual(result["research_result"]["schema"], "quantum-circuit/research-result-v1")
+        self.assertAlmostEqual(result["observables"][0]["value"], 1.0, places=10)
+        self.assertAlmostEqual(result["interactions"][0]["value"], 1.0, places=10)
+        self.assertAlmostEqual(result["energy"], 1.5, places=10)
+        self.assertTrue(result["converged"])
+        self.assertEqual(final.dimensions.to_dict(), {"top": 1, "left": 1, "bottom": 1, "right": 1})
+
     def test_directional_boundary_gauge_map_matches_all_one_site_absorptions(self):
         from qc_agent.core.ctmrg import _double_layer, _initialize_environment
         from qc_agent.core.ctmrg_gauge import (

@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import math
 from typing import Any
 
 
@@ -208,7 +209,7 @@ def _host_scalar(value: Any) -> float:
         value = value.get()
     except AttributeError:
         pass
-    return float(value)
+    return float(complex(value).real)
 
 
 def normalize_dynamic_ctm_environment(xp: Any, environment: DynamicCTMEnvironment) -> DynamicCTMEnvironment:
@@ -414,3 +415,210 @@ def run_dynamic_ctm_sweep(
         "dimensions_final": current.dimensions.to_dict(),
         "all_passed": bool(all(item.get("passed", False) for item in reports)),
     }
+
+
+def _host_values(value: Any) -> list[float]:
+    detach = getattr(value, "detach", None)
+    if callable(detach):
+        value = detach()
+    cpu = getattr(value, "cpu", None)
+    if callable(cpu):
+        value = cpu()
+    try:
+        value = value.get()
+    except AttributeError:
+        pass
+    return [float(abs(item)) for item in value.reshape(-1)]
+
+
+def _dynamic_environment_residual(xp: Any, before: DynamicCTMEnvironment, after: DynamicCTMEnvironment) -> float:
+    """Compare rectangular environments modulo internal boundary bases."""
+
+    residual = 0.0 if before.dimensions == after.dimensions else 1.0
+
+    def spectrum(value: Any) -> list[float]:
+        matrix = value.reshape(value.shape[0], -1)
+        singular = xp.linalg.svd(matrix, compute_uv=False)
+        values = _host_values(singular)
+        scale = max(values[0] if values else 0.0, 1e-30)
+        return [item / scale for item in values]
+
+    for old, new in zip(before.tensors(), after.tensors()):
+        old_spectrum = spectrum(old)
+        new_spectrum = spectrum(new)
+        size = max(len(old_spectrum), len(new_spectrum))
+        old_spectrum.extend([0.0] * (size - len(old_spectrum)))
+        new_spectrum.extend([0.0] * (size - len(new_spectrum)))
+        residual = max(
+            residual,
+            max((abs(left - right) for left, right in zip(old_spectrum, new_spectrum)), default=0.0),
+        )
+    return float(residual)
+
+
+def run_dynamic_ctmrg_one_site(
+    xp: Any,
+    tensor: Any,
+    environment: DynamicCTMEnvironment,
+    *,
+    requested_dim: int,
+    iterations: int = 4,
+    tolerance: float = 1e-8,
+    terms: tuple[Any, ...] = (),
+    interactions: tuple[Any, ...] = (),
+    directions: tuple[str, ...] = ("left", "right", "top", "bottom"),
+    relative_singular_floor: float = 1e-12,
+    normalize: bool = True,
+) -> tuple[dict[str, Any], DynamicCTMEnvironment]:
+    """Run the bounded dynamic one-site CTMRG research path.
+
+    This runner deliberately returns the raw ``DynamicCTMEnvironment`` beside
+    its serializable result envelope so callers can checkpoint the exact state.
+    It supports normalized one-site observables and nearest-neighbor
+    one-site-cell interactions through the established contraction routines;
+    multi-site periodic cells and optimization admission remain separate.
+    """
+
+    if getattr(tensor, "ndim", None) != 5:
+        raise ValueError("dynamic one-site CTMRG requires a rank-5 iPEPS tensor")
+    if int(tensor.shape[0]) != 2:
+        raise ValueError("dynamic one-site CTMRG currently supports physical_bond_dim=2")
+    if int(iterations) < 1:
+        raise ValueError("dynamic one-site CTMRG iterations must be positive")
+    if not math.isfinite(float(tolerance)) or float(tolerance) <= 0.0:
+        raise ValueError("dynamic one-site CTMRG tolerance must be finite and positive")
+
+    from .contracts import ConvergencePoint, ConvergenceReport, ResearchResult, TruncationReport
+    from .ctmrg import _double_layer, _environment_contraction, _interaction_expectation, _term_expectation
+
+    layer = _double_layer(xp, tensor)
+    current = environment
+    convergence_points: list[Any] = []
+    sweep_reports: list[dict[str, Any]] = []
+    converged = False
+    discarded_total = 0.0
+    for iteration in range(1, int(iterations) + 1):
+        before = current
+        current, sweep_report = run_dynamic_ctm_sweep(
+            xp,
+            current,
+            layer,
+            requested_dim,
+            directions=directions,
+            relative_singular_floor=relative_singular_floor,
+            normalize=normalize,
+        )
+        residual = _dynamic_environment_residual(xp, before, current)
+        discarded = sum(float(item.get("discarded_weight", 0.0)) for item in sweep_report["reports"])
+        discarded_total += discarded
+        sweep_report = dict(sweep_report)
+        sweep_report["iteration"] = iteration
+        sweep_report["residual"] = residual
+        sweep_reports.append(sweep_report)
+        convergence_points.append(ConvergencePoint(
+            iteration=iteration,
+            residual=residual,
+            environment_dim=max(current.dimensions.to_dict().values()),
+            discarded_weight=discarded,
+        ))
+        if residual <= float(tolerance) and iteration > 1:
+            converged = True
+            break
+
+    norm_value = _host_scalar(_environment_contraction(xp, current, layer))
+    observables: list[dict[str, Any]] = []
+    energy = 0.0
+    energy_complete = True
+    for term in terms:
+        value = float(_term_expectation(xp, current, tensor, term))
+        coefficient = float(getattr(term, "coefficient", 1.0))
+        observables.append({
+            "paulis": {int(index): str(pauli) for index, pauli in term.paulis.items()},
+            "coefficient": coefficient,
+            "value": value,
+            "contribution": coefficient * value,
+        })
+        energy += coefficient * value
+    interaction_values: list[dict[str, Any]] = []
+    for interaction in interactions:
+        value = _interaction_expectation(
+            xp,
+            current,
+            tensor,
+            list(interaction.displacement),
+            str(interaction.left_pauli),
+            str(interaction.right_pauli),
+        )
+        coefficient = float(getattr(interaction, "coefficient", 1.0))
+        interaction_values.append({
+            "displacement": list(interaction.displacement),
+            "left_pauli": str(interaction.left_pauli),
+            "right_pauli": str(interaction.right_pauli),
+            "coefficient": coefficient,
+            "value": None if value is None else float(value),
+            "contribution": None if value is None else coefficient * float(value),
+        })
+        if value is None:
+            energy_complete = False
+        else:
+            energy += coefficient * float(value)
+
+    final_residual = float(convergence_points[-1].residual if convergence_points else math.inf)
+    research_result = ResearchResult(
+        status="needs_review",
+        method="ctmrg-dynamic-covariant-v2",
+        representation="ipeps-dynamic-boundary",
+        metrics={
+            "norm": norm_value,
+            "energy": float(energy),
+            "energy_complete": bool(energy_complete),
+            "residual": final_residual,
+            "requested_environment_dim": int(requested_dim),
+            "retained_dimensions": current.dimensions.to_dict(),
+        },
+        truncation=TruncationReport(
+            discarded_weight=float(discarded_total),
+            max_environment_dim=max(current.dimensions.to_dict().values()),
+        ),
+        convergence=ConvergenceReport(
+            converged=converged,
+            classification="converged" if converged else "unconverged",
+            criterion=f"dynamic environment spectral residual <= {float(tolerance):.3e}",
+            points=convergence_points,
+            warnings=[] if converged else ["bounded dynamic one-site sweep did not reach its residual tolerance"],
+        ),
+        warnings=[
+            "dynamic covariant CTMRG is an experimental one-site research path",
+            "production admission still requires multi-site periodic and transfer-gap gates",
+        ],
+        limitations=[
+            "this runner supports one-site cells only",
+            "dynamic retained dimensions are not yet integrated into optimization or public CTMRG payload policy",
+            "a passing normalized observable is not a thermodynamic-limit convergence proof",
+        ],
+        provenance={
+            "sweep_schema": "quantum-circuit/ctmrg-dynamic-sweep-v1",
+            "relative_singular_floor": float(relative_singular_floor),
+        },
+        details={
+            "environment_shape_manifest": current.shape_manifest(),
+            "sweep_reports": sweep_reports,
+        },
+    )
+    result = {
+        "schema": "quantum-circuit/research-result-v1",
+        "status": "needs_review",
+        "method": "ctmrg-dynamic-covariant-v2",
+        "representation": "ipeps-dynamic-boundary",
+        "norm": norm_value,
+        "energy": float(energy),
+        "energy_complete": bool(energy_complete),
+        "observables": observables,
+        "interactions": interaction_values,
+        "converged": converged,
+        "residual": final_residual,
+        "environment_shape_manifest": current.shape_manifest(),
+        "dynamic_sweep": sweep_reports,
+        "research_result": research_result.to_dict(),
+    }
+    return result, current
