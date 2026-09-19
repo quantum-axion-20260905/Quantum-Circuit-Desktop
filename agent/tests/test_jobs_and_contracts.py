@@ -92,6 +92,12 @@ class PluginContractTests(unittest.TestCase):
 
 
 class UnifiedApiTests(unittest.TestCase):
+    def test_dynamic_ctmrg_endpoint_is_explicitly_registered(self):
+        from qc_agent.server import app
+
+        paths = {route.path for route in app.routes if hasattr(route, "path")}
+        self.assertIn("/jobs/ctmrg/dynamic", paths)
+
     def test_async_physics_defaults_resolve_tensor_network_backend(self):
         from qc_agent.server import _async_backend, _async_parse
 
