@@ -835,6 +835,45 @@ class CTMRGTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "no numerically retained sector"):
             select_covariant_dynamic_boundary_frame(np, zero, zero, requested_dim=2)
 
+    def test_dynamic_ctm_environment_accepts_rectangular_directional_shapes(self):
+        from qc_agent.core.ctmrg_dynamic import BoundaryDimensions, DynamicCTMEnvironment
+
+        dimensions = BoundaryDimensions(top=2, left=3, bottom=4, right=5)
+        environment = DynamicCTMEnvironment(
+            C1=np.zeros((2, 3), dtype=np.complex128),
+            C2=np.zeros((2, 5), dtype=np.complex128),
+            C3=np.zeros((4, 5), dtype=np.complex128),
+            C4=np.zeros((4, 3), dtype=np.complex128),
+            T1=np.zeros((2, 7, 2), dtype=np.complex128),
+            T2=np.zeros((5, 7, 5), dtype=np.complex128),
+            T3=np.zeros((4, 7, 4), dtype=np.complex128),
+            T4=np.zeros((3, 7, 3), dtype=np.complex128),
+            dimensions=dimensions,
+        )
+
+        manifest = environment.shape_manifest()
+        self.assertEqual(manifest["schema"], "quantum-circuit/ctmrg-dynamic-boundary-v1")
+        self.assertEqual(manifest["dimensions"], {"top": 2, "left": 3, "bottom": 4, "right": 5})
+        self.assertEqual(manifest["corners"]["C4"], [4, 3])
+        self.assertEqual(manifest["edges"]["T2"], [5, 7, 5])
+
+    def test_dynamic_ctm_environment_rejects_directional_shape_mismatch(self):
+        from qc_agent.core.ctmrg_dynamic import BoundaryDimensions, DynamicCTMEnvironment
+
+        dimensions = BoundaryDimensions.uniform(2)
+        with self.assertRaisesRegex(ValueError, "corner C2"):
+            DynamicCTMEnvironment(
+                C1=np.zeros((2, 2)),
+                C2=np.zeros((2, 3)),
+                C3=np.zeros((2, 2)),
+                C4=np.zeros((2, 2)),
+                T1=np.zeros((2, 4, 2)),
+                T2=np.zeros((2, 4, 2)),
+                T3=np.zeros((2, 4, 2)),
+                T4=np.zeros((2, 4, 2)),
+                dimensions=dimensions,
+            )
+
     def test_directional_boundary_gauge_map_matches_all_one_site_absorptions(self):
         from qc_agent.core.ctmrg import _double_layer, _initialize_environment
         from qc_agent.core.ctmrg_gauge import (
