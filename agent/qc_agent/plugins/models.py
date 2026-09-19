@@ -229,7 +229,7 @@ class CTMRGPayload(BaseModel):
     virtual_bond_dim: int = Field(default=1, ge=1, le=8)
     tensor_data: list[list[float]] | None = Field(default=None, max_length=32768)
     environment_bond_dim: int = Field(default=16, ge=1, le=128)
-    ctmrg_projector: Literal["half-density", "full-svd"] = "half-density"
+    ctmrg_projector: Literal["half-density", "full-svd", "biorthogonal-bilinear"] = "half-density"
     environment_sector_policy: Literal["single", "symmetry-ensemble"] = "single"
     gauge_preconditioner: Literal["none", "pairwise-polar-balance", "diagonal-bond-balance"] = "none"
     gauge_preconditioner_iterations: int = Field(default=4, ge=1, le=16)
@@ -291,6 +291,13 @@ class CTMRGPayload(BaseModel):
         cell_sites = math.prod(self.unit_cell)
         if self.ctmrg_projector == "full-svd" and self.virtual_bond_dim > 2:
             raise ValueError("full-svd CTMRG projectors currently require virtual_bond_dim<=2")
+        if self.ctmrg_projector == "biorthogonal-bilinear":
+            if self.virtual_bond_dim > 2:
+                raise ValueError("biorthogonal-bilinear CTMRG projectors currently require virtual_bond_dim<=2")
+            if self.unit_cell != [1, 1]:
+                raise ValueError("biorthogonal-bilinear CTMRG projectors currently support only a 1x1 unit cell")
+            if self.optimization != "none":
+                raise ValueError("biorthogonal-bilinear CTMRG projectors are diagnostic-only and cannot alter an optimization path yet")
         if self.gauge_preconditioner != "none" and self.optimization != "none":
             raise ValueError("virtual-gauge preconditioning is diagnostic-only and cannot alter an optimization path yet")
         if self.environment_sector_policy != "single" and self.optimization != "none":
@@ -509,6 +516,7 @@ class CTMRGSpinModelPayload(LatticeHamiltonianPayload):
     iterations: int = Field(default=20, ge=1, le=200)
     tolerance: float = Field(default=1e-8, gt=0, le=1.0)
     environment_damping: float = Field(default=1.0, gt=0.0, le=1.0)
+    ctmrg_projector: Literal["half-density", "full-svd", "biorthogonal-bilinear"] = "half-density"
     gauge_validation: bool = False
     gauge_validation_tolerance: float = Field(default=1e-4, gt=0, le=1.0)
     gauge_preconditioner: Literal["none", "pairwise-polar-balance", "diagonal-bond-balance"] = "none"
@@ -526,6 +534,8 @@ class CTMRGSpinModelPayload(LatticeHamiltonianPayload):
             raise ValueError("CTMRG spin models require a 2D unit-cell dimensions=[nx, ny]")
         if any(int(size) > 2 for size in self.dimensions):
             raise ValueError("CTMRG spin model unit-cell dimensions are limited to 2x2")
+        if self.ctmrg_projector == "biorthogonal-bilinear" and self.dimensions != [1, 1]:
+            raise ValueError("biorthogonal-bilinear CTMRG spin models currently support only a 1x1 unit cell")
         return self
 
 

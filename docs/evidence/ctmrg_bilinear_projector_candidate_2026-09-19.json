@@ -1,0 +1,62 @@
+{
+  "artifact": "ctmrg-bilinear-biorthogonal-projector-candidate",
+  "date": "2026-09-19",
+  "revision": "pending-commit",
+  "scope": {
+    "projector_policy": "biorthogonal-bilinear",
+    "unit_cell": [1, 1],
+    "virtual_bond_dim": 2,
+    "environment_bond_dim": 2,
+    "dtype": "complex128",
+    "iterations": 8
+  },
+  "implementation": {
+    "boundary_overlap": "left_corner.T @ right_corner",
+    "left_projector": "left_corner @ inverse(boundary_overlap).T",
+    "right_projector": "right_corner",
+    "edge_projection": "left_projector.T @ grown_edge @ right_projector",
+    "default_changed": false,
+    "optimization_admitted": false,
+    "unit_cell_limit": "1x1"
+  },
+  "verification": {
+    "focused_tests": "3/3 passed",
+    "full_agent_suite": "157/157 passed",
+    "environment_map_id": "ctmrg-biorthogonal-bilinear-v1",
+    "transport_gate": true,
+    "ghz_reference_gate": true
+  },
+  "random_d2_gate": [
+    {
+      "seed": 17,
+      "energy": 0.020196124002179114,
+      "fixed_point_residual": 3.9968028886505635e-15,
+      "paired_gauge_delta": 0.06604027856669004,
+      "paired_gauge_gate": false
+    },
+    {
+      "seed": 29,
+      "energy": -0.03524686069523936,
+      "fixed_point_residual": 6.661338147750939e-16,
+      "paired_gauge_delta": 0.15629595128972754,
+      "paired_gauge_gate": false
+    },
+    {
+      "seed": 41,
+      "energy": 0.04986045771452327,
+      "fixed_point_residual": 4.440892098500626e-16,
+      "paired_gauge_delta": 0.02700614207798513,
+      "paired_gauge_gate": false
+    }
+  ],
+  "ghz_gate": {
+    "reference_passed": true,
+    "energy": 1.0,
+    "paired_gauge_delta": 1.0000000000000027,
+    "paired_gauge_gate": false,
+    "research_status": "needs_review"
+  },
+  "decision": "reject-as-covariant-candidate-keep-opt-in-for-research-diagnostics",
+  "conclusion": "The bilinear dual span is algebraically well-defined and exposes a false-convergence failure: a tiny environment residual does not imply gauge-invariant physics. It is not admitted as a covariant production projector.",
+  "next_action": "retain the explicit transport/dual-basis primitives and derive a boundary-map projector that reports transfer-gap and invariant residual independently of the raw residual"
+}

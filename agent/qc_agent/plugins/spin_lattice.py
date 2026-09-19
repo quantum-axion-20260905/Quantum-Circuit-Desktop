@@ -30,6 +30,7 @@ class SpinLatticePlugin:
             iterations=payload.iterations,
             tolerance=payload.tolerance,
             environment_damping=payload.environment_damping,
+            ctmrg_projector=payload.ctmrg_projector,
             gauge_validation=payload.gauge_validation,
             gauge_validation_tolerance=payload.gauge_validation_tolerance,
             gauge_preconditioner=payload.gauge_preconditioner,

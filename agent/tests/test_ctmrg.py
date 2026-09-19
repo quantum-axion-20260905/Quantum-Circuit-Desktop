@@ -18,9 +18,11 @@ class CTMRGTests(unittest.TestCase):
 
         baseline = environment_map_for("half-density")
         full_svd = environment_map_for("full-svd")
+        bilinear = environment_map_for("biorthogonal-bilinear")
         self.assertEqual(baseline.schema, "quantum-circuit/ctmrg-environment-map-v1")
         self.assertEqual(baseline.map_id, "ctmrg-half-density-v1")
         self.assertEqual(full_svd.map_id, "ctmrg-full-svd-biorthogonal-v1")
+        self.assertEqual(bilinear.map_id, "ctmrg-biorthogonal-bilinear-v1")
         self.assertEqual(baseline.virtual_leg_order, ("physical", "up", "down", "left", "right"))
         self.assertEqual(baseline.edge_order, ("T1", "T2", "T3", "T4"))
         validate_environment_map(baseline.to_dict(), baseline)
@@ -98,6 +100,41 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(result["reference_validation"]["passed"])
         self.assertFalse(result["research_gate"]["production_ready"])
         self.assertEqual(result["research_gate"]["status"], "needs_review")
+
+    def test_bilinear_projector_is_explicit_opt_in_and_keeps_ghz_reference_visible(self):
+        tensor_data: list[list[float]] = []
+        for physical in range(2):
+            for up in range(2):
+                for down in range(2):
+                    for left in range(2):
+                        for right in range(2):
+                            tensor_data.append([
+                                float(physical == up == down == left == right),
+                                0.0,
+                            ])
+        result = run_ctmrg(np, CTMRGPayload(
+            ctmrg_projector="biorthogonal-bilinear",
+            virtual_bond_dim=2,
+            dtype="complex128",
+            tensor_data=tensor_data,
+            environment_bond_dim=2,
+            iterations=4,
+            gauge_validation=True,
+            terms=[PauliTerm(paulis={0: "Z"}, coefficient=1.0)],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=0,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+        ))
+        self.assertEqual(result["environment_map"]["map_id"], "ctmrg-biorthogonal-bilinear-v1")
+        self.assertTrue(result["reference_validation"]["passed"])
+        self.assertEqual(result["research_gate"]["status"], "needs_review")
+        self.assertFalse(result["research_gate"]["production_ready"])
+        self.assertTrue(any("no principled discarded-weight estimate" in warning for warning in result["warnings"]))
 
     def test_symmetry_sector_ensemble_restores_ghz_gauge_gate(self):
         tensor_data: list[list[float]] = []
@@ -261,6 +298,16 @@ class CTMRGTests(unittest.TestCase):
             gauge_preconditioner_iterations=2,
         )
         self.assertEqual(payload.gauge_preconditioner, "diagonal-bond-balance")
+        bilinear_payload = build_ctmrg_spin_payload(
+            LatticeHamiltonianPayload(
+                dimensions=[1, 1],
+                model="ising",
+                coupling=1.0,
+                field=0.2,
+            ),
+            ctmrg_projector="biorthogonal-bilinear",
+        )
+        self.assertEqual(bilinear_payload.ctmrg_projector, "biorthogonal-bilinear")
 
     def test_transport_ctm_environment_preserves_local_double_layer_contraction(self):
         from qc_agent.core.ctmrg import (

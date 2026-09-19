@@ -14,7 +14,7 @@ from typing import Any, Literal
 
 ENVIRONMENT_MAP_SCHEMA = "quantum-circuit/ctmrg-environment-map-v1"
 GAUGE_CONVENTION = "paired-inverse-transpose-virtual-bonds-v1"
-_PROJECTOR_POLICIES = {"half-density", "full-svd"}
+_PROJECTOR_POLICIES = {"half-density", "full-svd", "biorthogonal-bilinear"}
 
 
 @dataclass(frozen=True)
@@ -22,7 +22,7 @@ class CTMRGEnvironmentMap:
     """Serializable identity for one CTMRG environment update convention."""
 
     map_id: str
-    projector_policy: Literal["half-density", "full-svd"]
+    projector_policy: Literal["half-density", "full-svd", "biorthogonal-bilinear"]
     schema: str = ENVIRONMENT_MAP_SCHEMA
     virtual_leg_order: tuple[str, ...] = ("physical", "up", "down", "left", "right")
     corner_order: tuple[str, ...] = ("C1", "C2", "C3", "C4")
@@ -70,6 +70,11 @@ def environment_map_for(projector_policy: str) -> CTMRGEnvironmentMap:
         return CTMRGEnvironmentMap(
             map_id="ctmrg-full-svd-biorthogonal-v1",
             projector_policy="full-svd",
+        )
+    if policy == "biorthogonal-bilinear":
+        return CTMRGEnvironmentMap(
+            map_id="ctmrg-biorthogonal-bilinear-v1",
+            projector_policy="biorthogonal-bilinear",
         )
     raise ValueError(f"unsupported CTMRG projector policy {policy!r}")
 

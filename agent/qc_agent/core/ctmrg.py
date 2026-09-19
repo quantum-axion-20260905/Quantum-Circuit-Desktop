@@ -306,8 +306,33 @@ def _ctm_move(
     grown_edge: Any,
     chi: int,
     differentiate_truncation: bool = True,
+    projector_method: str = "half-density",
 ) -> tuple[Any, Any, Any, float]:
     """Truncate one enlarged boundary with a Hermitian half-system projector."""
+
+    if projector_method == "biorthogonal-bilinear":
+        overlap = left_corner.T @ right_corner
+        condition = _real(xp.linalg.cond(overlap))
+        if not math.isfinite(condition) or condition > 1e10:
+            raise ValueError(
+                "biorthogonal-bilinear CTMRG boundary overlap is singular or ill-conditioned"
+            )
+        inverse_transpose = xp.linalg.inv(overlap).T
+        left_projector = left_corner @ inverse_transpose
+        right_projector = right_corner
+        new_left = left_projector.T @ left_corner
+        new_right = left_projector.T @ right_corner
+        new_edge = xp.einsum(
+            "ia,idj,jb->adb",
+            left_projector,
+            grown_edge,
+            right_projector,
+        )
+        # The bilinear candidate retains the complete rank-chi dual boundary
+        # span.  It does not yet have a principled discarded-weight estimate;
+        # zero here means "not estimated", and the result warning makes that
+        # distinction explicit rather than fabricating a truncation weight.
+        return new_left, new_right, new_edge, 0.0
 
     rho = left_corner @ xp.conj(left_corner).T + right_corner @ xp.conj(right_corner).T
     rho = 0.5 * (rho + xp.conj(rho).T)
@@ -382,7 +407,15 @@ def _left_move(
             projector,
         ).reshape(kept, virtual * virtual, kept)
         return CTMEnvironment(c1, env.C2, env.C3, c4, env.T1, env.T2, env.T3, t4), discarded
-    c1, c4, t4, discarded = _ctm_move(xp, c1_g, c4_g, t4_g, chi, differentiate_truncation)
+    c1, c4, t4, discarded = _ctm_move(
+        xp,
+        c1_g,
+        c4_g,
+        t4_g,
+        chi,
+        differentiate_truncation,
+        projector_method,
+    )
     return CTMEnvironment(c1, env.C2, env.C3, c4, env.T1, env.T2, env.T3, t4), discarded
 
 
@@ -432,7 +465,15 @@ def _right_move(
             dual_projector,
         ).reshape(kept, virtual * virtual, kept)
         return CTMEnvironment(env.C1, c2, c3, env.C4, env.T1, t2, env.T3, env.T4), discarded
-    c2, c3, t2, discarded = _ctm_move(xp, c2_g, c3_g, t2_g, chi, differentiate_truncation)
+    c2, c3, t2, discarded = _ctm_move(
+        xp,
+        c2_g,
+        c3_g,
+        t2_g,
+        chi,
+        differentiate_truncation,
+        projector_method,
+    )
     return CTMEnvironment(env.C1, c2, c3, env.C4, env.T1, t2, env.T3, env.T4), discarded
 
 
@@ -482,7 +523,15 @@ def _top_move(
             dual_projector,
         ).reshape(kept, virtual * virtual, kept)
         return CTMEnvironment(c1, c2, env.C3, env.C4, t1, env.T2, env.T3, env.T4), discarded
-    c1, c2, t1, discarded = _ctm_move(xp, c1_g, c2_g, t1_g, chi, differentiate_truncation)
+    c1, c2, t1, discarded = _ctm_move(
+        xp,
+        c1_g,
+        c2_g,
+        t1_g,
+        chi,
+        differentiate_truncation,
+        projector_method,
+    )
     return CTMEnvironment(c1, c2, env.C3, env.C4, t1, env.T2, env.T3, env.T4), discarded
 
 
@@ -532,7 +581,15 @@ def _bottom_move(
             projector,
         ).reshape(kept, virtual * virtual, kept)
         return CTMEnvironment(env.C1, env.C2, c3, c4, env.T1, env.T2, t3, env.T4), discarded
-    c4, c3, t3, discarded = _ctm_move(xp, c4_g, c3_g, t3_g, chi, differentiate_truncation)
+    c4, c3, t3, discarded = _ctm_move(
+        xp,
+        c4_g,
+        c3_g,
+        t3_g,
+        chi,
+        differentiate_truncation,
+        projector_method,
+    )
     return CTMEnvironment(env.C1, env.C2, c3, c4, env.T1, env.T2, t3, env.T4), discarded
 
 
@@ -1722,6 +1779,12 @@ def run_ctmrg(
         warnings.append(
             "full-svd CTMRG projector is an opt-in entangled research path; it remains needs_review until paired-gauge and independent-reference gates pass"
         )
+    elif payload.ctmrg_projector == "biorthogonal-bilinear":
+        warnings.extend([
+            "biorthogonal-bilinear is an opt-in 1x1 research candidate using a bilinear dual boundary span",
+            "biorthogonal-bilinear currently reports no principled discarded-weight estimate; its zero discarded value means not-estimated",
+            "biorthogonal-bilinear remains needs_review until directional boundary covariance and paired-gauge gates pass",
+        ])
     if raw_residual > max(float(payload.tolerance) * 10.0, 1e-6) and residual <= float(payload.tolerance):
         warnings.append(
             f"raw boundary-basis residual is {raw_residual:.3e}; convergence uses a gauge-invariant environment spectrum"
@@ -1914,6 +1977,11 @@ def run_ctmrg(
         ),
         "non-nearest interaction displacements are not yet supported by the two-site-RDM contraction",
     ]
+    if payload.ctmrg_projector == "biorthogonal-bilinear":
+        limitations.extend([
+            "biorthogonal-bilinear currently has no principled discarded-weight estimate",
+            "biorthogonal-bilinear is a 1x1 candidate and is not admitted to optimization or production use",
+        ])
     environment_diagnostics = _environment_diagnostics(xp, environments)
     research_result = ResearchResult(
         status="needs_review",
