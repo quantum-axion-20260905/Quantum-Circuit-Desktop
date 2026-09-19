@@ -1091,6 +1091,49 @@ class CTMRGTests(unittest.TestCase):
         self.assertLess(max(abs(a - b) for a, b in zip(values, gauged_values)), 1e-10)
         self.assertLess(abs(interaction - gauged_interaction), 1e-10)
 
+    def test_dynamic_payload_api_builds_and_resumes_public_contract(self):
+        from qc_agent.core.ctmrg_dynamic import run_dynamic_ctmrg_payload
+
+        payload = CTMRGPayload(
+            unit_cell=[2, 2],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=1,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=0.5,
+            )],
+            initial_state="up",
+            virtual_bond_dim=1,
+            environment_bond_dim=2,
+            dtype="complex128",
+            iterations=2,
+        )
+        with TemporaryDirectory() as directory:
+            checkpoint = os.path.join(directory, "dynamic-payload.npz")
+            first, first_state = run_dynamic_ctmrg_payload(
+                np,
+                payload,
+                checkpoint_path=checkpoint,
+            )
+            resumed, resumed_state = run_dynamic_ctmrg_payload(
+                np,
+                payload,
+                resume_from=checkpoint,
+            )
+
+        self.assertEqual(first["backend"], "tensor-network-ctmrg-dynamic")
+        self.assertEqual(first["initial_environment_source"], "fresh")
+        self.assertEqual(first["checkpoint"]["resumable"], True)
+        self.assertEqual(resumed["initial_environment_source"], "checkpoint")
+        self.assertEqual(resumed["checkpoint"]["resumable"], False)
+        self.assertAlmostEqual(first["energy"], 0.5, places=10)
+        self.assertAlmostEqual(resumed["energy"], 0.5, places=10)
+        self.assertEqual(len(first_state), 4)
+        self.assertEqual(len(resumed_state), 4)
+        self.assertEqual(resumed["requested_environment_dim"], 1)
+
     def test_dynamic_covariant_move_emits_rectangular_projection_shapes(self):
         from qc_agent.core.ctmrg_dynamic import apply_dynamic_covariant_bilinear_move
 

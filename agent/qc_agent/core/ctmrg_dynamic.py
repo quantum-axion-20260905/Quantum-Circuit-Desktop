@@ -10,6 +10,7 @@ code depend on the same directional vocabulary.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import hashlib
 import json
 import math
@@ -560,19 +561,25 @@ def run_dynamic_ctm_cell_sweep(
             raise ValueError(f"unsupported dynamic cell-sweep direction {direction!r}")
         for site in range(len(working)):
             neighbor = neighbors(site)[positions[direction]]
+            effective_requested_dim = min(
+                int(requested_dim),
+                min(working[site].dimensions.to_dict().values()),
+                min(working[neighbor].dimensions.to_dict().values()),
+            )
             working[site], report = apply_dynamic_ctm_two_site_move(
                 xp,
                 working[site],
                 working[neighbor],
                 layers[neighbor],
                 direction,
-                requested_dim,
+                effective_requested_dim,
                 relative_singular_floor=relative_singular_floor,
                 normalize=normalize,
             )
             report = dict(report)
             report["site"] = site
             report["neighbor"] = neighbor
+            report["requested_dim_effective"] = effective_requested_dim
             reports.append(report)
     return working, {
         "schema": "quantum-circuit/ctmrg-dynamic-cell-sweep-v1",
@@ -602,15 +609,18 @@ def run_dynamic_ctm_sweep(
     current = environment
     reports: list[dict[str, Any]] = []
     for direction in directions:
+        effective_requested_dim = min(int(requested_dim), min(current.dimensions.to_dict().values()))
         current, report = apply_dynamic_ctm_move(
             xp,
             current,
             double_layer,
             direction,
-            requested_dim,
+            effective_requested_dim,
             relative_singular_floor=relative_singular_floor,
             normalize=normalize,
         )
+        report = dict(report)
+        report["requested_dim_effective"] = effective_requested_dim
         reports.append(report)
     return current, {
         "schema": "quantum-circuit/ctmrg-dynamic-sweep-v1",
@@ -845,6 +855,7 @@ def run_dynamic_ctmrg_cell(
     directions: tuple[str, ...] = ("left", "right", "top", "bottom"),
     relative_singular_floor: float = 1e-12,
     normalize: bool = True,
+    start_iteration: int = 0,
 ) -> tuple[dict[str, Any], list[DynamicCTMEnvironment]]:
     """Run the bounded dynamic periodic 1x1--2x2 research path."""
 
@@ -856,6 +867,8 @@ def run_dynamic_ctmrg_cell(
         raise ValueError("dynamic CTMRG cell runner requires physical-dimension-2 rank-5 tensors")
     if int(iterations) < 1:
         raise ValueError("dynamic CTMRG cell runner iterations must be positive")
+    if int(start_iteration) < 0:
+        raise ValueError("dynamic CTMRG cell runner start_iteration must be non-negative")
     if not math.isfinite(float(tolerance)) or float(tolerance) <= 0.0:
         raise ValueError("dynamic CTMRG cell runner tolerance must be finite and positive")
 
@@ -893,11 +906,11 @@ def run_dynamic_ctmrg_cell(
         discarded = sum(float(item.get("discarded_weight", 0.0)) for item in sweep_report["reports"])
         discarded_total += discarded
         sweep_report = dict(sweep_report)
-        sweep_report["iteration"] = iteration
+        sweep_report["iteration"] = int(start_iteration) + iteration
         sweep_report["residual"] = residual
         sweep_reports.append(sweep_report)
         convergence_points.append(ConvergencePoint(
-            iteration=iteration,
+            iteration=int(start_iteration) + iteration,
             residual=residual,
             environment_dim=max(
                 max(environment.dimensions.to_dict().values()) for environment in current
@@ -1037,3 +1050,126 @@ def run_dynamic_ctmrg_cell(
         "research_result": research_result.to_dict(),
     }
     return result, current
+
+
+def run_dynamic_ctmrg_payload(
+    xp: Any,
+    payload: Any,
+    *,
+    checkpoint_path: str | None = None,
+    resume_from: str | None = None,
+) -> tuple[dict[str, Any], list[DynamicCTMEnvironment]]:
+    """Execute the explicit dynamic CTMRG backend contract for a payload.
+
+    This is the public-facing seam for the experimental backend. It reuses the
+    existing ``CTMRGPayload`` tensor construction and interaction contracts,
+    but requires callers to opt into this function explicitly; the established
+    square ``run_ctmrg`` route is not changed implicitly.
+    """
+
+    unit_cell = tuple(int(value) for value in payload.unit_cell)
+    if len(unit_cell) != 2 or any(value < 1 or value > 2 for value in unit_cell):
+        raise ValueError("dynamic CTMRG payload supports only 1x1 through 2x2 unit cells")
+    if getattr(payload, "environment_sector_policy", "single") != "single":
+        raise ValueError("dynamic CTMRG payload requires environment_sector_policy='single'")
+    if getattr(payload, "optimization", "none") != "none":
+        raise ValueError("dynamic CTMRG payload is contraction-only; optimization is not admitted")
+
+    from .checkpoints import load_dynamic_ctm_checkpoint, save_dynamic_ctm_checkpoint
+    from .contracts import CheckpointManifest
+    from .ctmrg import _build_tensors, _double_layer, _initialize_environment
+
+    tensors = _build_tensors(xp, payload)
+    layers = [_double_layer(xp, tensor) for tensor in tensors]
+    cell_sites = len(tensors)
+    initialization_regularizer = 1e-9 if str(payload.dtype) == "complex128" else 1e-6
+    selected_resume = resume_from or getattr(payload, "resume_from", None)
+    selected_checkpoint = checkpoint_path or getattr(payload, "checkpoint_path", None)
+    request_payload = payload.model_dump(mode="json") if hasattr(payload, "model_dump") else dict(payload.__dict__)
+    request_sha256 = hashlib.sha256(
+        json.dumps(request_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+    initial_source = "fresh"
+    start_iteration = 0
+    loaded_manifest: dict[str, Any] | None = None
+    if selected_resume:
+        loaded_manifest, loaded = load_dynamic_ctm_checkpoint(selected_resume, xp)
+        environments = loaded if isinstance(loaded, list) else [loaded]
+        if len(environments) != cell_sites:
+            raise ValueError("dynamic CTMRG checkpoint site count does not match the payload unit cell")
+        start_iteration = int(loaded_manifest.get("step", 0))
+        initial_source = "checkpoint"
+    else:
+        environments = [
+            DynamicCTMEnvironment(
+                *_initialize_environment(
+                    xp,
+                    layer,
+                    int(payload.environment_bond_dim),
+                    regularizer=initialization_regularizer,
+                ).tensors(),
+                dimensions=BoundaryDimensions.uniform(int(payload.environment_bond_dim)),
+            )
+            for layer in layers
+        ]
+
+    requested_environment_dim = min(
+        int(payload.environment_bond_dim),
+        min(
+            dimension
+            for environment in environments
+            for dimension in environment.dimensions.to_dict().values()
+        ),
+    )
+    result, final = run_dynamic_ctmrg_cell(
+        xp,
+        tensors,
+        environments,
+        unit_cell,
+        requested_dim=requested_environment_dim,
+        iterations=int(payload.iterations),
+        tolerance=float(payload.tolerance),
+        terms=tuple(payload.terms),
+        interactions=tuple(payload.interactions),
+        start_iteration=start_iteration,
+    )
+    result = dict(result)
+    result["backend"] = "tensor-network-ctmrg-dynamic"
+    result["initial_environment_source"] = initial_source
+    result["environment_initialization_regularizer"] = initialization_regularizer
+    result["requested_environment_dim"] = requested_environment_dim
+
+    completed_step = start_iteration + len(result["dynamic_cell_sweep"])
+    if selected_checkpoint:
+        manifest = CheckpointManifest(
+            checkpoint_id=f"dynamic-ctmrg-{request_sha256[:12]}-iteration-{completed_step}",
+            request_sha256=request_sha256,
+            method="ipeps-ctmrg-contraction",
+            representation="ipeps-dynamic-boundary",
+            dtype=str(payload.dtype),
+            device="cuda" if hasattr(xp, "cuda") else "cpu",
+            step=completed_step,
+            created_at=datetime.now(timezone.utc).isoformat(),
+            metadata={
+                "completed_iterations": completed_step,
+                "unit_cell": list(unit_cell),
+                "requested_environment_dim": requested_environment_dim,
+                "environment_initialization_regularizer": initialization_regularizer,
+                "initial_environment_source": initial_source,
+            },
+        )
+        saved_manifest = save_dynamic_ctm_checkpoint(selected_checkpoint, final, manifest)
+        result["checkpoint"] = {
+            "resumable": True,
+            "path": str(selected_checkpoint),
+            "manifest": saved_manifest,
+            "resumed": initial_source == "checkpoint",
+        }
+    else:
+        result["checkpoint"] = {
+            "resumable": False,
+            "reason": "set checkpoint_path to persist and resume the dynamic environment",
+            "resumed": initial_source == "checkpoint",
+        }
+    return result, final
