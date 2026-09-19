@@ -13,18 +13,22 @@
   },
   "comparison": {
     "raw_gauge_delta": 0.00690500934060011,
-    "preconditioned_gauge_delta": 0.0037626056105274225,
+    "preconditioned_gauge_delta": 0.0042317469298294025,
     "admission_tolerance": 0.0001,
     "preconditioner_iterations": 4,
     "raw_vertical_pair_delta": 0.25590358517193035,
-    "raw_vertical_pair_delta_after": 0.10810609499006026,
+    "raw_vertical_pair_delta_after": 0.25590358517193035,
     "raw_horizontal_pair_delta": 0.19994230357538506,
-    "raw_horizontal_pair_delta_after": 0.13677324164829105,
-    "gauged_vertical_pair_delta_after": 0.07819328057904765,
-    "gauged_horizontal_pair_delta_after": 0.22757252337873132,
+    "raw_horizontal_pair_delta_after": 0.19994230357538506,
+    "gauged_vertical_pair_delta_after": 0.1880080663053544,
+    "gauged_horizontal_pair_delta_after": 0.2753215552286739,
     "raw_condition_number": 2.5618459172236325,
-    "preconditioned_condition_number": 5.824296680719061,
-    "gauged_preconditioned_condition_number": 11.37045559504664
+    "preconditioned_condition_number": 2.5618459172236325,
+    "gauged_preconditioned_condition_number": 4.438075336538203,
+    "raw_accepted_transform_count": 0,
+    "raw_rejected_transform_count": 8,
+    "gauged_accepted_transform_count": 3,
+    "gauged_rejected_transform_count": 5
   },
-  "conclusion": "The bounded pairwise polar-balance candidate lowers one sampled gauge drift but remains 37.6x above the admission tolerance and can worsen conditioning. It stays diagnostic-only; a covariant environment/fixed-point method is still required."
+  "conclusion": "The safeguarded candidate rejects raw transforms that worsen conditioning and accepts only Pareto-improving bond updates. The independent raw-vs-gauged preconditioned comparison remains 42.3x above the admission tolerance, so it stays diagnostic-only and a covariant environment/fixed-point method is still required."
 }

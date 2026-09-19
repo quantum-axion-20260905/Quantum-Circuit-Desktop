@@ -254,6 +254,13 @@ def pairwise_virtual_gauge_preconditioner(
         ]
 
     before_metrics = metrics(working)
+    accepted_transform_count = 0
+    rejected_transform_count = 0
+
+    def condition_not_worse(candidate: float, current: float) -> bool:
+        if math.isinf(current):
+            return not math.isinf(candidate) or candidate <= current
+        return candidate <= current * (1.0 + 1e-9)
 
     for _ in range(int(iterations)):
         for _, source, target, source_axis, target_axis in bonds:
@@ -268,14 +275,32 @@ def pairwise_virtual_gauge_preconditioner(
                 _leg_gram(xp, working[target], target_axis),
                 eigenvalue_floor=eigenvalue_floor,
             )
-            working[source] = _apply_leg_transform(xp, working[source], source_axis, transform)
-            working[target] = _apply_leg_transform(
-                xp,
-                working[target],
-                target_axis,
-                xp.linalg.inv(transform).T,
+            inverse_transform = xp.linalg.inv(transform).T
+            candidate_source = _apply_leg_transform(
+                xp, working[source], source_axis, transform
             )
-            mutated = True
+            candidate_target = _apply_leg_transform(
+                xp,
+                candidate_source if target == source else working[target],
+                target_axis,
+                inverse_transform,
+            )
+            candidate_metric = bond_metric(
+                candidate_source if target != source else candidate_target,
+                candidate_target,
+                source_axis,
+                target_axis,
+            )
+            if (
+                candidate_metric[0] < current_metric[0] - 1e-12
+                and condition_not_worse(candidate_metric[1], current_metric[1])
+            ):
+                working[source] = candidate_source if target != source else candidate_target
+                working[target] = candidate_target
+                accepted_transform_count += 1
+                mutated = True
+            else:
+                rejected_transform_count += 1
     after_metrics = metrics(working)
     vertical_before = [metric for bond, metric in zip(bonds, before_metrics) if bond[0] == "vertical"]
     vertical_after = [metric for bond, metric in zip(bonds, after_metrics) if bond[0] == "vertical"]
@@ -292,6 +317,9 @@ def pairwise_virtual_gauge_preconditioner(
         "horizontal_pair_delta_after": max((metric[0] for metric in horizontal_after), default=0.0),
         "condition_number_before": max((metric[1] for metric in before_metrics), default=0.0),
         "condition_number_after": max((metric[1] for metric in after_metrics), default=0.0),
+        "accepted_transform_count": int(accepted_transform_count),
+        "rejected_transform_count": int(rejected_transform_count),
+        "acceptance_rule": "bond mismatch must decrease without increasing the paired Gram condition number",
         "bond_metrics": [
             {
                 "orientation": orientation,

@@ -149,6 +149,24 @@ class CTMRGTests(unittest.TestCase):
             places=10,
         )
 
+    def test_pairwise_preconditioner_rejects_condition_worsening_candidates(self):
+        from qc_agent.core.ctmrg_gauge import pairwise_virtual_gauge_preconditioner
+
+        rng = np.random.default_rng(17)
+        tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+        tensor = tensor / np.linalg.norm(tensor)
+        _, report = pairwise_virtual_gauge_preconditioner(np, [tensor], iterations=4)
+
+        self.assertEqual(report["acceptance_rule"], "bond mismatch must decrease without increasing the paired Gram condition number")
+        self.assertEqual(
+            report["accepted_transform_count"] + report["rejected_transform_count"],
+            8,
+        )
+        self.assertLessEqual(
+            report["condition_number_after"],
+            report["condition_number_before"] * (1.0 + 1e-9),
+        )
+
     def test_bond_aware_preconditioner_preserves_2x1_finite_reference(self):
         from qc_agent.core.ctmrg_gauge import pairwise_virtual_gauge_preconditioner
 
