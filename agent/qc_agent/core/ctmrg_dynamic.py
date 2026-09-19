@@ -132,3 +132,59 @@ def dynamic_boundary_manifest_digest(manifest: dict[str, Any]) -> str:
 
     canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()
+
+
+def apply_dynamic_covariant_bilinear_move(
+    xp: Any,
+    left_factor: Any,
+    right_factor: Any,
+    grown_edge: Any,
+    requested_dim: int,
+    *,
+    relative_singular_floor: float = 1e-12,
+) -> tuple[Any, Any, Any, dict[str, Any]]:
+    """Apply one rectangular primal/dual bilinear boundary projection.
+
+    ``left_factor`` and ``right_factor`` are enlarged-boundary maps and
+    ``grown_edge`` has matching enlarged indices on its first and third axes.
+    The selector chooses the supported retained sector, then applies the
+    bilinear rules ``Q.T @ L``, ``P.T @ R``, and ``P.T @ E @ Q``.  If the
+    effective rank is smaller than the request, the returned corners are
+    rectangular; this is intentional and is the shape transition a future
+    directional environment sweep must carry to its neighboring corners.
+    """
+
+    if getattr(grown_edge, "ndim", None) != 3:
+        raise ValueError("dynamic covariant move requires a rank-3 grown edge")
+    if int(grown_edge.shape[0]) != int(left_factor.shape[0]):
+        raise ValueError("grown edge left index must match the left boundary factor")
+    if int(grown_edge.shape[2]) != int(right_factor.shape[0]):
+        raise ValueError("grown edge right index must match the right boundary factor")
+
+    # Local import keeps this module usable as the low-level shape/checkpoint
+    # contract while avoiding a package-level dependency cycle.
+    from .ctmrg_gauge import select_covariant_dynamic_boundary_frame
+
+    primal, dual, report = select_covariant_dynamic_boundary_frame(
+        xp,
+        left_factor,
+        right_factor,
+        requested_dim,
+        relative_singular_floor=relative_singular_floor,
+    )
+    new_left = dual.T @ left_factor
+    new_right = primal.T @ right_factor
+    new_edge = xp.einsum("ia,idj,jb->adb", primal, grown_edge, dual)
+    report = dict(report)
+    report.update(
+        {
+            "move": "dynamic-covariant-bilinear-boundary-projection",
+            "input_left_shape": [int(size) for size in left_factor.shape],
+            "input_right_shape": [int(size) for size in right_factor.shape],
+            "input_edge_shape": [int(size) for size in grown_edge.shape],
+            "output_left_shape": [int(size) for size in new_left.shape],
+            "output_right_shape": [int(size) for size in new_right.shape],
+            "output_edge_shape": [int(size) for size in new_edge.shape],
+        }
+    )
+    return new_left, new_right, new_edge, report

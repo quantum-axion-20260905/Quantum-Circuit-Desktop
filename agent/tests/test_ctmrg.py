@@ -911,6 +911,34 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(loaded.shape_manifest(), environment.shape_manifest())
         self.assertTrue(all(np.array_equal(actual, expected) for actual, expected in zip(loaded.tensors(), environment.tensors())))
 
+    def test_dynamic_covariant_move_emits_rectangular_projection_shapes(self):
+        from qc_agent.core.ctmrg_dynamic import apply_dynamic_covariant_bilinear_move
+
+        left = np.array(
+            [[1.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+            dtype=np.complex128,
+        )
+        right = np.array(
+            [[2.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+            dtype=np.complex128,
+        )
+        grown_edge = np.arange(4 * 3 * 4, dtype=np.complex128).reshape(4, 3, 4)
+        new_left, new_right, new_edge, report = apply_dynamic_covariant_bilinear_move(
+            np,
+            left,
+            right,
+            grown_edge,
+            requested_dim=2,
+        )
+
+        self.assertTrue(report["passed"])
+        self.assertTrue(report["rank_reduced"])
+        self.assertEqual(report["retained_dim"], 1)
+        self.assertEqual(new_left.shape, (1, 2))
+        self.assertEqual(new_right.shape, (1, 2))
+        self.assertEqual(new_edge.shape, (1, 3, 1))
+        self.assertEqual(report["output_edge_shape"], [1, 3, 1])
+
     def test_directional_boundary_gauge_map_matches_all_one_site_absorptions(self):
         from qc_agent.core.ctmrg import _double_layer, _initialize_environment
         from qc_agent.core.ctmrg_gauge import (
