@@ -635,3 +635,102 @@ def run_boundary_mps_transfer_fixed_point(
             "compare width, bond dimension, cutoff, CTMRG chi, and independent finite references",
         ],
     }
+
+
+def run_boundary_mps_transfer_convergence_study(
+    tensors: list[Any],
+    unit_cell: list[int] | tuple[int, int],
+    *,
+    widths: list[int] | tuple[int, ...],
+    boundary_bond_dims: list[int] | tuple[int, ...],
+    cycles: int,
+    cutoff: float = 0.0,
+    tolerance: float = 1e-8,
+) -> dict[str, Any]:
+    """Compare bounded transfer fixed points across width and boundary chi."""
+
+    normalized_widths = [int(value) for value in widths]
+    normalized_bonds = [int(value) for value in boundary_bond_dims]
+    if not normalized_widths or not normalized_bonds:
+        raise ValueError("boundary-MPS transfer convergence requires widths and bond dimensions")
+    if len(normalized_widths) * len(normalized_bonds) > 8:
+        raise ValueError("boundary-MPS transfer convergence is limited to eight points")
+    if len(set(normalized_widths)) != len(normalized_widths):
+        raise ValueError("boundary-MPS transfer widths must be unique")
+    if len(set(normalized_bonds)) != len(normalized_bonds):
+        raise ValueError("boundary-MPS transfer bond dimensions must be unique")
+
+    points: list[dict[str, Any]] = []
+    for width in normalized_widths:
+        for bond_dim in normalized_bonds:
+            result = run_boundary_mps_transfer_fixed_point(
+                tensors,
+                unit_cell,
+                width=width,
+                cycles=int(cycles),
+                max_bond_dim=bond_dim,
+                cutoff=float(cutoff),
+                tolerance=float(tolerance),
+            )
+            final_cycle = result["cycle_reports"][-1]
+            points.append({
+                "width": width,
+                "boundary_bond_dim": bond_dim,
+                "cycles_completed": result["cycles_completed"],
+                "final_residual": float(result["final_residual"]),
+                "converged": bool(result["converged"]),
+                "transfer_rayleigh_quotient": final_cycle["transfer_rayleigh_quotient"],
+                "discarded_weight": float(final_cycle["discarded_weight"]),
+                "boundary_bond_dim_used": int(final_cycle["boundary_bond_dim_used"]),
+                "boundary_vector_dimension": int(result["boundary_vector_dimension"]),
+                "result": result,
+            })
+
+    residuals = [float(point["final_residual"]) for point in points]
+    discarded = [float(point["discarded_weight"]) for point in points]
+    converged_points = sum(bool(point["converged"]) for point in points)
+    by_width: dict[str, dict[str, Any]] = {}
+    for width in normalized_widths:
+        selected = [point for point in points if point["width"] == width]
+        by_width[str(width)] = {
+            "points": len(selected),
+            "converged_points": sum(bool(point["converged"]) for point in selected),
+            "minimum_residual": min((float(point["final_residual"]) for point in selected), default=None),
+            "maximum_residual": max((float(point["final_residual"]) for point in selected), default=None),
+        }
+    return {
+        "schema": "quantum-circuit/boundary-mps-transfer-convergence-study-v1",
+        "status": "needs_review",
+        "method": "finite-cylinder-boundary-mps-transfer-convergence-study",
+        "unit_cell": [int(value) for value in unit_cell],
+        "widths": normalized_widths,
+        "boundary_bond_dims": normalized_bonds,
+        "cycles": int(cycles),
+        "cutoff": float(cutoff),
+        "tolerance": float(tolerance),
+        "points": points,
+        "point_count": len(points),
+        "converged_points": converged_points,
+        "residual_summary": {
+            "minimum": min(residuals, default=None),
+            "maximum": max(residuals, default=None),
+            "absolute_range": max(residuals) - min(residuals) if residuals else None,
+        },
+        "discarded_weight_summary": {
+            "maximum": max(discarded, default=None),
+        },
+        "width_summary": by_width,
+        "research_gate_summary": {
+            "status": "needs_review",
+            "production_ready": False,
+            "converged_points": converged_points,
+            "points": len(points),
+            "reason": "width and boundary-chi convergence is diagnostic-only until CTMRG and gauge gates also pass",
+        },
+        "reference_backend": "cpu-reference",
+        "warnings": [
+            "points are independent finite-cylinder row-transfer contractions",
+            "a converged boundary vector does not prove an infinite-lattice fixed point",
+            "compare width, boundary chi, CTMRG chi, transfer gaps, and paired-gauge observables",
+        ],
+    }

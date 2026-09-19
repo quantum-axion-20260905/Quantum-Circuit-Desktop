@@ -99,6 +99,7 @@ class UnifiedApiTests(unittest.TestCase):
         self.assertIn("/jobs/ctmrg/dynamic", paths)
         self.assertIn("/jobs/ctmrg/dynamic/convergence", paths)
         self.assertIn("/jobs/ctmrg/dynamic/sectors", paths)
+        self.assertIn("/jobs/ctmrg/boundary-mps-transfer-convergence", paths)
 
     def test_ctmrg_study_preflight_prices_sequential_points(self):
         from qc_agent.server import _scale_ctmrg_study_preflight
@@ -165,6 +166,27 @@ class UnifiedApiTests(unittest.TestCase):
         })
         self.assertEqual(payload.__class__.__name__, "CTMRGBoundaryMPSStudyPayload")
         self.assertEqual(_async_backend("ctmrg_boundary_mps_convergence", payload), ("tensor-network", "ctmrg"))
+
+    def test_boundary_mps_transfer_study_has_unified_async_contract(self):
+        from qc_agent.server import _async_backend, _async_parse
+
+        payload = _async_parse("ctmrg_boundary_mps_transfer_convergence", {
+            "problem": {
+                "interactions": [{
+                    "left_site": 0,
+                    "right_site": 0,
+                    "displacement": [1, 0],
+                    "left_pauli": "Z",
+                    "right_pauli": "Z",
+                    "coefficient": 1.0,
+                }],
+            },
+            "widths": [1, 2],
+            "boundary_bond_dims": [1, 2],
+            "cycles": 3,
+        })
+        self.assertEqual(payload.__class__.__name__, "CTMRGBoundaryMPSTransferStudyPayload")
+        self.assertEqual(_async_backend("ctmrg_boundary_mps_transfer_convergence", payload), ("tensor-network", "ctmrg"))
 
     def test_gpu_benchmark_preflight_accepts_generic_budget(self):
         from qc_agent.server import _async_backend, _async_parse, _async_preflight

@@ -205,6 +205,24 @@ class ComputeContractTests(unittest.TestCase):
         )
         self.assertEqual(submission.kind, "ctmrg_convergence")
 
+    def test_boundary_mps_transfer_convergence_is_a_first_class_async_kind(self):
+        submission = AsyncSubmission(
+            kind="ctmrg_boundary_mps_transfer_convergence",
+            payload={
+                "problem": {"interactions": [{
+                    "left_site": 0,
+                    "right_site": 0,
+                    "displacement": [1, 0],
+                    "left_pauli": "Z",
+                    "right_pauli": "Z",
+                    "coefficient": 1.0,
+                }]},
+                "widths": [1, 2],
+                "boundary_bond_dims": [1, 2],
+            },
+        )
+        self.assertEqual(submission.kind, "ctmrg_boundary_mps_transfer_convergence")
+
 
 if __name__ == "__main__":
     unittest.main()

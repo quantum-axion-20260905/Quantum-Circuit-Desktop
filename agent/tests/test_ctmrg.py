@@ -2038,6 +2038,28 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(all(math.isfinite(point["residual"]) for point in result["cycle_reports"]))
         self.assertTrue(all(math.isfinite(point["transfer_rayleigh_quotient"]["abs"]) for point in result["cycle_reports"]))
 
+    def test_boundary_mps_transfer_convergence_study_reports_width_and_chi_grid(self):
+        from qc_agent.core.ctmrg_boundary_mps import run_boundary_mps_transfer_convergence_study
+
+        tensor = np.zeros((2, 1, 1, 1, 1), dtype=np.complex128)
+        tensor[0, 0, 0, 0, 0] = 1.0
+        study = run_boundary_mps_transfer_convergence_study(
+            [tensor],
+            [1, 1],
+            widths=[1, 2],
+            boundary_bond_dims=[1, 2],
+            cycles=3,
+            tolerance=1e-10,
+        )
+
+        self.assertEqual(study["schema"], "quantum-circuit/boundary-mps-transfer-convergence-study-v1")
+        self.assertEqual(study["point_count"], 4)
+        self.assertEqual(study["converged_points"], 4)
+        self.assertEqual(study["widths"], [1, 2])
+        self.assertEqual(study["boundary_bond_dims"], [1, 2])
+        self.assertEqual(study["research_gate_summary"]["status"], "needs_review")
+        self.assertTrue(all(point["final_residual"] == 0.0 for point in study["points"]))
+
     def test_plus_state_has_unit_x_expectation(self):
         payload = CTMRGPayload(
             terms=[PauliTerm(paulis={0: "X"}, coefficient=1.0)],
