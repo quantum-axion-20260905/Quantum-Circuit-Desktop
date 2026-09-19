@@ -359,7 +359,7 @@ gate is not completion.
 | C2 | needs_review | The integrated reduced-overlap covariant selector and its four-direction transported replay pass, but the candidate remains opt-in until fresh fixed-point gates pass. |
 | C3 | partial | Fixed-point classification, sector-ensemble guard, chi diagnostics, transported probes, and a covariant selector replay are implemented; initialization/residual admission remains open. |
 | C4 | baseline passed | Torch unrolled/implicit map consistency is `12/12`, including six bounded GPU tests; the bilinear candidate remains blocked from optimization. |
-| C5 | incomplete | The 1x1 covariant selector replay and checkpoint resume are green, but fresh random D=2 gauge drift, the invariant residual plateau, and sequential 2x2 internal-frame tracking still fail the production gates. |
+| C5 | incomplete | The 1x1 and bounded 2x2 covariant observable replays plus checkpoint resume are green, but fresh random D=2 gauge drift, the invariant residual plateau, and full multi-site interaction/frame semantics still fail the production gates. |
 | C6 | not reached | No production promotion or release claim is allowed until C5 passes or the candidate failure is formally closed with a replacement strategy. |
 
 ### Replay checkpoint — retained corner-basis covariance (2026-09-19)
@@ -409,19 +409,27 @@ using a pseudoinverse, and is wired into the real one-site `_ctm_move` path.
 The integrated four-direction replay now calls that real move rather than a
 hand-built prototype. CPU complex128 replay passes for seeds 17/29/41. The
 bounded CUDA complex64 smoke also passes, with maximum covariance-edge error
-`4.42e-7` against the declared `1e-6` gate. Full regression is now `165/165`;
+`4.42e-7` against the declared `1e-6` gate. Full regression is now `166/166`;
 commit `dcedbe8` also rejects the unsupported covariant sector-ensemble
 combination at payload validation instead of allowing a runtime rank failure.
 Evidence: `docs/evidence/ctmrg_covariant_reduced_boundary_selector_2026-09-19.json`.
 
 The current 1x1 checkpoint path also round-trips the covariant map and resumes
-from the checkpointed environment with the same map id. A bounded 2x2
-diagnostic shows the remaining multi-site gap precisely: one two-site move
-from transported environments preserves the contraction to `2.2e-16`, but a
-sequential four-site sweep produces component-frame discrepancies of
-`0.396--0.648`. The public covariant policy therefore remains 1x1. The next
-implementation is an explicit per-side internal boundary-frame state for
-multi-site sweeps, not a looser tolerance or a silent 2x2 enablement.
+from the checkpointed environment with the same map id. Commit `1f944f8` also
+enables the covariant policy for bounded 2x2 cells and runs the actual periodic
+unit-cell sweep.
+Because a multi-site boundary can be represented in a different retained
+internal frame after transport, its replay gate compares normalized onsite
+observables while retaining raw component error as a diagnostic. CPU
+complex128 2x2 runs at 2/4/8 iterations pass this observable replay with
+maximum errors of `1.3e-15--3.8e-15`; the raw component discrepancy is about
+`1.21--1.24` and the invariant residual remains near `1.6e-5`. A bounded CUDA
+complex64 2x2 smoke also passes the normalized replay at `1.19e-7`, while raw
+component error is `1.02`. This is a real bounded research capability, but not
+full multi-site production admission: two-site interaction covariance,
+explicit retained-frame checkpoint state, and fixed-point convergence remain
+separate gates. The next implementation is therefore frame-aware multi-site
+checkpoint/interaction validation, not a looser raw-component tolerance.
 
 This closes the local retained-boundary covariance seam, not Phase 4
 admission. Fresh paired-gauge drift at four iterations is still
@@ -432,17 +440,18 @@ near `1.6e-5`, so the fixed-point classification remains `needs_review`.
 The next numerical gate is covariant initialization/fixed-point convergence,
 not another projector normalization shortcut.
 
-- CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
+- For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
-- CPU random D=2 seeds 17/29/41: replay remains red, with maximum factor error
+- For comparison, CPU random D=2 seeds 17/29/41 on the raw candidate: replay remains red, with maximum factor error
   `0.342–1.770` and moved-edge error `0.794–4.800`.
-- CUDA complex64 seed 17: local directional transport remains green, but the
+- For comparison, CUDA complex64 seed 17 on the raw candidate: local directional transport remains green, but the
   replay is red (`1.0917` factor, `2.4609` moved-edge).
 
 The raw replay remains a negative control, not a promotion. The new covariant
 selector replay carries the reduced primal/dual state through every real move
-and passes the bounded CPU/CUDA local covariance gate; fresh initialization,
-fixed-point convergence, and multi-site semantics still block admission.
+and passes the bounded CPU/CUDA 1x1 and 2x2 observable covariance gates; fresh
+initialization, fixed-point convergence, two-site interaction covariance, and
+multi-site checkpoint semantics still block admission.
 
 ## 8. Definition of done
 

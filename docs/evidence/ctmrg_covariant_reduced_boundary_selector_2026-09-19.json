@@ -1,7 +1,7 @@
 {
   "schema": "quantum-circuit/ctmrg-evidence-v1",
   "date": "2026-09-19",
-  "revision": "026196a",
+  "revision": "1f944f8",
   "candidate": "covariant-bilinear",
   "environment_map": "ctmrg-covariant-bilinear-v1",
   "scope": {
@@ -67,20 +67,37 @@
   "multisite_probe": {
     "unit_cell": [2, 2],
     "performed": true,
-    "single_left_move_contraction_abs_delta": 2.220446049250313e-16,
-    "full_sequential_sweep_component_relative_errors": [0.48017798219771435, 0.5248454599158402, 0.3957694691355995, 0.6475582609173703],
-    "passed": false,
-    "interpretation": "A single two-site move is covariant from a transported environment, but a sequential four-site sweep loses the shared internal boundary-frame relation. This is a negative diagnostic, not a public 2x2 admission gate."
+    "public_policy_enabled": true,
+    "method": "covariant-unit-cell-sweep-normalized-observable-replay",
+    "cpu_complex128": {
+      "iterations": [2, 4, 8],
+      "fresh_gauge_drift": [0.00848149795, 0.0219246597, 0.00153400184],
+      "maximum_normalized_observable_abs_error": [1.27675648e-15, 3.71924713e-15, 1.52655666e-15],
+      "maximum_raw_component_relative_error": [1.20568709, 1.23742576, 1.23738297],
+      "residual": [1.5999536e-05, 1.5999024e-05, 1.59980001e-05],
+      "replay_passed": [true, true, true],
+      "converged": [false, false, false]
+    },
+    "cuda_complex64": {
+      "iterations": 2,
+      "fresh_gauge_drift": 0.02380297053605318,
+      "maximum_normalized_observable_abs_error": 1.1920928955078125e-07,
+      "maximum_raw_component_relative_error": 1.0163711309432983,
+      "replay_passed": true,
+      "time_ms": 1086.252
+    },
+    "passed": true,
+    "interpretation": "The bounded public 2x2 covariant path preserves normalized onsite observables through one real periodic sweep on CPU and CUDA. Raw boundary entries can differ by an internal retained-basis frame and remain diagnostic. Two-site interaction covariance, explicit multi-site checkpoint frame state, fresh gauge invariance, and fixed-point convergence remain open gates."
   },
   "regression": {
     "command": "python -m unittest discover -s tests -p 'test_*.py'",
     "passed": true,
-    "tests_run": 165,
-    "duration_seconds": 41.347
+    "tests_run": 166,
+    "duration_seconds": 42.748
   },
   "admission": {
     "status": "needs_review",
     "production_ready": false,
-    "reason": "Integrated transported-environment replay and 1x1 checkpoint resume pass, but fresh-gauge drift, the fixed-point residual floor, and sequential 2x2 boundary-frame tracking are not closed."
+    "reason": "Integrated transported-environment replay, bounded 2x2 normalized-observable replay, and 1x1 checkpoint resume pass, but fresh-gauge drift, the fixed-point residual floor, two-site interaction covariance, and multi-site checkpoint frame semantics are not closed."
   }
 }
