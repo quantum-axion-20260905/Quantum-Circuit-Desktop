@@ -138,6 +138,34 @@ def method_catalog(*, gpu_available: bool, tensor_network_available: bool) -> li
     ]
 
 
+def experimental_method_catalog(
+    *,
+    gpu_available: bool,
+    tensor_network_available: bool,
+) -> list[MethodCapability]:
+    """Return opt-in algorithm variants that must not shadow default resolvers."""
+
+    tensor_network_ready = bool(gpu_available and tensor_network_available)
+    runtime_status: MethodStatus = "available" if tensor_network_ready else "unavailable"
+    return [
+        MethodCapability(
+            id="ipeps-ctmrg-dynamic",
+            method="ctmrg",
+            backend="tensor-network",
+            representation="ipeps-dynamic-boundary",
+            operation="ctmrg",
+            available=tensor_network_ready,
+            status=runtime_status,
+            description="Explicit opt-in rectangular-boundary CTMRG endpoint with checkpoints and structured research gates.",
+            limitations=(
+                "bounded to physical dimension 2 and 1x1--2x2 cells",
+                "returns needs_review until transfer-gap, independent-reference, and optimizer gates pass",
+                "not selected by resolve_method_capability('ctmrg')",
+            ),
+        ),
+    ]
+
+
 def resolve_method_capability(
     requested: str,
     *,

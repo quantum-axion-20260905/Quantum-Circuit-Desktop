@@ -1,7 +1,12 @@
 import unittest
 from tempfile import TemporaryDirectory
 
-from qc_agent.backends.registry import method_catalog, resolve_method_capability, resolve_run_backend
+from qc_agent.backends.registry import (
+    experimental_method_catalog,
+    method_catalog,
+    resolve_method_capability,
+    resolve_run_backend,
+)
 from qc_agent.core.contracts import CapabilityError
 from qc_agent.jobs import JobManager
 from qc_agent.models import RunPayload
@@ -50,6 +55,17 @@ class RegistryTests(unittest.TestCase):
         resolved = resolve_method_capability("dmrg", gpu_available=True, tensor_network_available=True)
         self.assertEqual(resolved.id, "mps-dmrg")
         self.assertEqual(resolved.backend, "tensor-network")
+
+    def test_dynamic_ctmrg_is_explicit_experimental_capability(self):
+        methods = experimental_method_catalog(gpu_available=True, tensor_network_available=True)
+        self.assertEqual(len(methods), 1)
+        dynamic = methods[0]
+        self.assertEqual(dynamic.id, "ipeps-ctmrg-dynamic")
+        self.assertEqual(dynamic.representation, "ipeps-dynamic-boundary")
+        self.assertTrue(dynamic.available)
+        self.assertIn("not selected", " ".join(dynamic.limitations))
+        resolved = resolve_method_capability("ctmrg", gpu_available=True, tensor_network_available=True)
+        self.assertEqual(resolved.id, "ipeps-ctmrg")
 
 
 class ProvenanceTests(unittest.TestCase):

@@ -51,7 +51,7 @@ from .core.ctmrg_dynamic import run_dynamic_ctmrg_payload
 from .core.ctmrg_boundary_mps import run_boundary_mps_convergence_study, tensors_from_payload
 from .plugins.tebd import run_tebd
 from .provenance import with_provenance
-from .backends.registry import catalog, method_catalog, resolve_run_backend
+from .backends.registry import catalog, experimental_method_catalog, method_catalog, resolve_run_backend
 
 add_cuda_dll_dirs()
 
@@ -342,12 +342,17 @@ def capabilities() -> dict[str, Any]:
         gpu_available=bool(gpu.get("available")),
         tensor_network_available=bool(gpu.get("available")),
     )
+    experimental_methods = experimental_method_catalog(
+        gpu_available=bool(gpu.get("available")),
+        tensor_network_available=bool(gpu.get("available")),
+    )
     return {
         "backends": [item.__dict__ for item in catalog(
             gpu_available=bool(gpu.get("available")),
             tensor_network_available=bool(gpu.get("available")),
         )],
         "methods": [item.__dict__ for item in methods],
+        "experimental_methods": [item.__dict__ for item in experimental_methods],
         "gpu": gpu,
         "features": {
             "cross_backend_validation": bool(gpu.get("available") and oe is not None),

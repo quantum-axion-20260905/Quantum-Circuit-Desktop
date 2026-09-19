@@ -684,6 +684,12 @@ clients therefore cannot confuse a finite contraction with an admitted
 production observable. Product, unresolved-entangled, and synchronized-sector
 tests all assert the corresponding gate behavior.
 
+The backend registry exposes this route as a separate `ipeps-ctmrg-dynamic`
+experimental capability. The ordinary `ctmrg` resolver remains pinned to the
+existing square path, so adding future boundary-MPS or material-specific
+variants can follow the same explicit capability pattern without silently
+changing a user's solver.
+
 ## 8. Definition of done
 
 Done means the covariant candidate either passes Packet F and is promoted as a

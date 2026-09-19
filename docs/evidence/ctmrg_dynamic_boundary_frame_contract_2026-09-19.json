@@ -41,7 +41,8 @@
     "dynamic_neighbor_compatibility_guard": true,
     "dynamic_shared_sector_restart": true,
     "dynamic_research_gate": true,
-    "full_regression": "188/188"
+    "dynamic_experimental_capability_registry": true,
+    "full_regression": "189/189"
   },
   "cuda_smoke": {
     "available": true,
