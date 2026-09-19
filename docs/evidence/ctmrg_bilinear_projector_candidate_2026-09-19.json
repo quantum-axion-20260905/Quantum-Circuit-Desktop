@@ -1,7 +1,7 @@
 {
   "artifact": "ctmrg-bilinear-biorthogonal-projector-candidate",
   "date": "2026-09-19",
-  "revision": "5a6a0a1",
+  "revision": "2177bd7",
   "scope": {
     "projector_policy": "biorthogonal-bilinear",
     "unit_cell": [1, 1],
