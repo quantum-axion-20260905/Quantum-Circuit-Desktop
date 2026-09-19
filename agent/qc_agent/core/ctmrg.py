@@ -948,16 +948,24 @@ def _environment_diagnostics(xp: Any, environments: list[CTMEnvironment]) -> dic
 
     spectra: list[list[float]] = []
     correlation_lengths: list[float | None] = []
+    transfer_ratios: list[float | None] = []
+    transfer_gaps: list[float | None] = []
+    transfer_eigenvalue_magnitudes: list[list[float]] = []
     for env in environments:
         transfer = xp.sum(env.T1, axis=1)
         transfer_eigenvalues = eigenvalues(transfer)
         magnitudes = sorted((float(abs(value)) for value in _host(transfer_eigenvalues)), reverse=True)
+        transfer_eigenvalue_magnitudes.append(magnitudes)
         leading = magnitudes[0] if magnitudes else 0.0
         subleading = magnitudes[1] if len(magnitudes) > 1 else 0.0
         if leading <= 1e-30 or subleading <= 1e-30:
             correlation_lengths.append(0.0)
+            transfer_ratios.append(0.0 if leading > 1e-30 else None)
+            transfer_gaps.append(1.0 if leading > 1e-30 else None)
         else:
             ratio = max(0.0, subleading / leading)
+            transfer_ratios.append(float(ratio))
+            transfer_gaps.append(float(max(0.0, 1.0 - ratio)))
             # A degenerate leading transfer eigenvalue has no finite
             # correlation length.  Returning a huge finite sentinel is
             # misleading and can be mistaken for a measured scale.
@@ -979,6 +987,9 @@ def _environment_diagnostics(xp: Any, environments: list[CTMEnvironment]) -> dic
         ),
         "correlation_lengths_by_site": correlation_lengths,
         "environment_spectrum": spectra,
+        "transfer_ratio_by_site": transfer_ratios,
+        "transfer_gap_by_site": transfer_gaps,
+        "transfer_eigenvalue_magnitudes_by_site": transfer_eigenvalue_magnitudes,
     }
 
 
@@ -2385,6 +2396,11 @@ def _aggregate_sector_results(
             max(finite_lengths) if finite_lengths else None
         ),
         "correlation_lengths_by_site": sector_results[0].get("correlation_lengths_by_site", []),
+        "transfer_ratio_by_site": sector_results[0].get("transfer_ratio_by_site", []),
+        "transfer_gap_by_site": sector_results[0].get("transfer_gap_by_site", []),
+        "transfer_eigenvalue_magnitudes_by_site": sector_results[0].get(
+            "transfer_eigenvalue_magnitudes_by_site", []
+        ),
         "warnings": warnings,
         "resource_estimate": {
             **dict(result.get("resource_estimate", {})),
@@ -3414,6 +3430,11 @@ def run_ctmrg(
             ),
             "correlation_lengths_by_site": environment_diagnostics["correlation_lengths_by_site"],
             "environment_spectrum": environment_diagnostics["environment_spectrum"],
+            "transfer_ratio_by_site": environment_diagnostics["transfer_ratio_by_site"],
+            "transfer_gap_by_site": environment_diagnostics["transfer_gap_by_site"],
+            "transfer_eigenvalue_magnitudes_by_site": environment_diagnostics[
+                "transfer_eigenvalue_magnitudes_by_site"
+            ],
             "fixed_point_classification": fixed_point_classification,
             "reference_validation": reference_validation,
             "gauge_validation": gauge_validation,
@@ -3479,6 +3500,11 @@ def run_ctmrg(
         "correlation_length": environment_diagnostics["correlation_length"],
         "correlation_lengths_by_site": environment_diagnostics["correlation_lengths_by_site"],
         "environment_spectrum": environment_diagnostics["environment_spectrum"],
+        "transfer_ratio_by_site": environment_diagnostics["transfer_ratio_by_site"],
+        "transfer_gap_by_site": environment_diagnostics["transfer_gap_by_site"],
+        "transfer_eigenvalue_magnitudes_by_site": environment_diagnostics[
+            "transfer_eigenvalue_magnitudes_by_site"
+        ],
         "observables": structured_observables(payload.terms, onsite_values),
         "interactions": [
             {

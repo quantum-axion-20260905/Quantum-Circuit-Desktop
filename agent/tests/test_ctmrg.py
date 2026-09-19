@@ -307,6 +307,8 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(result["unit_cell"], [2, 2])
         self.assertEqual(result["environment_map"]["map_id"], "ctmrg-covariant-bilinear-v1")
         self.assertEqual(result["environment_initialization_regularizer"], 1e-9)
+        self.assertEqual(len(result["transfer_gap_by_site"]), 4)
+        self.assertTrue(all(value is not None for value in result["transfer_gap_by_site"]))
         replay = result["covariant_reduced_boundary_sweep_replay"]
         self.assertTrue(replay["performed"])
         self.assertTrue(replay["passed"])
@@ -1025,6 +1027,8 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(math.isfinite(result["correlation_length"]))
         self.assertEqual(len(result["environment_spectrum"]), 1)
         self.assertGreaterEqual(len(result["environment_spectrum"][0]), 1)
+        self.assertEqual(len(result["transfer_gap_by_site"]), 1)
+        self.assertTrue(math.isfinite(result["transfer_gap_by_site"][0]))
         self.assertTrue(result["reference_validation"]["performed"])
         self.assertTrue(result["reference_validation"]["passed"])
         self.assertAlmostEqual(result["reference_validation"]["energy_error"], 0.0, places=8)
