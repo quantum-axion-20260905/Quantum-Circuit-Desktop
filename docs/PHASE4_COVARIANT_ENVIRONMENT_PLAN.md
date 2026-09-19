@@ -359,7 +359,7 @@ gate is not completion.
 | C2 | needs_review | The integrated reduced-overlap covariant selector and its four-direction transported replay pass, but the candidate remains opt-in until fresh fixed-point gates pass. |
 | C3 | partial | Fixed-point classification, sector-ensemble guard, chi diagnostics, transported probes, and a covariant selector replay are implemented; initialization/residual admission remains open. |
 | C4 | baseline passed | Torch unrolled/implicit map consistency is `12/12`, including six bounded GPU tests; the bilinear candidate remains blocked from optimization. |
-| C5 | incomplete | The 1x1 covariant selector replay is green, but fresh random D=2 gauge drift and the invariant residual plateau still fail the production gates; 2x2 and multi-site selector-state evidence remain open. |
+| C5 | incomplete | The 1x1 covariant selector replay and checkpoint resume are green, but fresh random D=2 gauge drift, the invariant residual plateau, and sequential 2x2 internal-frame tracking still fail the production gates. |
 | C6 | not reached | No production promotion or release claim is allowed until C5 passes or the candidate failure is formally closed with a replacement strategy. |
 
 ### Replay checkpoint — retained corner-basis covariance (2026-09-19)
@@ -409,10 +409,19 @@ using a pseudoinverse, and is wired into the real one-site `_ctm_move` path.
 The integrated four-direction replay now calls that real move rather than a
 hand-built prototype. CPU complex128 replay passes for seeds 17/29/41. The
 bounded CUDA complex64 smoke also passes, with maximum covariance-edge error
-`4.42e-7` against the declared `1e-6` gate. Full regression is now `164/164`;
+`4.42e-7` against the declared `1e-6` gate. Full regression is now `165/165`;
 commit `dcedbe8` also rejects the unsupported covariant sector-ensemble
 combination at payload validation instead of allowing a runtime rank failure.
 Evidence: `docs/evidence/ctmrg_covariant_reduced_boundary_selector_2026-09-19.json`.
+
+The current 1x1 checkpoint path also round-trips the covariant map and resumes
+from the checkpointed environment with the same map id. A bounded 2x2
+diagnostic shows the remaining multi-site gap precisely: one two-site move
+from transported environments preserves the contraction to `2.2e-16`, but a
+sequential four-site sweep produces component-frame discrepancies of
+`0.396--0.648`. The public covariant policy therefore remains 1x1. The next
+implementation is an explicit per-side internal boundary-frame state for
+multi-site sweeps, not a looser tolerance or a silent 2x2 enablement.
 
 This closes the local retained-boundary covariance seam, not Phase 4
 admission. Fresh paired-gauge drift at four iterations is still

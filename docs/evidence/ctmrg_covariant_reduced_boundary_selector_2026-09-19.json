@@ -1,7 +1,7 @@
 {
   "schema": "quantum-circuit/ctmrg-evidence-v1",
   "date": "2026-09-19",
-  "revision": "dcedbe8",
+  "revision": "026196a",
   "candidate": "covariant-bilinear",
   "environment_map": "ctmrg-covariant-bilinear-v1",
   "scope": {
@@ -57,15 +57,30 @@
     "time_ms": 722.126,
     "interpretation": "The local covariant move/replay is within the complex64 1e-6 numerical gate; fresh finite-iteration gauge invariance is still not admitted."
   },
+  "checkpoint_resume": {
+    "passed": true,
+    "saved_map_id": "ctmrg-covariant-bilinear-v1",
+    "resumed_map_id": "ctmrg-covariant-bilinear-v1",
+    "resumed_initial_environment_source": "checkpoint",
+    "note": "The full-rank selector is reconstructed deterministically from the checkpointed environment and versioned map; no hidden selector array is required for the current 1x1 path."
+  },
+  "multisite_probe": {
+    "unit_cell": [2, 2],
+    "performed": true,
+    "single_left_move_contraction_abs_delta": 2.220446049250313e-16,
+    "full_sequential_sweep_component_relative_errors": [0.48017798219771435, 0.5248454599158402, 0.3957694691355995, 0.6475582609173703],
+    "passed": false,
+    "interpretation": "A single two-site move is covariant from a transported environment, but a sequential four-site sweep loses the shared internal boundary-frame relation. This is a negative diagnostic, not a public 2x2 admission gate."
+  },
   "regression": {
     "command": "python -m unittest discover -s tests -p 'test_*.py'",
     "passed": true,
-    "tests_run": 164,
-    "duration_seconds": 26.716
+    "tests_run": 165,
+    "duration_seconds": 41.347
   },
   "admission": {
     "status": "needs_review",
     "production_ready": false,
-    "reason": "Integrated transported-environment replay passes, but fresh-gauge drift and the fixed-point residual gate are not both closed; 2x2, multi-site state tracking, and checkpointed selector state remain open."
+    "reason": "Integrated transported-environment replay and 1x1 checkpoint resume pass, but fresh-gauge drift, the fixed-point residual floor, and sequential 2x2 boundary-frame tracking are not closed."
   }
 }
