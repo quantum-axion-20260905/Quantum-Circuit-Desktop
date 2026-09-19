@@ -26,6 +26,14 @@
       "top": 5.935136405414323e-16,
       "bottom": 7.306670477456259e-16
     },
+    "cuda_run_result_directional_transport_gate": true,
+    "cuda_run_result_maximum_relative_error": 6.419705814344161e-07,
+    "cuda_run_result_directions": {
+      "left": true,
+      "right": true,
+      "top": true,
+      "bottom": true
+    },
     "maximum_observed_relative_error": 6.731875860700754e-16,
     "projected_edge_error": "below 1e-10",
     "full_agent_suite": "160/160 passed"

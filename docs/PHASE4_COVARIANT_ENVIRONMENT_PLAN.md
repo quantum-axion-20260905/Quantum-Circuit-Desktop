@@ -170,6 +170,9 @@ retained subspace. The same seam now runs inside the bilinear CTMRG gauge
 validation result: a bounded GHZ run passes all four directions with maximum
 relative error `7.31e-16`. Evidence:
 `docs/evidence/ctmrg_directional_boundary_map_2026-09-19.json`.
+The same runtime gate passes on CUDA complex64 at `6.42e-7` maximum relative
+error (within its declared `1e-6` tolerance), while the separate fresh
+fixed-point gauge gate remains false as expected.
 
 A bounded chi probe for seed 17 was run at chi=2 and chi=3. In CPU
 complex128, both points remain unconverged and the normalized residual rises
