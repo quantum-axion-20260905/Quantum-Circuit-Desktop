@@ -380,6 +380,213 @@ def apply_dynamic_ctm_move(
     return next_environment, report
 
 
+def _dynamic_environment_from_tensors(
+    tensors: tuple[Any, ...],
+    *,
+    map_id: str,
+) -> DynamicCTMEnvironment:
+    """Infer directional dimensions from a freshly projected environment."""
+
+    C1, C2, C3, C4, T1, T2, T3, T4 = tensors
+    dimensions = BoundaryDimensions(
+        top=int(C2.shape[0]),
+        left=int(C1.shape[0]),
+        bottom=int(C3.shape[0]),
+        right=int(C2.shape[1]),
+    )
+    return DynamicCTMEnvironment(*tensors, dimensions=dimensions, map_id=map_id)
+
+
+def apply_dynamic_ctm_two_site_move(
+    xp: Any,
+    environment: DynamicCTMEnvironment,
+    neighbor_environment: DynamicCTMEnvironment,
+    neighbor_layer: Any,
+    direction: str,
+    requested_dim: int,
+    *,
+    relative_singular_floor: float = 1e-12,
+    normalize: bool = True,
+) -> tuple[DynamicCTMEnvironment, dict[str, Any]]:
+    """Apply one periodic neighbor absorption for a dynamic environment.
+
+    The self environment supplies the corners and the directional grown edge;
+    the neighboring environment supplies the boundary edge that is absorbed,
+    matching the existing periodic ``_unit_cell_sweep`` contract.
+    """
+
+    direction = str(direction).lower()
+    if direction not in {"left", "right", "top", "bottom"}:
+        raise ValueError("dynamic CTMRG direction must be left, right, top, or bottom")
+    if getattr(neighbor_layer, "ndim", None) != 4:
+        raise ValueError("dynamic two-site CTMRG move requires a rank-4 neighbor layer")
+    d2 = int(neighbor_layer.shape[0])
+
+    if direction == "left":
+        first = xp.einsum("ab,buc->auc", environment.C1, neighbor_environment.T1)
+        second = xp.einsum("gh,hdi->gdi", environment.C4, neighbor_environment.T3)
+        grown = xp.einsum("alg,udlr->augdr", environment.T4, neighbor_layer)
+        first = first.reshape(-1, neighbor_environment.T1.shape[2])
+        second = second.reshape(-1, neighbor_environment.T3.shape[2])
+        grown = _transpose(xp, grown, (0, 1, 4, 2, 3)).reshape(first.shape[0], d2, second.shape[0])
+        new_first, new_second, new_edge, report = apply_dynamic_covariant_bilinear_move(
+            xp, first, second, grown, requested_dim, relative_singular_floor=relative_singular_floor
+        )
+        tensors = (
+            new_first,
+            environment.C2,
+            environment.C3,
+            new_second,
+            environment.T1,
+            environment.T2,
+            environment.T3,
+            new_edge,
+        )
+    elif direction == "right":
+        first = xp.einsum("ce,buc->eub", environment.C2, neighbor_environment.T1)
+        second = xp.einsum("im,hdi->mdh", environment.C3, neighbor_environment.T3)
+        grown = xp.einsum("erm,udlr->eumdl", environment.T2, neighbor_layer)
+        first = first.reshape(-1, neighbor_environment.T1.shape[0])
+        second = second.reshape(-1, neighbor_environment.T3.shape[0])
+        grown = _transpose(xp, grown, (0, 1, 4, 2, 3)).reshape(first.shape[0], d2, second.shape[0])
+        new_first, new_second, new_edge, report = apply_dynamic_covariant_bilinear_move(
+            xp, first, second, grown, requested_dim, relative_singular_floor=relative_singular_floor
+        )
+        tensors = (
+            environment.C1,
+            _transpose(xp, new_first, (1, 0)),
+            _transpose(xp, new_second, (1, 0)),
+            environment.C4,
+            environment.T1,
+            new_edge,
+            environment.T3,
+            environment.T4,
+        )
+    elif direction == "top":
+        first = xp.einsum("ab,alg->blg", environment.C1, neighbor_environment.T4)
+        second = xp.einsum("ce,erm->crm", environment.C2, neighbor_environment.T2)
+        grown = xp.einsum("buc,udlr->bcdlr", environment.T1, neighbor_layer)
+        first = first.reshape(-1, neighbor_environment.T4.shape[2])
+        second = second.reshape(-1, neighbor_environment.T2.shape[2])
+        grown = _transpose(xp, grown, (0, 3, 2, 1, 4)).reshape(first.shape[0], d2, second.shape[0])
+        new_first, new_second, new_edge, report = apply_dynamic_covariant_bilinear_move(
+            xp, first, second, grown, requested_dim, relative_singular_floor=relative_singular_floor
+        )
+        tensors = (
+            _transpose(xp, new_first, (1, 0)),
+            new_second,
+            environment.C3,
+            environment.C4,
+            new_edge,
+            environment.T2,
+            environment.T3,
+            environment.T4,
+        )
+    else:
+        first = _transpose(
+            xp,
+            xp.einsum("gh,alg->hal", environment.C4, neighbor_environment.T4),
+            (0, 2, 1),
+        )
+        second = xp.einsum("im,erm->ire", environment.C3, neighbor_environment.T2)
+        grown = xp.einsum("hdi,udlr->hiulr", environment.T3, neighbor_layer)
+        first = first.reshape(-1, neighbor_environment.T4.shape[0])
+        second = second.reshape(-1, neighbor_environment.T2.shape[0])
+        grown = _transpose(xp, grown, (0, 3, 2, 1, 4)).reshape(first.shape[0], d2, second.shape[0])
+        new_first, new_second, new_edge, report = apply_dynamic_covariant_bilinear_move(
+            xp, first, second, grown, requested_dim, relative_singular_floor=relative_singular_floor
+        )
+        tensors = (
+            environment.C1,
+            environment.C2,
+            new_second,
+            _transpose(xp, new_first, (1, 0)),
+            environment.T1,
+            environment.T2,
+            new_edge,
+            environment.T4,
+        )
+
+    next_environment = _dynamic_environment_from_tensors(tensors, map_id=environment.map_id)
+    report = dict(report)
+    report["direction"] = direction
+    report["neighbor_map_id"] = neighbor_environment.map_id
+    report["dimensions_before"] = environment.dimensions.to_dict()
+    report["dimensions_after"] = next_environment.dimensions.to_dict()
+    if normalize:
+        next_environment = normalize_dynamic_ctm_environment(xp, next_environment)
+        report["normalized"] = True
+    else:
+        report["normalized"] = False
+    return next_environment, report
+
+
+def run_dynamic_ctm_cell_sweep(
+    xp: Any,
+    environments: list[DynamicCTMEnvironment],
+    layers: list[Any],
+    unit_cell: tuple[int, int],
+    requested_dim: int,
+    *,
+    directions: tuple[str, ...] = ("left", "right", "top", "bottom"),
+    relative_singular_floor: float = 1e-12,
+    normalize: bool = True,
+) -> tuple[list[DynamicCTMEnvironment], dict[str, Any]]:
+    """Run the deterministic periodic neighbor sweep for a 1x1--2x2 cell."""
+
+    nx, ny = (int(value) for value in unit_cell)
+    if nx < 1 or nx > 2 or ny < 1 or ny > 2:
+        raise ValueError("dynamic CTMRG cell sweep supports only 1x1 through 2x2 cells")
+    if len(environments) != nx * ny or len(layers) != nx * ny:
+        raise ValueError("dynamic CTMRG cell sweep tensor/environment count mismatch")
+
+    def site_index(x: int, y: int) -> int:
+        return (x % nx) + nx * (y % ny)
+
+    def neighbors(site: int) -> tuple[int, int, int, int]:
+        x, y = site % nx, site // nx
+        return (
+            site_index(x - 1, y),
+            site_index(x + 1, y),
+            site_index(x, y - 1),
+            site_index(x, y + 1),
+        )
+
+    positions = {"left": 0, "right": 1, "top": 2, "bottom": 3}
+    working = list(environments)
+    reports: list[dict[str, Any]] = []
+    for direction in directions:
+        if direction not in positions:
+            raise ValueError(f"unsupported dynamic cell-sweep direction {direction!r}")
+        for site in range(len(working)):
+            neighbor = neighbors(site)[positions[direction]]
+            working[site], report = apply_dynamic_ctm_two_site_move(
+                xp,
+                working[site],
+                working[neighbor],
+                layers[neighbor],
+                direction,
+                requested_dim,
+                relative_singular_floor=relative_singular_floor,
+                normalize=normalize,
+            )
+            report = dict(report)
+            report["site"] = site
+            report["neighbor"] = neighbor
+            reports.append(report)
+    return working, {
+        "schema": "quantum-circuit/ctmrg-dynamic-cell-sweep-v1",
+        "performed": True,
+        "unit_cell": [nx, ny],
+        "site_count": len(working),
+        "directions": list(directions),
+        "requested_dim": int(requested_dim),
+        "reports": reports,
+        "all_passed": bool(all(item.get("passed", False) for item in reports)),
+        "dimensions_final": [environment.dimensions.to_dict() for environment in working],
+    }
+
+
 def run_dynamic_ctm_sweep(
     xp: Any,
     environment: DynamicCTMEnvironment,

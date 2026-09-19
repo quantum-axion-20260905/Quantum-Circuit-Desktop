@@ -1055,6 +1055,74 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(result["converged"])
         self.assertEqual(final.dimensions.to_dict(), {"top": 1, "left": 1, "bottom": 1, "right": 1})
 
+    def test_dynamic_two_by_two_cell_sweep_preserves_gauged_interaction(self):
+        from qc_agent.core.ctmrg import (
+            _double_layer,
+            _initialize_environment,
+            _interaction_expectation_cell,
+            _term_expectation,
+        )
+        from qc_agent.core.ctmrg_dynamic import (
+            BoundaryDimensions,
+            DynamicCTMEnvironment,
+            run_dynamic_ctm_cell_sweep,
+        )
+        from qc_agent.core.ctmrg_gauge import paired_virtual_gauge, transport_ctm_environment
+
+        rng = np.random.default_rng(27)
+        tensors: list[np.ndarray] = []
+        gauged_tensors: list[np.ndarray] = []
+        layers: list[np.ndarray] = []
+        gauged_layers: list[np.ndarray] = []
+        environments: list[DynamicCTMEnvironment] = []
+        gauged_environments: list[DynamicCTMEnvironment] = []
+        for _ in range(4):
+            tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+            tensor = (tensor / np.linalg.norm(tensor)).astype(np.complex128)
+            gauged_tensor = paired_virtual_gauge(np, [tensor])[0]
+            layer = _double_layer(np, tensor)
+            gauged_layer = _double_layer(np, gauged_tensor)
+            base = _initialize_environment(np, layer, 2, regularizer=1e-9)
+            gauged_base = transport_ctm_environment(np, base, gauged_tensor)
+            tensors.append(tensor)
+            gauged_tensors.append(gauged_tensor)
+            layers.append(layer)
+            gauged_layers.append(gauged_layer)
+            environments.append(DynamicCTMEnvironment(*base.tensors(), dimensions=BoundaryDimensions.uniform(2)))
+            gauged_environments.append(
+                DynamicCTMEnvironment(*gauged_base.tensors(), dimensions=BoundaryDimensions.uniform(2))
+            )
+
+        final, report = run_dynamic_ctm_cell_sweep(np, environments, layers, (2, 2), requested_dim=1)
+        gauged_final, gauged_report = run_dynamic_ctm_cell_sweep(
+            np,
+            gauged_environments,
+            gauged_layers,
+            (2, 2),
+            requested_dim=1,
+        )
+        values = [
+            _term_expectation(np, final[index], tensors[index], PauliTerm(paulis={0: "Z"}, coefficient=1.0))
+            for index in range(4)
+        ]
+        gauged_values = [
+            _term_expectation(np, gauged_final[index], gauged_tensors[index], PauliTerm(paulis={0: "Z"}, coefficient=1.0))
+            for index in range(4)
+        ]
+        interaction = _interaction_expectation_cell(np, final, tensors, 0, 1, [1, 0], "Z", "Z")
+        gauged_interaction = _interaction_expectation_cell(
+            np, gauged_final, gauged_tensors, 0, 1, [1, 0], "Z", "Z"
+        )
+
+        self.assertTrue(report["all_passed"])
+        self.assertTrue(gauged_report["all_passed"])
+        self.assertEqual(len(report["reports"]), 16)
+        self.assertTrue(all(dimension == {"top": 1, "left": 1, "bottom": 1, "right": 1} for dimension in report["dimensions_final"]))
+        self.assertLess(max(abs(a - b) for a, b in zip(values, gauged_values)), 1e-10)
+        self.assertIsNotNone(interaction)
+        self.assertIsNotNone(gauged_interaction)
+        self.assertLess(abs(interaction - gauged_interaction), 1e-10)
+
     def test_directional_boundary_gauge_map_matches_all_one_site_absorptions(self):
         from qc_agent.core.ctmrg import _double_layer, _initialize_environment
         from qc_agent.core.ctmrg_gauge import (
