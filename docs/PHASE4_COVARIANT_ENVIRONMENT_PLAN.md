@@ -359,7 +359,7 @@ gate is not completion.
 | C2 | needs_review | The integrated reduced-overlap covariant selector and its four-direction transported replay pass, but the candidate remains opt-in until fresh fixed-point gates pass. |
 | C3 | partial | Fixed-point classification, sector-ensemble guard, chi diagnostics, transported probes, and a covariant selector replay are implemented; initialization/residual admission remains open. |
 | C4 | baseline passed | Torch unrolled/implicit map consistency is `12/12`, including six bounded GPU tests; the bilinear candidate remains blocked from optimization. |
-| C5 | incomplete | The 1x1 and bounded 2x2 covariant observable replays plus checkpoint resume are green, but fresh random D=2 gauge drift, the invariant residual plateau, and full multi-site interaction/frame semantics still fail the production gates. |
+| C5 | incomplete | The 1x1 and bounded 2x2 covariant onsite/two-site replays plus checkpoint resume are green, but fresh random D=2 gauge drift, the invariant residual plateau, and full fixed-point interaction/frame semantics still fail the production gates. |
 | C6 | not reached | No production promotion or release claim is allowed until C5 passes or the candidate failure is formally closed with a replacement strategy. |
 
 ### Replay checkpoint — retained corner-basis covariance (2026-09-19)
@@ -417,19 +417,22 @@ Evidence: `docs/evidence/ctmrg_covariant_reduced_boundary_selector_2026-09-19.js
 The current 1x1 checkpoint path also round-trips the covariant map and resumes
 from the checkpointed environment with the same map id. Commit `1f944f8` also
 enables the covariant policy for bounded 2x2 cells and runs the actual periodic
-unit-cell sweep.
+unit-cell sweep. Commit `0024a04` adds the bounded two-site interaction replay
+to that same gate.
 Because a multi-site boundary can be represented in a different retained
 internal frame after transport, its replay gate compares normalized onsite
 observables while retaining raw component error as a diagnostic. CPU
 complex128 2x2 runs at 2/4/8 iterations pass this observable replay with
 maximum errors of `1.3e-15--3.8e-15`; the raw component discrepancy is about
-`1.21--1.24` and the invariant residual remains near `1.6e-5`. A bounded CUDA
-complex64 2x2 smoke also passes the normalized replay at `1.19e-7`, while raw
-component error is `1.02`. This is a real bounded research capability, but not
-full multi-site production admission: two-site interaction covariance,
-explicit retained-frame checkpoint state, and fixed-point convergence remain
-separate gates. The next implementation is therefore frame-aware multi-site
-checkpoint/interaction validation, not a looser raw-component tolerance.
+`1.21--1.24` and the invariant residual remains near `1.6e-5`. The same CPU
+replay now checks a horizontal `Z⊗Z` interaction with error
+`1.4e-16--2.0e-16`; a bounded CUDA complex64 2x2 smoke passes onsite replay at
+`1.15e-7` and interaction replay at `4.84e-8`, while raw component error is
+`1.21`. This is a real bounded research capability, but not full multi-site
+production admission: fixed-point interaction covariance, explicit
+retained-frame checkpoint state, and convergence remain separate gates. The
+next implementation is therefore frame-aware multi-site checkpoint validation,
+not a looser raw-component tolerance.
 
 This closes the local retained-boundary covariance seam, not Phase 4
 admission. Fresh paired-gauge drift at four iterations is still
@@ -449,8 +452,8 @@ not another projector normalization shortcut.
 
 The raw replay remains a negative control, not a promotion. The new covariant
 selector replay carries the reduced primal/dual state through every real move
-and passes the bounded CPU/CUDA 1x1 and 2x2 observable covariance gates; fresh
-initialization, fixed-point convergence, two-site interaction covariance, and
+and passes the bounded CPU/CUDA 1x1 and 2x2 onsite/two-site observable
+covariance gates; fresh initialization, fixed-point convergence, and
 multi-site checkpoint semantics still block admission.
 
 ## 8. Definition of done

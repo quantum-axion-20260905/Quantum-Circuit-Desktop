@@ -1,7 +1,7 @@
 {
   "schema": "quantum-circuit/ctmrg-evidence-v1",
   "date": "2026-09-19",
-  "revision": "1f944f8",
+  "revision": "0024a04",
   "candidate": "covariant-bilinear",
   "environment_map": "ctmrg-covariant-bilinear-v1",
   "scope": {
@@ -73,27 +73,31 @@
       "iterations": [2, 4, 8],
       "fresh_gauge_drift": [0.00848149795, 0.0219246597, 0.00153400184],
       "maximum_normalized_observable_abs_error": [1.27675648e-15, 3.71924713e-15, 1.52655666e-15],
+      "maximum_normalized_interaction_abs_error": [2.01227923e-16, 1.52655666e-16, 1.42247325e-16],
       "maximum_raw_component_relative_error": [1.20568709, 1.23742576, 1.23738297],
       "residual": [1.5999536e-05, 1.5999024e-05, 1.59980001e-05],
+      "interaction_replay_passed": [true, true, true],
       "replay_passed": [true, true, true],
       "converged": [false, false, false]
     },
     "cuda_complex64": {
       "iterations": 2,
-      "fresh_gauge_drift": 0.02380297053605318,
-      "maximum_normalized_observable_abs_error": 1.1920928955078125e-07,
-      "maximum_raw_component_relative_error": 1.0163711309432983,
+      "fresh_gauge_drift": 0.00848145783,
+      "maximum_normalized_observable_abs_error": 1.14552677e-07,
+      "maximum_normalized_interaction_abs_error": 4.84287739e-08,
+      "maximum_raw_component_relative_error": 1.20568681,
+      "interaction_replay_passed": true,
       "replay_passed": true,
       "time_ms": 1086.252
     },
     "passed": true,
-    "interpretation": "The bounded public 2x2 covariant path preserves normalized onsite observables through one real periodic sweep on CPU and CUDA. Raw boundary entries can differ by an internal retained-basis frame and remain diagnostic. Two-site interaction covariance, explicit multi-site checkpoint frame state, fresh gauge invariance, and fixed-point convergence remain open gates."
+    "interpretation": "The bounded public 2x2 covariant path preserves normalized onsite and horizontal Z tensor-product observables through one real periodic sweep on CPU and CUDA. Raw boundary entries can differ by an internal retained-basis frame and remain diagnostic. Full fixed-point interaction covariance, explicit multi-site checkpoint frame state, fresh gauge invariance, and convergence remain open gates."
   },
   "regression": {
     "command": "python -m unittest discover -s tests -p 'test_*.py'",
     "passed": true,
     "tests_run": 166,
-    "duration_seconds": 42.748
+    "duration_seconds": 41.798
   },
   "admission": {
     "status": "needs_review",
