@@ -375,6 +375,14 @@ objects with independent rule and conditioning diagnostics. This is the
 correct architectural seam for a tracked state, but it is not yet wired into
 the production move or retained-subspace selector.
 
+Commit `f8b5dea` adds a bounded tracked-basis prototype replay. On CPU
+complex128 random D=2 seeds 17/29/41 all four directions pass with maximum
+factor error `2.23e-15`; on CUDA complex64 seed 17 all four pass with maximum
+moved-edge error `5.28e-7`. This is strong algebraic evidence for the split
+state, but it remains `validated_prototype_not_integrated` until normalization,
+damping, retained-subspace selection, checkpointing, and 2x2 semantics are
+implemented.
+
 - CPU complex128 canonical GHZ: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - CPU random D=2 seeds 17/29/41: replay remains red, with maximum factor error
