@@ -165,6 +165,14 @@ middle virtual gauge, with the retained boundary indices preserved. This
 separates edge covariance from the still-open corner-basis update and is now
 the seam used by the raw dual-span candidate.
 
+A bounded chi probe for seed 17 was run at chi=2 and chi=3. In CPU
+complex128, both points remain unconverged and the normalized residual rises
+from approximately `1.61e-1` to `2.30e-1`. The corresponding CUDA complex64
+probe keeps the resident-environment transport gate green, but its paired-
+gauge delta remains approximately `1.72e-2` at both chi values. Increasing
+chi alone is therefore not a credible admission strategy. Evidence:
+`docs/evidence/ctmrg_bilinear_chi_gpu_gate_2026-09-19.json`.
+
 Implement exactly one candidate first, selected from the existing numerical
 seams after a small derivation:
 

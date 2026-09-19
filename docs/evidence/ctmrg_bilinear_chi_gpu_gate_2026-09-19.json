@@ -1,0 +1,67 @@
+{
+  "artifact": "ctmrg-bilinear-candidate-chi-gpu-gate",
+  "date": "2026-09-19",
+  "revision": "0117835",
+  "scope": {
+    "projector_policy": "biorthogonal-bilinear",
+    "unit_cell": [1, 1],
+    "virtual_bond_dim": 2,
+    "iterations": 4,
+    "fixture": "deterministic random D=2 seed 17 with Z/X onsite and ZZ interaction terms",
+    "purpose": "bounded chi trend and CUDA parity diagnostic; not an admission campaign"
+  },
+  "cpu_complex128": {
+    "gauge_validation": false,
+    "rows": [
+      {
+        "chi": 2,
+        "energy": -0.058384342233573076,
+        "residual": 0.16056472503868136,
+        "raw_boundary_basis_residual": 0.3134147557304603,
+        "correlation_length": 5.312993443770871,
+        "fixed_point_classification": "unconverged"
+      },
+      {
+        "chi": 3,
+        "energy": -0.05838434223357413,
+        "residual": 0.22951653335304212,
+        "raw_boundary_basis_residual": 0.31341475573046085,
+        "correlation_length": 3.5419974002222783,
+        "fixed_point_classification": "unconverged"
+      }
+    ],
+    "observation": "Increasing chi from 2 to 3 did not reduce the bounded residual; both points remain unconverged."
+  },
+  "cuda_complex64": {
+    "gauge_validation": true,
+    "rows": [
+      {
+        "chi": 2,
+        "energy": -0.03198294267058373,
+        "residual": 0.16056474167698165,
+        "raw_boundary_basis_residual": 0.09200769662857056,
+        "correlation_length": 5.3129937685394015,
+        "fixed_point_classification": "unconverged",
+        "paired_gauge_delta": 0.01721145212650299,
+        "paired_gauge_passed": false,
+        "environment_transport_passed": true
+      },
+      {
+        "chi": 3,
+        "energy": -0.031982939504086975,
+        "residual": 0.22952085318088633,
+        "raw_boundary_basis_residual": 0.09252602607011795,
+        "correlation_length": 3.542070359147463,
+        "fixed_point_classification": "unconverged",
+        "paired_gauge_delta": 0.017211437225341797,
+        "paired_gauge_passed": false,
+        "environment_transport_passed": true
+      }
+    ],
+    "device": "cuda"
+  },
+  "decision": "keep-opt-in-needs-review",
+  "conclusion": "The candidate executes on CUDA and its resident-environment transport remains covariant, but increasing chi alone does not improve the fixed-point residual and the paired-gauge gate remains far above 1e-4. No production admission is justified.",
+  "next_action": "derive and test a stronger reduced-boundary/canonical map before expanding chi or launching larger 2D/3D workloads",
+  "resource_note": "bounded CPU/CUDA probes only; the long chi=4 sweep was stopped before evidence capture because the combined gauge-validation matrix was too slow for a bounded diagnostic"
+}
