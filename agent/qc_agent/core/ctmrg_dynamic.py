@@ -1016,6 +1016,11 @@ def run_dynamic_ctmrg_cell(
         _interaction_expectation_cell,
         _term_expectation,
     )
+    reference_validation = dict(reference_validation or {
+        "performed": False,
+        "passed": False,
+        "reason": "independent reference is attached by the payload runner",
+    })
 
     layers = [_double_layer(xp, tensor) for tensor in tensors]
     current = list(environments)
