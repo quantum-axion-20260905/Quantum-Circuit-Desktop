@@ -698,6 +698,11 @@ checkpoint-resumable envelope. A random D=2 negative probe is finite and
 measurable but fails the finite-torus comparison by about `2.64e-2`, so its
 independent-reference gate remains red.
 
+The dynamic invariant-residual path also now uses backend-native singular-value
+APIs for Torch (`linalg.svdvals`) while retaining the NumPy/CuPy path. A Torch
+CPU payload parity test is green; the CUDA server path remains CuPy-native and
+bounded by the same preflight guard.
+
 ## 8. Definition of done
 
 Done means the covariant candidate either passes Packet F and is promoted as a

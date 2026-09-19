@@ -790,7 +790,10 @@ def _dynamic_environment_residual(xp: Any, before: DynamicCTMEnvironment, after:
 
     def spectrum(value: Any) -> list[float]:
         matrix = value.reshape(value.shape[0], -1)
-        singular = xp.linalg.svd(matrix, compute_uv=False)
+        if getattr(xp, "__name__", "") == "torch":
+            singular = xp.linalg.svdvals(matrix)
+        else:
+            singular = xp.linalg.svd(matrix, compute_uv=False)
         values = _host_values(singular)
         scale = max(values[0] if values else 0.0, 1e-30)
         return [item / scale for item in values]

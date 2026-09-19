@@ -1196,6 +1196,36 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(len(resumed_state), 4)
         self.assertEqual(resumed["requested_environment_dim"], 1)
 
+    def test_dynamic_payload_torch_cpu_uses_backend_native_singular_values(self):
+        try:
+            import torch
+        except ImportError:
+            self.skipTest("Torch is optional")
+        from qc_agent.core.ctmrg_dynamic import run_dynamic_ctmrg_payload
+
+        payload = CTMRGPayload(
+            unit_cell=[2, 2],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=1,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=0.5,
+            )],
+            initial_state="up",
+            virtual_bond_dim=2,
+            environment_bond_dim=1,
+            dtype="complex64",
+            iterations=2,
+        )
+
+        result, _ = run_dynamic_ctmrg_payload(torch, payload)
+
+        self.assertEqual(result["backend"], "tensor-network-ctmrg-dynamic")
+        self.assertAlmostEqual(result["energy"], 0.5, places=5)
+        self.assertTrue(result["reference_validation"]["passed"])
+
     def test_dynamic_covariant_move_emits_rectangular_projection_shapes(self):
         from qc_agent.core.ctmrg_dynamic import apply_dynamic_covariant_bilinear_move
 

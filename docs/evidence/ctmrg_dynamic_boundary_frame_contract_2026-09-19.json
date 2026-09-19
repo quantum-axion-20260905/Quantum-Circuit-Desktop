@@ -43,7 +43,8 @@
     "dynamic_research_gate": true,
     "dynamic_experimental_capability_registry": true,
     "dynamic_independent_reference_gate": true,
-    "full_regression": "189/189"
+    "dynamic_torch_cpu_parity": true,
+    "full_regression": "190/190"
   },
   "cuda_smoke": {
     "available": true,
