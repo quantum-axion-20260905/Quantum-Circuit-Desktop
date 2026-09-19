@@ -1226,6 +1226,36 @@ class CTMRGTests(unittest.TestCase):
         self.assertAlmostEqual(result["energy"], 0.5, places=5)
         self.assertTrue(result["reference_validation"]["passed"])
 
+    def test_dynamic_payload_can_request_boundary_mps_crosscheck(self):
+        from qc_agent.core.ctmrg_dynamic import run_dynamic_ctmrg_payload
+
+        payload = CTMRGPayload(
+            unit_cell=[2, 2],
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=1,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=0.5,
+            )],
+            initial_state="up",
+            virtual_bond_dim=2,
+            environment_bond_dim=1,
+            dtype="complex128",
+            iterations=2,
+            boundary_mps_reference=True,
+            boundary_mps_width=2,
+            boundary_mps_height=2,
+            boundary_mps_bond_dim=2,
+        )
+
+        result, _ = run_dynamic_ctmrg_payload(np, payload)
+
+        self.assertTrue(result["boundary_mps_validation"]["performed"])
+        self.assertTrue(result["boundary_mps_validation"]["passed"])
+        self.assertTrue(result["research_gate"]["gates"]["boundary_mps_crosscheck"]["passed"])
+
     def test_dynamic_covariant_move_emits_rectangular_projection_shapes(self):
         from qc_agent.core.ctmrg_dynamic import apply_dynamic_covariant_bilinear_move
 

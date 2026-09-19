@@ -134,6 +134,7 @@ def dynamic_ctmrg_research_gate(
     transfer_gaps: list[float | None],
     synchronized_sector_retry: bool,
     reference_validation: dict[str, Any] | None = None,
+    boundary_mps_validation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return explicit admission gates for the experimental dynamic path.
 
@@ -165,6 +166,17 @@ def dynamic_ctmrg_research_gate(
         "reason": "independent reference was not requested",
     }
     reference_passed = bool(reference.get("performed") and reference.get("passed"))
+    boundary_mps = boundary_mps_validation or {
+        "requested": False,
+        "performed": False,
+        "passed": True,
+        "reason": "finite-cylinder boundary-MPS cross-check was not requested",
+    }
+    boundary_mps_requested = bool(boundary_mps.get("requested"))
+    boundary_mps_passed = bool(
+        not boundary_mps_requested
+        or (boundary_mps.get("performed") and boundary_mps.get("passed"))
+    )
     gates: dict[str, dict[str, Any]] = {
         "bounded_cell": {
             "passed": bounded_cell,
@@ -196,6 +208,17 @@ def dynamic_ctmrg_research_gate(
             "reason": "independent finite/reference comparison passed"
             if reference_passed else
             str(reference.get("reason", "independent reference is unavailable or exceeded its tolerance")),
+        },
+        "boundary_mps_crosscheck": {
+            "passed": boundary_mps_passed,
+            "requested": boundary_mps_requested,
+            "performed": bool(boundary_mps.get("performed")),
+            "max_abs_error": boundary_mps.get("max_abs_error"),
+            "reason": "finite-cylinder boundary-MPS comparison passed"
+            if boundary_mps_passed and boundary_mps_requested else
+            "finite-cylinder boundary-MPS cross-check was not requested"
+            if not boundary_mps_requested else
+            str(boundary_mps.get("reason", "boundary-MPS cross-check failed")),
         },
         "transfer_gap": {
             "passed": transfer_gap_resolved,

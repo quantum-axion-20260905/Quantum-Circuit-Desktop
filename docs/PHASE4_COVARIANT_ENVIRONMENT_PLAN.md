@@ -703,6 +703,12 @@ APIs for Torch (`linalg.svdvals`) while retaining the NumPy/CuPy path. A Torch
 CPU payload parity test is green; the CUDA server path remains CuPy-native and
 bounded by the same preflight guard.
 
+The explicit payload can now request the existing finite-cylinder boundary-MPS
+cross-check. Its patch/bond diagnostics and observable error are returned as a
+separate validation record and become a research gate only when requested. A
+bounded 2x2 product probe passes this cross-check; it remains finite-boundary
+evidence and does not replace the unresolved transfer-sector fixed-point gate.
+
 ## 8. Definition of done
 
 Done means the covariant candidate either passes Packet F and is promoted as a

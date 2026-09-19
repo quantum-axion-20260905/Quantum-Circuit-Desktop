@@ -995,6 +995,7 @@ def run_dynamic_ctmrg_cell(
     normalize: bool = True,
     start_iteration: int = 0,
     reference_validation: dict[str, Any] | None = None,
+    boundary_mps_validation: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[DynamicCTMEnvironment]]:
     """Run the bounded dynamic periodic 1x1--2x2 research path."""
 
@@ -1023,6 +1024,12 @@ def run_dynamic_ctmrg_cell(
         "performed": False,
         "passed": False,
         "reason": "independent reference is attached by the payload runner",
+    })
+    boundary_mps_validation = dict(boundary_mps_validation or {
+        "requested": False,
+        "performed": False,
+        "passed": True,
+        "reason": "finite-cylinder boundary-MPS cross-check was not requested",
     })
 
     layers = [_double_layer(xp, tensor) for tensor in tensors]
@@ -1141,6 +1148,7 @@ def run_dynamic_ctmrg_cell(
         transfer_gaps=list(diagnostics["transfer_gap_by_site"]),
         synchronized_sector_retry=synchronized_sector_retry,
         reference_validation=reference_validation,
+        boundary_mps_validation=boundary_mps_validation,
     )
     research_result = ResearchResult(
         status="needs_review",
@@ -1200,6 +1208,7 @@ def run_dynamic_ctmrg_cell(
             "sweep_reports": sweep_reports,
             "research_gate": research_gate,
             "reference_validation": reference_validation,
+            "boundary_mps_validation": boundary_mps_validation,
         },
     )
     result = {
@@ -1221,6 +1230,7 @@ def run_dynamic_ctmrg_cell(
         "environment_shape_manifests": [environment.shape_manifest() for environment in current],
         "dynamic_cell_sweep": sweep_reports,
         "reference_validation": reference_validation,
+        "boundary_mps_validation": boundary_mps_validation,
         "research_gate": research_gate,
         "research_result": research_result.to_dict(),
     }
@@ -1363,6 +1373,30 @@ def run_dynamic_ctmrg_payload(
     result = dict(result)
     reference_validation = _dynamic_reference_validation(payload, tensors, result)
     result["reference_validation"] = reference_validation
+    boundary_mps_validation: dict[str, Any] = {
+        "requested": bool(getattr(payload, "boundary_mps_reference", False)),
+        "performed": False,
+        "passed": True,
+        "reason": "finite-cylinder boundary-MPS cross-check was not requested",
+    }
+    if boundary_mps_validation["requested"]:
+        from .ctmrg_boundary_mps import run_boundary_mps_reference
+
+        boundary_mps_validation = dict(run_boundary_mps_reference(
+            tensors,
+            payload,
+            ctmrg_energy=float(result["energy"]),
+            ctmrg_onsite=[float(item["value"]) for item in result.get("observables", [])],
+            ctmrg_interactions=[item.get("value") for item in result.get("interactions", [])],
+        ))
+        boundary_mps_validation["requested"] = True
+        boundary_mps_validation["tolerance"] = max(float(payload.tolerance) * 10.0, 1e-6)
+        boundary_mps_validation["passed"] = bool(
+            boundary_mps_validation.get("performed")
+            and boundary_mps_validation.get("max_abs_error") is not None
+            and float(boundary_mps_validation["max_abs_error"]) <= boundary_mps_validation["tolerance"]
+        )
+    result["boundary_mps_validation"] = boundary_mps_validation
     research_gate = dynamic_ctmrg_research_gate(
         unit_cell=unit_cell,
         converged=bool(result["converged"]),
@@ -1375,12 +1409,14 @@ def run_dynamic_ctmrg_payload(
             for report in result.get("dynamic_cell_sweep", [])
         ),
         reference_validation=reference_validation,
+        boundary_mps_validation=boundary_mps_validation,
     )
     result["research_gate"] = research_gate
     research_result = dict(result.get("research_result", {}))
     research_result["details"] = dict(research_result.get("details", {}))
     research_result["details"]["reference_validation"] = reference_validation
     research_result["details"]["research_gate"] = research_gate
+    research_result["details"]["boundary_mps_validation"] = boundary_mps_validation
     research_result["metrics"] = dict(research_result.get("metrics", {}))
     research_result["metrics"]["reference_max_abs_error"] = reference_validation.get("max_abs_error")
     result["research_result"] = research_result
