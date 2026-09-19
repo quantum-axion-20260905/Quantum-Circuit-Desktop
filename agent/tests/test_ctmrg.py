@@ -1404,6 +1404,40 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(len(final), 4)
         self.assertTrue(all(environment.dimensions.to_dict() == {"top": 1, "left": 1, "bottom": 1, "right": 1} for environment in final))
 
+    def test_dynamic_entangled_probe_with_unresolved_transfer_gap_stays_needs_review(self):
+        from qc_agent.core.ctmrg_dynamic import run_dynamic_ctmrg_payload
+
+        rng = np.random.default_rng(83)
+        tensor_data: list[list[float]] = []
+        for _ in range(4):
+            tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+            tensor = tensor / np.linalg.norm(tensor)
+            tensor_data.extend([[float(value.real), float(value.imag)] for value in tensor.reshape(-1)])
+        payload = CTMRGPayload(
+            unit_cell=[2, 2],
+            virtual_bond_dim=2,
+            tensor_data=tensor_data,
+            environment_bond_dim=2,
+            dtype="complex128",
+            iterations=4,
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=1,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+        )
+
+        result, _ = run_dynamic_ctmrg_payload(np, payload)
+
+        self.assertEqual(result["status"], "needs_review")
+        self.assertFalse(result["converged"])
+        self.assertEqual(result["fixed_point_classification"], "degenerate-needs-review")
+        self.assertTrue(all(value < 1e-6 for value in result["environment_diagnostics"]["transfer_gap_by_site"]))
+        self.assertTrue(math.isfinite(result["energy"]))
+
     def test_directional_boundary_gauge_map_matches_all_one_site_absorptions(self):
         from qc_agent.core.ctmrg import _double_layer, _initialize_environment
         from qc_agent.core.ctmrg_gauge import (
