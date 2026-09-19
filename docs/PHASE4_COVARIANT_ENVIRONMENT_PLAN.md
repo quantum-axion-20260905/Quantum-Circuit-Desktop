@@ -690,6 +690,14 @@ existing square path, so adding future boundary-MPS or material-specific
 variants can follow the same explicit capability pattern without silently
 changing a user's solver.
 
+Dynamic payload execution now runs the existing independent references in the
+same bounded order as the square path: finite product, analytic GHZ, then the
+exact finite 2x2 PEPS contraction where applicable. The selected reference,
+energy/observable error, and pass/fail state are persisted in the result and
+checkpoint-resumable envelope. A random D=2 negative probe is finite and
+measurable but fails the finite-torus comparison by about `2.64e-2`, so its
+independent-reference gate remains red.
+
 ## 8. Definition of done
 
 Done means the covariant candidate either passes Packet F and is promoted as a

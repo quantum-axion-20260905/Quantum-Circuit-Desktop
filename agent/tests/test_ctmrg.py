@@ -1190,6 +1190,8 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(resumed["checkpoint"]["resumable"], False)
         self.assertAlmostEqual(first["energy"], 0.5, places=10)
         self.assertAlmostEqual(resumed["energy"], 0.5, places=10)
+        self.assertTrue(first["research_gate"]["gates"]["independent_reference"]["passed"])
+        self.assertTrue(resumed["research_gate"]["gates"]["independent_reference"]["passed"])
         self.assertEqual(len(first_state), 4)
         self.assertEqual(len(resumed_state), 4)
         self.assertEqual(resumed["requested_environment_dim"], 1)
@@ -1494,6 +1496,8 @@ class CTMRGTests(unittest.TestCase):
         self.assertEqual(result["fixed_point_classification"], "degenerate-needs-review")
         self.assertTrue(all(value < 1e-6 for value in result["environment_diagnostics"]["transfer_gap_by_site"]))
         self.assertFalse(result["research_gate"]["gates"]["transfer_gap"]["passed"])
+        self.assertTrue(result["research_gate"]["gates"]["independent_reference"]["performed"])
+        self.assertFalse(result["research_gate"]["gates"]["independent_reference"]["passed"])
         self.assertFalse(result["research_gate"]["production_ready"])
         self.assertTrue(math.isfinite(result["energy"]))
 

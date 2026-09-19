@@ -991,6 +991,7 @@ def run_dynamic_ctmrg_cell(
     relative_singular_floor: float = 1e-12,
     normalize: bool = True,
     start_iteration: int = 0,
+    reference_validation: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[DynamicCTMEnvironment]]:
     """Run the bounded dynamic periodic 1x1--2x2 research path."""
 
@@ -1131,6 +1132,7 @@ def run_dynamic_ctmrg_cell(
         energy_complete=energy_complete,
         transfer_gaps=list(diagnostics["transfer_gap_by_site"]),
         synchronized_sector_retry=synchronized_sector_retry,
+        reference_validation=reference_validation,
     )
     research_result = ResearchResult(
         status="needs_review",
@@ -1189,6 +1191,7 @@ def run_dynamic_ctmrg_cell(
             "environment_shape_manifests": [environment.shape_manifest() for environment in current],
             "sweep_reports": sweep_reports,
             "research_gate": research_gate,
+            "reference_validation": reference_validation,
         },
     )
     result = {
@@ -1209,10 +1212,57 @@ def run_dynamic_ctmrg_cell(
         "environment_diagnostics": diagnostics,
         "environment_shape_manifests": [environment.shape_manifest() for environment in current],
         "dynamic_cell_sweep": sweep_reports,
+        "reference_validation": reference_validation,
         "research_gate": research_gate,
         "research_result": research_result.to_dict(),
     }
     return result, current
+
+
+def _dynamic_reference_validation(
+    payload: Any,
+    tensors: list[Any],
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    """Run the smallest independent reference available for a dynamic payload."""
+
+    from .ctmrg_reference import (
+        analytic_ghz_reference,
+        finite_periodic_peps_reference,
+        finite_product_reference,
+    )
+
+    onsite_values = [float(item["value"]) for item in result.get("observables", [])]
+    interaction_values = [item.get("value") for item in result.get("interactions", [])]
+    energy = float(result.get("energy", 0.0))
+    tolerance = max(float(payload.tolerance) * 10.0, 1e-6)
+    reference = finite_product_reference(
+        payload,
+        tensors,
+        onsite_values,
+        interaction_values,
+        energy,
+        tolerance=tolerance,
+    )
+    if not reference.get("performed"):
+        reference = analytic_ghz_reference(
+            payload,
+            tensors,
+            onsite_values,
+            interaction_values,
+            energy,
+            tolerance=tolerance,
+        )
+    if not reference.get("performed"):
+        reference = finite_periodic_peps_reference(
+            payload,
+            tensors,
+            onsite_values,
+            interaction_values,
+            energy,
+            tolerance=tolerance,
+        )
+    return reference
 
 
 def run_dynamic_ctmrg_payload(
@@ -1303,6 +1353,29 @@ def run_dynamic_ctmrg_payload(
         start_iteration=start_iteration,
     )
     result = dict(result)
+    reference_validation = _dynamic_reference_validation(payload, tensors, result)
+    result["reference_validation"] = reference_validation
+    research_gate = dynamic_ctmrg_research_gate(
+        unit_cell=unit_cell,
+        converged=bool(result["converged"]),
+        residual=float(result["residual"]),
+        tolerance=float(payload.tolerance),
+        energy_complete=bool(result["energy_complete"]),
+        transfer_gaps=list(result["environment_diagnostics"]["transfer_gap_by_site"]),
+        synchronized_sector_retry=any(
+            bool(report.get("synchronized_retry"))
+            for report in result.get("dynamic_cell_sweep", [])
+        ),
+        reference_validation=reference_validation,
+    )
+    result["research_gate"] = research_gate
+    research_result = dict(result.get("research_result", {}))
+    research_result["details"] = dict(research_result.get("details", {}))
+    research_result["details"]["reference_validation"] = reference_validation
+    research_result["details"]["research_gate"] = research_gate
+    research_result["metrics"] = dict(research_result.get("metrics", {}))
+    research_result["metrics"]["reference_max_abs_error"] = reference_validation.get("max_abs_error")
+    result["research_result"] = research_result
     result["backend"] = "tensor-network-ctmrg-dynamic"
     result["initial_environment_source"] = initial_source
     result["environment_initialization_regularizer"] = initialization_regularizer

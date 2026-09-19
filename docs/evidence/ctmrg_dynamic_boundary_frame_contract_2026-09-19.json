@@ -42,6 +42,7 @@
     "dynamic_shared_sector_restart": true,
     "dynamic_research_gate": true,
     "dynamic_experimental_capability_registry": true,
+    "dynamic_independent_reference_gate": true,
     "full_regression": "189/189"
   },
   "cuda_smoke": {

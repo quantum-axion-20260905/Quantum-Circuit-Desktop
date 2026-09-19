@@ -133,6 +133,7 @@ def dynamic_ctmrg_research_gate(
     energy_complete: bool,
     transfer_gaps: list[float | None],
     synchronized_sector_retry: bool,
+    reference_validation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return explicit admission gates for the experimental dynamic path.
 
@@ -158,6 +159,12 @@ def dynamic_ctmrg_research_gate(
         and 1 <= int(unit_cell[0]) <= 2
         and 1 <= int(unit_cell[1]) <= 2
     )
+    reference = reference_validation or {
+        "performed": False,
+        "passed": False,
+        "reason": "independent reference was not requested",
+    }
+    reference_passed = bool(reference.get("performed") and reference.get("passed"))
     gates: dict[str, dict[str, Any]] = {
         "bounded_cell": {
             "passed": bounded_cell,
@@ -180,6 +187,15 @@ def dynamic_ctmrg_research_gate(
             "reason": "all requested observables and interactions were evaluated"
             if energy_complete else
             "one or more requested interactions could not be evaluated",
+        },
+        "independent_reference": {
+            "passed": reference_passed,
+            "performed": bool(reference.get("performed")),
+            "reference": reference.get("reference"),
+            "max_abs_error": reference.get("max_abs_error"),
+            "reason": "independent finite/reference comparison passed"
+            if reference_passed else
+            str(reference.get("reason", "independent reference is unavailable or exceeded its tolerance")),
         },
         "transfer_gap": {
             "passed": transfer_gap_resolved,
