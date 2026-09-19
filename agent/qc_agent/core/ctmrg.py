@@ -2684,6 +2684,9 @@ def run_ctmrg(
         if manifest.get("dtype") != payload.dtype:
             raise ValueError("CTMRG checkpoint dtype does not match the requested dtype")
         metadata = manifest.get("metadata", {})
+        saved_initialization_regularizer = metadata.get("environment_initialization_regularizer")
+        if saved_initialization_regularizer is not None:
+            initialization_regularizer = float(saved_initialization_regularizer)
         validate_environment_map(metadata.get("environment_map"), environment_map)
         for name, expected in (
             ("physical_bond_dim", payload.physical_bond_dim),
@@ -2783,6 +2786,7 @@ def run_ctmrg(
                     "unit_cell": list(unit_cell),
                     "environment_count": len(environments),
                     "environment_map": environment_map.to_dict(),
+                    "environment_initialization_regularizer": initialization_regularizer,
                     **({"covariant_frame_state": covariant_frame_state} if covariant_frame_state is not None else {}),
                 },
             ),

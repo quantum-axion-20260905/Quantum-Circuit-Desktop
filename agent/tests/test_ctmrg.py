@@ -348,6 +348,7 @@ class CTMRGTests(unittest.TestCase):
             self.assertEqual(frame_state["schema"], "quantum-circuit/ctmrg-covariant-frame-v1")
             self.assertEqual(frame_state["site_order"], [0, 1, 2, 3])
             self.assertEqual(len(frame_state["selectors"]), 16)
+            self.assertEqual(partial["checkpoint"]["metadata"]["environment_initialization_regularizer"], 1e-9)
             resumed = run_ctmrg(np, CTMRGPayload(
                 unit_cell=[2, 2],
                 ctmrg_projector="covariant-bilinear",
@@ -361,6 +362,7 @@ class CTMRGTests(unittest.TestCase):
             ))
             self.assertTrue(resumed["checkpoint"]["frame_state_validation"]["performed"])
             self.assertTrue(resumed["checkpoint"]["frame_state_validation"]["passed"])
+            self.assertEqual(resumed["environment_initialization_regularizer"], 1e-9)
 
     def test_symmetry_sector_ensemble_restores_ghz_gauge_gate(self):
         tensor_data: list[list[float]] = []
