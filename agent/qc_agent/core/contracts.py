@@ -98,6 +98,7 @@ class ConvergencePoint:
 @dataclass
 class ConvergenceReport:
     converged: bool = False
+    classification: str = "unconverged"
     criterion: str = ""
     points: list[ConvergencePoint] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -105,6 +106,7 @@ class ConvergenceReport:
     def to_dict(self) -> dict[str, Any]:
         return {
             "converged": self.converged,
+            "classification": self.classification,
             "criterion": self.criterion,
             "points": [asdict(point) for point in self.points],
             "warnings": list(self.warnings),

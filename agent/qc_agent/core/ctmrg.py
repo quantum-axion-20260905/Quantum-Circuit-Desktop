@@ -311,14 +311,12 @@ def _ctm_move(
     """Truncate one enlarged boundary with a Hermitian half-system projector."""
 
     if projector_method == "biorthogonal-bilinear":
-        overlap = left_corner.T @ right_corner
-        condition = _real(xp.linalg.cond(overlap))
-        if not math.isfinite(condition) or condition > 1e10:
-            raise ValueError(
-                "biorthogonal-bilinear CTMRG boundary overlap is singular or ill-conditioned"
-            )
-        inverse_transpose = xp.linalg.inv(overlap).T
-        left_projector = left_corner @ inverse_transpose
+        # The corner factors already carry the two dual enlarged-boundary
+        # frames.  Inserting overlap**(-T) here looks like a conventional
+        # biorthogonal normalization, but it changes the covariant edge map
+        # and was measured to reintroduce gauge drift.  Keep the raw dual
+        # spans and let the explicit bilinear contraction carry their scale.
+        left_projector = left_corner
         right_projector = right_corner
         new_left = left_projector.T @ left_corner
         new_right = left_projector.T @ right_corner
@@ -941,6 +939,27 @@ def _environment_diagnostics(xp: Any, environments: list[CTMEnvironment]) -> dic
     }
 
 
+def _fixed_point_classification(
+    *,
+    projector: str,
+    converged: bool,
+    correlation_length: float | None,
+) -> str:
+    """Return an explicit scientific status for the bounded fixed-point gate.
+
+    A small residual is not enough to call a transfer fixed point usable.  The
+    bilinear candidate also requires a resolved leading transfer gap; an
+    unresolved gap is therefore reported as a degeneracy review state rather
+    than being collapsed into the generic ``converged`` boolean.
+    """
+
+    if converged:
+        return "converged"
+    if projector == "biorthogonal-bilinear" and correlation_length is None:
+        return "degenerate-needs-review"
+    return "unconverged"
+
+
 def _environment_contraction(xp: Any, env: CTMEnvironment, local_tensor: Any) -> Any:
     return xp.einsum(
         "ab,buc,ce,erm,im,hdi,gh,alg,udlr->",
@@ -1293,6 +1312,17 @@ def _aggregate_sector_results(
         interaction_values,
     )
     converged = all(bool(item.get("converged")) for item in sector_results)
+    sector_classifications = [
+        str(item.get("fixed_point_classification", "unconverged"))
+        for item in sector_results
+    ]
+    fixed_point_classification = (
+        "degenerate-needs-review"
+        if "degenerate-needs-review" in sector_classifications else
+        "converged"
+        if converged else
+        "unconverged"
+    )
     residual = max(float(item.get("residual", math.inf)) for item in sector_results)
     raw_residual = max(float(item.get("raw_boundary_basis_residual", math.inf)) for item in sector_results)
     correlation_lengths = [item.get("correlation_length") for item in sector_results]
@@ -1333,6 +1363,7 @@ def _aggregate_sector_results(
         "observables": observables,
         "interactions": interactions,
         "converged": converged,
+        "fixed_point_classification": fixed_point_classification,
         "residual": float(residual),
         "raw_boundary_basis_residual": float(raw_residual),
         "reference_validation": reference_validation,
@@ -1360,6 +1391,7 @@ def _aggregate_sector_results(
         "energy": float(energy),
         "residual": float(residual),
         "raw_boundary_basis_residual": float(raw_residual),
+        "fixed_point_classification": fixed_point_classification,
         "gauge_validation_max_abs_delta": None,
         "reference_energy_error": reference_validation.get("energy_error"),
         "energy_variance": reference_validation.get("energy_variance"),
@@ -1368,6 +1400,7 @@ def _aggregate_sector_results(
     research_result["metrics"] = metrics
     research_result["warnings"] = list(warnings)
     research_result.setdefault("convergence", {})["converged"] = converged
+    research_result["convergence"]["classification"] = fixed_point_classification
     research_result["convergence"]["warnings"] = list(warnings)
     research_result.setdefault("details", {}).update({
         "environment_sector_policy": "symmetry-ensemble",
@@ -1378,6 +1411,7 @@ def _aggregate_sector_results(
         "gauge_conditioning": gauge_conditioning,
         "gauge_preconditioning": gauge_preconditioning,
         "research_gate": research_gate,
+        "fixed_point_classification": fixed_point_classification,
     })
     result["research_result"] = research_result
     result.setdefault("research_result", {})
@@ -1750,9 +1784,8 @@ def run_ctmrg(
     environment_diagnostics = _environment_diagnostics(xp, environments)
     converged = bool(residual <= float(payload.tolerance))
     if payload.ctmrg_projector == "biorthogonal-bilinear":
-        raw_basis_ready = raw_residual <= max(float(payload.tolerance) * 10.0, 1e-6)
         transfer_gap_ready = environment_diagnostics.get("correlation_length") is not None
-        converged = bool(converged and raw_basis_ready and transfer_gap_ready)
+        converged = bool(converged and transfer_gap_ready)
     optimization_consistency_error: float | None = None
     if (
         optimization_info is not None
@@ -1792,7 +1825,7 @@ def run_ctmrg(
         ])
         if raw_residual > max(float(payload.tolerance) * 10.0, 1e-6):
             warnings.append(
-                f"biorthogonal-bilinear raw boundary-basis residual is {raw_residual:.3e}; its invariant spectrum alone cannot declare convergence"
+                f"biorthogonal-bilinear raw boundary-basis residual is {raw_residual:.3e}; retain it as a basis diagnostic and require transfer-gap/gauge evidence before scientific use"
             )
         if environment_diagnostics.get("correlation_length") is None:
             warnings.append(
@@ -1952,6 +1985,16 @@ def run_ctmrg(
                 warnings.append(
                     f"virtual-gauge validation exceeded tolerance: max observable/energy delta {gauge_validation['max_abs_delta']:.3e}"
                 )
+                if payload.ctmrg_projector == "biorthogonal-bilinear":
+                    converged = False
+                    warnings.append(
+                        "biorthogonal-bilinear fixed-point status is not admitted as converged while its paired-gauge probe fails"
+                    )
+    fixed_point_classification = _fixed_point_classification(
+        projector=payload.ctmrg_projector,
+        converged=converged,
+        correlation_length=environment_diagnostics["correlation_length"],
+    )
     research_gate = ctmrg_research_gate(
         payload,
         converged=converged,
@@ -2005,6 +2048,7 @@ def run_ctmrg(
             "energy_complete": interaction_values_available,
             "residual": float(residual),
             "raw_boundary_basis_residual": float(raw_residual),
+            "fixed_point_classification": fixed_point_classification,
             "gauge_validation_max_abs_delta": gauge_validation.get("max_abs_delta"),
             "energy_second_moment": reference_validation.get("energy_second_moment"),
             "energy_variance": reference_validation.get("energy_variance"),
@@ -2018,8 +2062,9 @@ def run_ctmrg(
         ),
         convergence=ConvergenceReport(
             converged=converged,
+            classification=fixed_point_classification,
             criterion=(
-                "normalized corner/edge residual plus raw boundary-basis and resolved transfer-gap checks"
+                "normalized corner/edge residual plus resolved transfer-gap and paired-gauge checks"
                 if payload.ctmrg_projector == "biorthogonal-bilinear" else
                 "normalized corner/edge environment residual"
             ),
@@ -2044,6 +2089,7 @@ def run_ctmrg(
             ),
             "correlation_lengths_by_site": environment_diagnostics["correlation_lengths_by_site"],
             "environment_spectrum": environment_diagnostics["environment_spectrum"],
+            "fixed_point_classification": fixed_point_classification,
             "reference_validation": reference_validation,
             "gauge_validation": gauge_validation,
             "environment_transport_validation": environment_transport_validation,
@@ -2079,6 +2125,7 @@ def run_ctmrg(
         "environment_bond_dim_used": max(int(env.C1.shape[0]) for env in environments),
         "iterations": len(points),
         "converged": converged,
+        "fixed_point_classification": fixed_point_classification,
         "residual": float(residual),
         "raw_boundary_basis_residual": float(raw_residual),
         "norm": norm,
@@ -2234,6 +2281,7 @@ def run_ctmrg_convergence_study(
             "residual": float(result["residual"]),
             "raw_boundary_basis_residual": float(result["raw_boundary_basis_residual"]),
             "converged": bool(result["converged"]),
+            "fixed_point_classification": result.get("fixed_point_classification", "unconverged"),
             "correlation_length": result["correlation_length"],
             "correlation_lengths_by_site": result["correlation_lengths_by_site"],
             "environment_spectrum": result["environment_spectrum"],

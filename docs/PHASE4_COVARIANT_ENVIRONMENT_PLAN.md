@@ -119,26 +119,29 @@ the dual pair without re-orthogonalizing it away. Evidence:
 `docs/evidence/ctmrg_boundary_basis_transport_2026-09-19.json`.
 
 An opt-in `biorthogonal-bilinear` projector was wired through the 1x1 backend
-to test the simplest dual-span construction. It is explicitly rejected by
-the paired-gauge gate: random D=2 drift remained `0.027--0.156`, and the GHZ
-probe drifted by approximately `1.0` even though the raw fixed-point residual
-was near machine precision. This is an important negative result showing why
-raw residual alone cannot admit a solver. The candidate remains available only
-for diagnostics and is not a production path. Evidence:
+with the raw dual-span rule. It materially improves the generic random D=2
+gate: seeds 29 and 41 pass `1e-4`, while seed 17 remains at `3.17e-4`. The
+GHZ reference energy remains correct, but its paired-gauge probe drifts by
+approximately `1.0`; the fixed-point controller marks that run
+`converged=false`. This is a promising candidate, not a production path.
+Evidence:
 `docs/evidence/ctmrg_bilinear_projector_candidate_2026-09-19.json`.
 
 The fixed-point controller now has a candidate-specific safety gate: the
 bilinear path cannot report `converged` from the invariant spectrum alone; it
-also requires a small raw boundary-basis residual and a resolved transfer
-gap. The GHZ/random failure above is therefore surfaced as `unconverged`
-instead of a false green result.
+requires a resolved transfer gap, and a failed paired-gauge probe forces
+`converged=false`. The raw boundary-basis residual remains visible as a
+diagnostic rather than being treated as a sufficient invariant criterion.
+Unresolved transfer degeneracy is classified explicitly as
+`degenerate-needs-review`; ordinary residual/gauge failure is classified as
+`unconverged`.
 
-The bounded random D=2 gate improved for seeds 17/29/41, but remained above
-the declared `1e-4` paired-gauge tolerance for all three seeds. Therefore the
-default projector, optimization paths, and production admission remain
-unchanged. The next C2 iteration must target environment transport or a
-minimal-canonical reduced-boundary construction rather than adding another
-local tensor-only heuristic.
+The bounded random D=2 gate improved for seeds 17/29/41: seeds 29 and 41
+pass the declared `1e-4` paired-gauge tolerance, while seed 17 remains at
+`3.17e-4`. Therefore the default projector, optimization paths, and
+production admission remain unchanged. The next C2 iteration must target
+environment transport or a minimal-canonical reduced-boundary construction
+rather than adding another local tensor-only heuristic.
 
 A bounded 2x2 baseline campaign is also recorded. Both half-density and
 full-SVD execute with the declared site ordering, and the resident-environment
@@ -157,7 +160,8 @@ be implemented. Evidence:
 The corresponding inverse-transpose bilinear projector-pair transport is now
 tested as well: the projected grown edge transforms only by its declared
 middle virtual gauge, with the retained boundary indices preserved. This
-separates edge covariance from the still-open corner-basis update.
+separates edge covariance from the still-open corner-basis update and is now
+the seam used by the raw dual-span candidate.
 
 Implement exactly one candidate first, selected from the existing numerical
 seams after a small derivation:
