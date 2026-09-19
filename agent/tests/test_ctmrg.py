@@ -311,6 +311,9 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(replay["passed"])
         self.assertEqual(replay["site_count"], 4)
         self.assertLess(replay["maximum_normalized_observable_abs_error"], 1e-8)
+        self.assertTrue(replay["interaction_replay_performed"])
+        self.assertTrue(replay["interaction_replay_passed"])
+        self.assertLess(replay["interactions"][0]["normalized_interaction_abs_error"], 1e-8)
         self.assertFalse(result["research_gate"]["production_ready"])
 
     def test_symmetry_sector_ensemble_restores_ghz_gauge_gate(self):

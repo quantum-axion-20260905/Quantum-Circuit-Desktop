@@ -1789,6 +1789,7 @@ def _covariant_unit_cell_sweep_covariance_replay(
     gauged_tensors: list[Any],
     unit_cell: list[int],
     chi: int,
+    interactions: Iterable[Any] = (),
 ) -> dict[str, Any]:
     """Check physical covariance after one real multi-site CTM sweep.
 
@@ -1864,6 +1865,47 @@ def _covariant_unit_cell_sweep_covariance_replay(
             "tolerance": tolerance,
             "passed": bool(observable_error <= tolerance),
         })
+    interaction_reports: list[dict[str, Any]] = []
+    for index, interaction in enumerate(interactions):
+        value = _interaction_expectation_cell(
+            xp,
+            next_environments,
+            tensors,
+            int(interaction.left_site),
+            int(interaction.right_site),
+            list(interaction.displacement),
+            str(interaction.left_pauli),
+            str(interaction.right_pauli),
+        )
+        gauged_value = _interaction_expectation_cell(
+            xp,
+            next_gauged_environments,
+            gauged_tensors,
+            int(interaction.left_site),
+            int(interaction.right_site),
+            list(interaction.displacement),
+            str(interaction.left_pauli),
+            str(interaction.right_pauli),
+        )
+        if value is None or gauged_value is None:
+            interaction_error = None
+            interaction_passed = False
+        else:
+            interaction_error = float(abs(value - gauged_value))
+            interaction_passed = bool(interaction_error <= tolerance)
+        interaction_reports.append({
+            "index": int(index),
+            "left_site": int(interaction.left_site),
+            "right_site": int(interaction.right_site),
+            "displacement": list(interaction.displacement),
+            "left_pauli": str(interaction.left_pauli),
+            "right_pauli": str(interaction.right_pauli),
+            "value": value,
+            "gauged_value": gauged_value,
+            "normalized_interaction_abs_error": interaction_error,
+            "tolerance": tolerance,
+            "passed": interaction_passed,
+        })
     return {
         "performed": True,
         "method": "covariant-unit-cell-sweep-normalized-observable-replay",
@@ -1874,12 +1916,18 @@ def _covariant_unit_cell_sweep_covariance_replay(
         "gauged_discarded_weight": float(gauged_discarded),
         "maximum_raw_component_relative_error": max(raw_component_errors, default=0.0),
         "maximum_normalized_observable_abs_error": max(observable_errors, default=0.0),
+        "interaction_replay_performed": bool(interaction_reports),
+        "interaction_replay_passed": bool(all(item["passed"] for item in interaction_reports)),
+        "interactions": interaction_reports,
         "tolerance": tolerance,
-        "passed": bool(all(item["passed"] for item in site_reports)),
+        "passed": bool(
+            all(item["passed"] for item in site_reports)
+            and all(item["passed"] for item in interaction_reports)
+        ),
         "limitations": [
             "physical observable ratios are compared because raw multi-site boundary entries may differ by an internal retained-basis frame",
-            "the replay covers one periodic sweep and a bounded onsite observable only",
-            "two-site interaction covariance and multi-site checkpoint frame state remain separate gates",
+            "the replay covers one periodic sweep and bounded onsite/two-site observables only",
+            "multi-site checkpoint frame state remains a separate gate",
         ],
     }
 
@@ -3045,6 +3093,7 @@ def run_ctmrg(
                             gauged_tensors,
                             unit_cell,
                             int(payload.environment_bond_dim),
+                            payload.interactions,
                         )
                     directional_sweep_covariance_replay = {
                         "performed": False,
