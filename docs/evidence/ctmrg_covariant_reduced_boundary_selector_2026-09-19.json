@@ -1,7 +1,7 @@
 {
   "schema": "quantum-circuit/ctmrg-evidence-v1",
   "date": "2026-09-19",
-  "revision": "0e5f908",
+  "revision": "dcedbe8",
   "candidate": "covariant-bilinear",
   "environment_map": "ctmrg-covariant-bilinear-v1",
   "scope": {
@@ -60,8 +60,8 @@
   "regression": {
     "command": "python -m unittest discover -s tests -p 'test_*.py'",
     "passed": true,
-    "tests_run": 163,
-    "duration_seconds": 31.854
+    "tests_run": 164,
+    "duration_seconds": 26.716
   },
   "admission": {
     "status": "needs_review",

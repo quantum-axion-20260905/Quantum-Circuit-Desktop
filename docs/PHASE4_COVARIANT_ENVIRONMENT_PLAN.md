@@ -409,7 +409,9 @@ using a pseudoinverse, and is wired into the real one-site `_ctm_move` path.
 The integrated four-direction replay now calls that real move rather than a
 hand-built prototype. CPU complex128 replay passes for seeds 17/29/41. The
 bounded CUDA complex64 smoke also passes, with maximum covariance-edge error
-`4.42e-7` against the declared `1e-6` gate. Full regression is `163/163`.
+`4.42e-7` against the declared `1e-6` gate. Full regression is now `164/164`;
+commit `dcedbe8` also rejects the unsupported covariant sector-ensemble
+combination at payload validation instead of allowing a runtime rank failure.
 Evidence: `docs/evidence/ctmrg_covariant_reduced_boundary_selector_2026-09-19.json`.
 
 This closes the local retained-boundary covariance seam, not Phase 4
