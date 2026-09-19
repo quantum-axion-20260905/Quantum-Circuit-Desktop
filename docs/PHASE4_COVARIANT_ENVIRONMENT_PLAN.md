@@ -740,6 +740,15 @@ unresolved CTMRG transfer gap. The diagnostic is explicitly marked
 `cpu-reference` for its independent boundary contraction and cannot promote an
 infinite-lattice result by itself. Full CPU regression is now `197/197`.
 
+Commit `6021779` promotes the fixed-point diagnostic into a bounded
+width/boundary-chi convergence study at
+`/jobs/ctmrg/boundary-mps-transfer-convergence` and the unified async API.
+The product D=1 grid `[width 1,2] × [boundary chi 1,2]` completes all four
+points with zero residual under aggregate preflight; the study still returns
+`needs_review` because finite-cylinder convergence is not an infinite-lattice
+proof. The async job lifecycle was exercised end-to-end and returned the
+versioned convergence-study schema.
+
 ### Current Phase 4 disposition
 
 The bounded dynamic boundary capability is complete as an opt-in research
@@ -752,7 +761,10 @@ sector-aware transfer fixed-point/boundary-MPS method, validate it first on the
 existing `[1, 2]` convergence study and finite-cylinder reference, then rerun
 the paired-gauge and optimizer gates. The first fixed-point diagnostic now
 exists, but width/chi convergence and gauge covariance are still required. No
-local projector heuristic will be promoted in the meantime.
+exists, and the width/chi study contract is now available; the next evidence
+packet must run that grid on the random D=2 probe and compare it against CTMRG
+transfer gaps and paired-gauge observables. No local projector heuristic will
+be promoted in the meantime.
 
 ## 8. Definition of done
 

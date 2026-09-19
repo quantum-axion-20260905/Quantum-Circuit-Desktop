@@ -1,7 +1,7 @@
 {
   "schema": "quantum-circuit/ctmrg-evidence-v1",
   "date": "2026-09-19",
-  "revision": "30e6f5a",
+  "revision": "6021779",
   "candidate": "covariant-bilinear-v2-contract",
   "environment_map": "ctmrg-covariant-dynamic-frame-v1",
   "scope": {
@@ -55,7 +55,11 @@
     "dynamic_boundary_mps_transfer_gate": true,
     "ctmrg_transfer_fixed_point_preflight": true,
     "cuda_dynamic_boundary_mps_transfer_probe": true,
-    "full_regression": "197/197"
+    "boundary_mps_transfer_convergence_study": true,
+    "boundary_mps_transfer_async_contract": true,
+    "boundary_mps_transfer_async_runtime": true,
+    "cuda_boundary_mps_transfer_convergence_endpoint": true,
+    "full_regression": "200/200"
   },
   "cuda_smoke": {
     "available": true,
@@ -180,6 +184,23 @@
     "status": "needs_review",
     "passed": true
   },
+  "cuda_boundary_mps_transfer_convergence": {
+    "available": true,
+    "device": 0,
+    "dtype": "complex64",
+    "unit_cell": [1, 1],
+    "widths": [1, 2],
+    "boundary_bond_dims": [1, 2],
+    "point_count": 4,
+    "converged_points": 4,
+    "maximum_residual": 0.0,
+    "reference_backend": "cpu-reference",
+    "preflight_study_points": 4,
+    "preflight_estimated_total_time_ms": 4,
+    "async_runtime_status": "done",
+    "status": "needs_review",
+    "passed": true
+  },
   "cpu_entangled_negative_probe": {
     "available": true,
     "seed": 83,
@@ -198,5 +219,5 @@
     "production_ready": false,
     "passed": true
   },
-  "interpretation": "The dynamic retained-sector selector is a tested reusable contract for the next rectangular environment state. The opt-in sector study now makes deterministic initialization sensitivity measurable, and the bounded row-transfer boundary-MPS diagnostic provides an independent fixed-point residual. Neither is an ensemble average or a thermodynamic-limit proof; unresolved transfer sectors remain outside public solver admission."
+  "interpretation": "The dynamic retained-sector selector is a tested reusable contract for the next rectangular environment state. The opt-in sector study now makes deterministic initialization sensitivity measurable, and the bounded row-transfer boundary-MPS diagnostic plus width/chi study provide independent finite-cylinder fixed-point evidence. These are not ensemble averages or thermodynamic-limit proofs; unresolved transfer sectors remain outside public solver admission."
 }

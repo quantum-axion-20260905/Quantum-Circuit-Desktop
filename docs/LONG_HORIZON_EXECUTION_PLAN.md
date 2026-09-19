@@ -22,7 +22,7 @@ features.
 ### Active status — 2026-09-18
 
 - Active phase: Phase 4, CTMRG/iPEPS research admission.
-- Current development release: `v0.8.0-alpha.3`; this is a prerelease research
+- Current development release: `v0.8.0-alpha.4`; this is a prerelease research
   instrument and not a Phase 4 production admission.
 - Current useful capability: bounded product-state CTMRG and the canonical
   D=2 GHZ transfer-fixed-point reference both have declared gates; generic
@@ -99,6 +99,12 @@ features.
   Rayleigh quotients, discarded weight, and bond usage. The D=1 product probe
   converges exactly, while the random D=2 probe remains `needs_review`; this
   is the first fixed-point instrument, not an infinite-lattice admission.
+
+- Commit `6021779` adds the width/boundary-chi convergence study at
+  `/jobs/ctmrg/boundary-mps-transfer-convergence` and to the unified async
+  contract. The product 2×2 grid completes four points under aggregate
+  preflight; the next packet must run the same grid on random D=2 and compare
+  its residual/spread with CTMRG transfer-gap and gauge evidence.
 
 - The optional Torch/CuPy autodiff runtime now has a deterministic Windows
   import seam: CuPy is primed before Torch in the standalone autodiff test
@@ -210,9 +216,9 @@ algorithms that are not yet scientifically supported.
 
 The latest stable release is v0.7.1: a bounded spin-lattice vertical slice
 covering Ising, Heisenberg, XXZ, MPS/DMRG/TEBD, and finite open-2D
-boundary-MPS/PEPS. The current development prerelease is v0.8.0-alpha.3 and
+boundary-MPS/PEPS. The current development prerelease is v0.8.0-alpha.4 and
 adds the opt-in CTMRG sector diagnostics, aggregate study-budget guard, and
-bounded boundary-MPS transfer fixed-point diagnostic.
+bounded boundary-MPS transfer fixed-point/convergence diagnostics.
 
 ## Long-term target
 
