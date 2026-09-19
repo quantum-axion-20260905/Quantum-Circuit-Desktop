@@ -50,6 +50,19 @@
       }
     ]
   },
+  "cuda_fixture": {
+    "dtype": "complex64",
+    "iterations": 4,
+    "seed": 17,
+    "terms": "onsite Z coefficient 1.0 and nearest-neighbor ZZ coefficient 1.0",
+    "fresh_max_abs_delta": 0.01662459969520569,
+    "fresh_passed": false,
+    "transported_max_abs_delta": 0.0009015575051307678,
+    "transported_passed": false,
+    "environment_transport_passed": true,
+    "classification": "unconverged",
+    "interpretation": "transport lowers the CUDA drift but remains above the 1e-4 admission tolerance"
+  },
   "decision": "retain-as-diagnostic-seam",
   "conclusion": "Resident-environment transport is algebraically useful and can remove a degenerate-sector initialization artifact, but generic random D=2 results remain above the declared 1e-4 gate. The unresolved problem is the covariant truncated fixed-point map, not merely fresh initialization.",
   "resource_note": "bounded CPU complex128 probe; no large sweep"
