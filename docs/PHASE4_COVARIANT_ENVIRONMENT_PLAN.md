@@ -146,6 +146,14 @@ transport gate passes, but paired-gauge deltas remain `0.068--0.203` at
 `chi=2`; this confirms the limitation is not only a 1x1 ordering bug.
 Evidence: `docs/evidence/ctmrg_2x2_gauge_baseline_2026-09-19.json`.
 
+The directional enlarged-boundary map is now derived and tested against the
+actual one-site left/right/top/bottom absorption index order. All four maps
+match to below `7e-16` in complex128. This is the first concrete `K` contract
+for the boundary-basis transport primitive; it is not yet a solver admission
+because the dual projector update and its discarded-weight estimate remain to
+be implemented. Evidence:
+`docs/evidence/ctmrg_directional_boundary_map_2026-09-19.json`.
+
 Implement exactly one candidate first, selected from the existing numerical
 seams after a small derivation:
 

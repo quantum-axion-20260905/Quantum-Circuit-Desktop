@@ -575,6 +575,74 @@ def paired_virtual_gauge_matrices(xp: Any, tensor: Any) -> tuple[Any, Any, Any, 
     return inverse_transpose, matrix, inverse_transpose, matrix
 
 
+def fused_double_layer_gauge(xp: Any, virtual_gauge: Any) -> Any:
+    """Lift a ket virtual gauge to the fused ket/bra double-layer leg."""
+
+    return xp.kron(virtual_gauge, xp.conj(virtual_gauge))
+
+
+def directional_boundary_gauge_map(
+    xp: Any,
+    virtual_gauges: tuple[Any, Any, Any, Any],
+    boundary_dim: int,
+    direction: str,
+) -> dict[str, Any]:
+    """Return the directional enlarged-boundary gauge factors.
+
+    The one-site CTM absorption code forms two enlarged corner factors and a
+    three-leg grown edge.  Their index order is direction-dependent.  This
+    helper records the exact maps in that order so a future covariant move can
+    transport a dual projector instead of guessing a Kronecker ordering.
+
+    Returned keys are ``corner_left``, ``corner_right``, ``grown_row``,
+    ``grown_middle``, and ``grown_col``.  For a factor ``A`` with a row index,
+    the transformed factor is ``A' = map @ A``; for a three-leg grown edge the
+    transformed slice is ``grown'[:,m,:] = row @ grown[:,m,:] @ col.T`` and
+    the middle index is transformed by ``grown_middle``.
+    """
+
+    if direction not in {"left", "right", "top", "bottom"}:
+        raise ValueError(f"unsupported directional boundary gauge {direction!r}")
+    if int(boundary_dim) < 1:
+        raise ValueError("boundary_dim must be positive")
+    up, down, left, right = virtual_gauges
+    fused = {
+        "up": fused_double_layer_gauge(xp, up),
+        "down": fused_double_layer_gauge(xp, down),
+        "left": fused_double_layer_gauge(xp, left),
+        "right": fused_double_layer_gauge(xp, right),
+    }
+    identity_kwargs = {"dtype": fused["up"].dtype}
+    if getattr(xp, "__name__", "") == "torch":
+        identity_kwargs["device"] = fused["up"].device
+    boundary_identity = xp.eye(int(boundary_dim), **identity_kwargs)
+
+    def boundary_factor(value: Any) -> Any:
+        return xp.kron(boundary_identity, value)
+
+    def inverse_edge(value: Any) -> Any:
+        return xp.linalg.inv(value).T
+
+    if direction in {"left", "right"}:
+        edge_axis = "up"
+        opposite_axis = "down"
+        middle_axis = "right" if direction == "left" else "left"
+    else:
+        edge_axis = "left"
+        opposite_axis = "right"
+        middle_axis = "down" if direction == "top" else "up"
+    return {
+        "corner_left": boundary_factor(inverse_edge(fused[edge_axis])),
+        "corner_right": boundary_factor(inverse_edge(fused[opposite_axis])),
+        "grown_row": boundary_factor(fused[edge_axis]),
+        "grown_middle": fused[middle_axis],
+        "grown_col": boundary_factor(fused[opposite_axis]),
+        "direction": direction,
+        "boundary_dim": int(boundary_dim),
+        "fused_virtual_dim": int(fused["up"].shape[0]),
+    }
+
+
 def transport_ctm_environment(
     xp: Any,
     environment: Any,
@@ -600,7 +668,7 @@ def transport_ctm_environment(
     up, down, left, right = gauges
 
     def fused_inverse_transpose(gauge: Any) -> Any:
-        fused = xp.kron(gauge, xp.conj(gauge))
+        fused = fused_double_layer_gauge(xp, gauge)
         return xp.linalg.inv(fused).T
 
     edge_transforms = (

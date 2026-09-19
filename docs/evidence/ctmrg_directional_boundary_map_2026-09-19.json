@@ -1,0 +1,28 @@
+{
+  "artifact": "ctmrg-directional-enlarged-boundary-gauge-map",
+  "date": "2026-09-19",
+  "revision": "pending-commit",
+  "scope": "Phase 4 C2 directional K derivation seam",
+  "directions": ["left", "right", "top", "bottom"],
+  "map_contract": {
+    "corner_factors": "boundary_identity kron inverse(fused_double_layer_gauge).T",
+    "grown_row": "boundary_identity kron fused_double_layer_gauge(edge_axis)",
+    "grown_middle": "fused_double_layer_gauge(direction_middle_axis)",
+    "grown_col": "boundary_identity kron fused_double_layer_gauge(opposite_axis)"
+  },
+  "verification": {
+    "random_seed": 17,
+    "dtype": "complex128",
+    "boundary_dim": 2,
+    "fused_virtual_dim": 4,
+    "all_direction_factor_relations": "passed",
+    "maximum_observed_relative_error": 6.731875860700754e-16,
+    "full_agent_suite": "pending after directional map test"
+  },
+  "conclusion": "The left/right/top/bottom enlarged-boundary K factors now match the actual one-site absorption index order to roundoff. This removes a major source of guessed Kronecker ordering before a dual projector is attempted.",
+  "limitations": [
+    "The map describes how a known explicit virtual gauge acts; it does not infer a canonical gauge from an arbitrary tensor.",
+    "A covariant truncation still needs a dual projector update using these factors and an independent discarded-weight/transfer-gap gate."
+  ],
+  "next_action": "use the directional K factors in a reference dual-projector absorption and compare physical observables under paired gauges"
+}

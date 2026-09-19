@@ -377,7 +377,11 @@ class CTMRGTests(unittest.TestCase):
         )
 
     def test_boundary_basis_transport_preserves_biorthogonal_dual_rule(self):
-        from qc_agent.core.ctmrg_gauge import transport_biorthogonal_boundary_basis
+        from qc_agent.core.ctmrg_gauge import (
+            directional_boundary_gauge_map,
+            paired_virtual_gauge_matrices,
+            transport_biorthogonal_boundary_basis,
+        )
 
         rng = np.random.default_rng(29)
         seed = rng.normal(size=(4, 2)) + 1j * rng.normal(size=(4, 2))
@@ -402,6 +406,94 @@ class CTMRGTests(unittest.TestCase):
                 atol=1e-10,
             )
         )
+
+        virtual_gauges = paired_virtual_gauge_matrices(np, np.zeros((2, 2, 2, 2, 2), dtype=np.complex128))
+        for direction in ("left", "right", "top", "bottom"):
+            maps = directional_boundary_gauge_map(np, virtual_gauges, 2, direction)
+            self.assertEqual(maps["direction"], direction)
+            self.assertEqual(maps["corner_left"].shape, (8, 8))
+            self.assertEqual(maps["grown_middle"].shape, (4, 4))
+            self.assertTrue(
+                np.allclose(
+                    maps["corner_left"].T @ maps["corner_right"],
+                    np.eye(8),
+                    atol=1e-10,
+                )
+            )
+
+    def test_directional_boundary_gauge_map_matches_all_one_site_absorptions(self):
+        from qc_agent.core.ctmrg import _double_layer, _initialize_environment
+        from qc_agent.core.ctmrg_gauge import (
+            directional_boundary_gauge_map,
+            paired_virtual_gauge,
+            paired_virtual_gauge_matrices,
+            transport_ctm_environment,
+        )
+
+        rng = np.random.default_rng(17)
+        tensor = rng.normal(size=(2, 2, 2, 2, 2)) + 1j * rng.normal(size=(2, 2, 2, 2, 2))
+        tensor = (tensor / np.linalg.norm(tensor)).astype(np.complex128)
+        gauged = paired_virtual_gauge(np, [tensor])[0]
+        layer = _double_layer(np, tensor)
+        gauged_layer = _double_layer(np, gauged)
+        environment = _initialize_environment(np, layer, 2)
+        gauged_environment = transport_ctm_environment(np, environment, tensor)
+        virtual_gauges = paired_virtual_gauge_matrices(np, tensor)
+        d2 = 4
+
+        def factors(environment, local_layer, direction):
+            if direction == "left":
+                first = np.einsum("ab,buc->auc", environment.C1, environment.T1).reshape(-1, environment.T1.shape[2])
+                second = np.einsum("gh,hdi->gdi", environment.C4, environment.T3).reshape(-1, environment.T3.shape[2])
+                grown = np.einsum("alg,udlr->augdr", environment.T4, local_layer)
+                grown = np.transpose(grown, (0, 1, 4, 2, 3)).reshape(first.shape[0], d2, second.shape[0])
+            elif direction == "right":
+                first = np.einsum("ce,buc->eub", environment.C2, environment.T1).reshape(-1, environment.T1.shape[0])
+                second = np.einsum("im,hdi->mdh", environment.C3, environment.T3).reshape(-1, environment.T3.shape[0])
+                grown = np.einsum("erm,udlr->eumdl", environment.T2, local_layer)
+                grown = np.transpose(grown, (0, 1, 4, 2, 3)).reshape(first.shape[0], d2, second.shape[0])
+            elif direction == "top":
+                first = np.einsum("ab,alg->blg", environment.C1, environment.T4).reshape(-1, environment.T4.shape[2])
+                second = np.einsum("ce,erm->crm", environment.C2, environment.T2).reshape(-1, environment.T2.shape[2])
+                grown = np.einsum("buc,udlr->bcdlr", environment.T1, local_layer)
+                grown = np.transpose(grown, (0, 3, 2, 1, 4)).reshape(first.shape[0], d2, second.shape[0])
+            else:
+                first = np.transpose(np.einsum("gh,alg->hal", environment.C4, environment.T4), (0, 2, 1)).reshape(-1, environment.T4.shape[0])
+                second = np.einsum("im,erm->ire", environment.C3, environment.T2).reshape(-1, environment.T2.shape[0])
+                grown = np.einsum("hdi,udlr->hiulr", environment.T3, local_layer)
+                grown = np.transpose(grown, (0, 3, 2, 1, 4)).reshape(first.shape[0], d2, second.shape[0])
+            return first, second, grown
+
+        for direction in ("left", "right", "top", "bottom"):
+            first, second, grown = factors(environment, layer, direction)
+            gauged_first, gauged_second, gauged_grown = factors(
+                gauged_environment,
+                gauged_layer,
+                direction,
+            )
+            maps = directional_boundary_gauge_map(np, virtual_gauges, 2, direction)
+            predicted = np.zeros_like(grown)
+            for output_middle in range(d2):
+                for input_middle in range(d2):
+                    predicted[:, output_middle, :] += (
+                        maps["grown_middle"][output_middle, input_middle]
+                        * maps["grown_row"]
+                        @ grown[:, input_middle, :]
+                        @ maps["grown_col"].T
+                    )
+            self.assertTrue(np.allclose(
+                gauged_first,
+                maps["corner_left"] @ first,
+                atol=1e-10,
+                rtol=1e-10,
+            ))
+            self.assertTrue(np.allclose(
+                gauged_second,
+                maps["corner_right"] @ second,
+                atol=1e-10,
+                rtol=1e-10,
+            ))
+            self.assertTrue(np.allclose(gauged_grown, predicted, atol=1e-10, rtol=1e-10))
 
     def test_bond_aware_preconditioner_preserves_2x1_finite_reference(self):
         from qc_agent.core.ctmrg_gauge import pairwise_virtual_gauge_preconditioner
