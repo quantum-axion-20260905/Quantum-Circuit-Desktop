@@ -1,0 +1,56 @@
+{
+  "artifact": "ctmrg-transported-environment-gauge-probe",
+  "date": "2026-09-19",
+  "revision": "0b3d128",
+  "scope": {
+    "projector_policy": "biorthogonal-bilinear",
+    "unit_cell": [1, 1],
+    "virtual_bond_dim": 2,
+    "environment_bond_dim": 2,
+    "iterations": 8,
+    "dtype": "complex128",
+    "purpose": "separate fresh-boundary initialization drift from truncated fixed-point drift"
+  },
+  "method": {
+    "fresh_probe": "run the paired-gauged tensor from its deterministic boundary initialization",
+    "transported_probe": "transport the resident solved environment with the explicit fused inverse-transpose edge map, then run the paired-gauged tensor from that environment",
+    "admission_rule": "fresh paired-gauge validation remains the admission gate; transported probe is diagnostic-only"
+  },
+  "ghz_fixture": {
+    "fresh_max_abs_delta": 1.0000000000000184,
+    "fresh_passed": false,
+    "transported_max_abs_delta": 1.0719940197275063e-13,
+    "transported_passed": true,
+    "classification": "unconverged",
+    "interpretation": "transport removes the GHZ initialization-sector drift, but this does not establish covariance of a generic truncated fixed point"
+  },
+  "random_fixture": {
+    "terms": "onsite Z coefficient 1.0 and nearest-neighbor ZZ coefficient 1.0",
+    "rows": [
+      {
+        "seed": 17,
+        "fresh_max_abs_delta": 0.000317095982938706,
+        "fresh_passed": false,
+        "transported_max_abs_delta": 0.00036206474892018503,
+        "transported_passed": false
+      },
+      {
+        "seed": 29,
+        "fresh_max_abs_delta": 5.147810215130888e-05,
+        "fresh_passed": true,
+        "transported_max_abs_delta": 0.00011328881691011206,
+        "transported_passed": false
+      },
+      {
+        "seed": 41,
+        "fresh_max_abs_delta": 6.0464985713243324e-05,
+        "fresh_passed": true,
+        "transported_max_abs_delta": 0.00022890085852858566,
+        "transported_passed": false
+      }
+    ]
+  },
+  "decision": "retain-as-diagnostic-seam",
+  "conclusion": "Resident-environment transport is algebraically useful and can remove a degenerate-sector initialization artifact, but generic random D=2 results remain above the declared 1e-4 gate. The unresolved problem is the covariant truncated fixed-point map, not merely fresh initialization.",
+  "resource_note": "bounded CPU complex128 probe; no large sweep"
+}

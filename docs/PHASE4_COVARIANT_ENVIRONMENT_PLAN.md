@@ -181,6 +181,14 @@ Neither passes the `1e-4` gate, so the SVD variant was not admitted to the
 code path. Evidence:
 `docs/evidence/ctmrg_bilinear_projector_variant_probe_2026-09-19.json`.
 
+The solver now exposes an internal transported-environment gauge diagnostic.
+On the GHZ fixture, fresh initialization drift is approximately `1.0`, while
+the explicitly transported resident environment gives `1.1e-13`; on the
+generic random fixture, transported deltas remain `1.13e-4--3.62e-4`.
+Therefore transport removes a degenerate-sector initialization artifact but
+does not solve the generic covariant truncation problem. Evidence:
+`docs/evidence/ctmrg_transported_gauge_probe_2026-09-19.json`.
+
 Implement exactly one candidate first, selected from the existing numerical
 seams after a small derivation:
 
