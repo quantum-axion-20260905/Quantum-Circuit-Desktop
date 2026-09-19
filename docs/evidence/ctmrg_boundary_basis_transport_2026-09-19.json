@@ -1,7 +1,7 @@
 {
   "artifact": "ctmrg-biorthogonal-boundary-basis-transport",
   "date": "2026-09-19",
-  "revision": "pending-commit",
+  "revision": "2292df9",
   "scope": "Phase 4 C2 boundary-basis truncation building block",
   "rule": {
     "right_projector": "K @ P",
