@@ -624,7 +624,9 @@ def _left_move_two_site(
         c4 = xp.conj(right_projector).T @ c4_g
         t4 = xp.einsum("ai,idj,jb->adb", left_projector, t4_g, right_projector)
         return CTMEnvironment(c1, env_self.C2, env_self.C3, c4, env_self.T1, env_self.T2, env_self.T3, t4), discarded
-    c1, c4, t4, discarded = _ctm_move(xp, c1_g, c4_g, t4_g, chi, differentiate_truncation)
+    c1, c4, t4, discarded = _ctm_move(
+        xp, c1_g, c4_g, t4_g, chi, differentiate_truncation, projector_method=projector_method
+    )
     return CTMEnvironment(c1, env_self.C2, env_self.C3, c4, env_self.T1, env_self.T2, env_self.T3, t4), discarded
 
 
@@ -658,7 +660,9 @@ def _right_move_two_site(
         c3 = xp.conj(right_projector).T @ c3_g
         t2 = xp.einsum("ai,idj,jb->adb", left_projector, t2_g, right_projector)
         return CTMEnvironment(env_self.C1, c2, c3, env_self.C4, env_self.T1, t2, env_self.T3, env_self.T4), discarded
-    c2, c3, t2, discarded = _ctm_move(xp, c2_g, c3_g, t2_g, chi, differentiate_truncation)
+    c2, c3, t2, discarded = _ctm_move(
+        xp, c2_g, c3_g, t2_g, chi, differentiate_truncation, projector_method=projector_method
+    )
     return CTMEnvironment(env_self.C1, c2, c3, env_self.C4, env_self.T1, t2, env_self.T3, env_self.T4), discarded
 
 
@@ -692,7 +696,9 @@ def _top_move_two_site(
         c2 = left_projector @ c2_g
         t1 = xp.einsum("ai,idj,jb->adb", xp.conj(right_projector).T, t1_g, xp.conj(left_projector).T)
         return CTMEnvironment(c1, c2, env_self.C3, env_self.C4, t1, env_self.T2, env_self.T3, env_self.T4), discarded
-    c1, c2, t1, discarded = _ctm_move(xp, c1_g, c2_g, t1_g, chi, differentiate_truncation)
+    c1, c2, t1, discarded = _ctm_move(
+        xp, c1_g, c2_g, t1_g, chi, differentiate_truncation, projector_method=projector_method
+    )
     return CTMEnvironment(c1, c2, env_self.C3, env_self.C4, t1, env_self.T2, env_self.T3, env_self.T4), discarded
 
 
@@ -726,7 +732,9 @@ def _bottom_move_two_site(
         c3 = xp.conj(left_projector).T @ c3_g
         t3 = xp.einsum("ai,idj,jb->adb", right_projector, t3_g, left_projector)
         return CTMEnvironment(env_self.C1, env_self.C2, c3, c4, env_self.T1, env_self.T2, t3, env_self.T4), discarded
-    c4, c3, t3, discarded = _ctm_move(xp, c4_g, c3_g, t3_g, chi, differentiate_truncation)
+    c4, c3, t3, discarded = _ctm_move(
+        xp, c4_g, c3_g, t3_g, chi, differentiate_truncation, projector_method=projector_method
+    )
     return CTMEnvironment(env_self.C1, env_self.C2, c3, c4, env_self.T1, env_self.T2, t3, env_self.T4), discarded
 
 
