@@ -1,0 +1,35 @@
+{
+  "artifact": "ctmrg-svd-root-scaling-probe",
+  "date": "2026-09-19",
+  "scope": "bounded fresh-initialization paired-gauge probe after raw bilinear failure",
+  "fixture": "random D=2 complex128 seeds 17/29/41, 1x1, chi=2, four sweeps",
+  "variants": {
+    "plain": {
+      "drift": {
+        "17": 0.7876382529400009,
+        "29": 0.7586848654321401,
+        "41": 0.804122006012609
+      },
+      "projector_rule": "SVD left/right subspaces without singular-value scaling"
+    },
+    "sqrt": {
+      "drift": {
+        "17": 0.7876382525385841,
+        "29": 0.7586848644837114,
+        "41": 0.8041220069195206
+      },
+      "projector_rule": "left/right subspaces multiplied by S^(-1/2)"
+    },
+    "inverse": {
+      "drift": {
+        "17": 0.787638252760954,
+        "29": 0.7586848645671384,
+        "41": 0.8041220067800835
+      },
+      "projector_rule": "left/right subspaces multiplied by S^(1/2)"
+    }
+  },
+  "decision": "rejected",
+  "conclusion": "Changing singular-value root scaling does not address the paired-gauge drift; the unresolved issue is the non-covariant reduced subspace/projector construction and its fresh boundary initialization.",
+  "next_action": "do not add another local SVD normalization; require a covariant boundary object or explicit gauge-fixed canonicalization before production admission"
+}

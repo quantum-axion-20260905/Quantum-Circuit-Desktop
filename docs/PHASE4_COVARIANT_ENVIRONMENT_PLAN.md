@@ -391,6 +391,12 @@ covariant reduced-boundary selector, not another local normalization or
 conditioning heuristic. Evidence:
 `docs/evidence/ctmrg_phase4_replacement_probe_2026-09-19.json`.
 
+A separate four-sweep SVD-root probe also rejects plain, `S^(1/2)`, and
+`S^(-1/2)` left/right subspace scalings: all three variants retain fresh-gauge
+drift near `0.759--0.804` on seeds 17/29/41. Root scaling is therefore not the
+missing fix; the selector must change the reduced-boundary object itself.
+Evidence: `docs/evidence/ctmrg_svd_root_probe_2026-09-19.json`.
+
 - CPU complex128 canonical GHZ: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - CPU random D=2 seeds 17/29/41: replay remains red, with maximum factor error
