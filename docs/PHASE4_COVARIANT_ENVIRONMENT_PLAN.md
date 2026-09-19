@@ -359,8 +359,26 @@ gate is not completion.
 | C2 | needs_review | Directional K maps and bilinear projector seams pass algebraic tests, but the raw dual-span candidate is still opt-in. |
 | C3 | partial | Fixed-point classification, sector-ensemble guard, chi diagnostics, and transported-environment probes are implemented; generic gauge covariance is not admitted. |
 | C4 | baseline passed | Torch unrolled/implicit map consistency is `12/12`, including six bounded GPU tests; the bilinear candidate remains blocked from optimization. |
-| C5 | incomplete | Random D=2 and existing 2x2 evidence still fail the production gauge/chi gates. |
+| C5 | incomplete | Random D=2 and existing 2x2 evidence still fail the production gauge/chi gates; bounded directional sweep replay now localizes the failure to retained corner-basis transport after the top move. |
 | C6 | not reached | No production promotion or release claim is allowed until C5 passes or the candidate failure is formally closed with a replacement strategy. |
+
+### Replay checkpoint — retained corner-basis covariance (2026-09-19)
+
+Commit `028a387` adds `directional_sweep_covariance_replay` to the diagnostic
+result. It executes the real one-site bilinear move sequence from an explicitly
+transported resident environment and records factor-map, projector, moved-edge,
+and contraction deltas before/after each direction.
+
+- CPU complex128 canonical GHZ: left/right/bottom pass, top fails with corner
+  factor relative error `5.7097e-1` and moved-edge error `1.5037`.
+- CPU random D=2 seeds 17/29/41: replay remains red, with maximum factor error
+  `0.342–1.770` and moved-edge error `0.794–4.800`.
+- CUDA complex64 seed 17: local directional transport remains green, but the
+  replay is red (`1.0917` factor, `2.4609` moved-edge).
+
+This is a diagnostic localization, not a promotion: the next implementation
+must carry an explicit retained corner-basis state through every move and then
+re-run the bounded CPU/CUDA replay before any admission decision.
 
 ## 8. Definition of done
 

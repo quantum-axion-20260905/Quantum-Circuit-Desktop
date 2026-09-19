@@ -1,0 +1,78 @@
+{
+  "artifact": "ctmrg-directional-bilinear-sweep-covariance-replay",
+  "date": "2026-09-19",
+  "revision": "028a387",
+  "scope": "Phase 4 tracked retained-basis diagnostic after the directional K-map seam",
+  "method": {
+    "replay": "one bounded left/right/top/bottom one-site sweep",
+    "initial_pair": "resident environment and explicitly transported gauged environment",
+    "move": "actual biorthogonal-bilinear CTMRG move implementation",
+    "admission": "diagnostic-only; no production promotion from this report"
+  },
+  "cpu_complex128": {
+    "fixture": "canonical GHZ, D=2, chi=2, four moves",
+    "passed": false,
+    "maximum_factor_relative_error": 0.5709741586217291,
+    "maximum_moved_edge_relative_error": 1.5036535841517793,
+    "top_corner_left_relative_error": 0.5709741586217291,
+    "direction_status": {
+      "left": true,
+      "right": true,
+      "top": false,
+      "bottom": true
+    },
+    "interpretation": "local directional transport is exact, but the retained corner basis is not covariant when the top move follows left/right moves"
+  },
+  "cpu_random_complex128": {
+    "fixture": "random D=2, chi=2, iterations=4, seeds 17/29/41",
+    "rows": [
+      {
+        "seed": 17,
+        "paired_gauge_max_abs_delta": 0.0025897299961445963,
+        "replay_passed": false,
+        "maximum_factor_relative_error": 1.770449438605612,
+        "maximum_moved_edge_relative_error": 4.800068312750579,
+        "top_corner_left_relative_error": 1.4506884192572855,
+        "top_moved_edge_relative_error": 4.800068312750579
+      },
+      {
+        "seed": 29,
+        "paired_gauge_max_abs_delta": 0.0027502929517548846,
+        "replay_passed": false,
+        "maximum_factor_relative_error": 0.3417169961744484,
+        "maximum_moved_edge_relative_error": 0.7938267152922649,
+        "top_corner_left_relative_error": 0.31830948879965726,
+        "top_moved_edge_relative_error": 0.7938267152922649
+      },
+      {
+        "seed": 41,
+        "paired_gauge_max_abs_delta": 0.019960921377089852,
+        "replay_passed": false,
+        "maximum_factor_relative_error": 1.5331893299761954,
+        "maximum_moved_edge_relative_error": 4.748136932751479,
+        "top_corner_left_relative_error": 1.5331893299761954,
+        "top_moved_edge_relative_error": 4.748136932751479
+      }
+    ]
+  },
+  "cuda_complex64": {
+    "fixture": "random D=2, chi=2, iterations=3, seed 17",
+    "backend": "torch.cuda",
+    "device": "cuda:0",
+    "paired_gauge_max_abs_delta": 0.010321550071239471,
+    "directional_local_transport_gate": true,
+    "replay_passed": false,
+    "maximum_factor_relative_error": 1.0916843429129202,
+    "maximum_moved_edge_relative_error": 2.460914139202653,
+    "top_corner_left_relative_error": 0.9332292683233807,
+    "top_moved_edge_relative_error": 2.460914139202653
+  },
+  "suite": {
+    "agent_unittest": "160/160 passed",
+    "focused_bilinear_test": "passed",
+    "gpu_memory_policy": "bounded chi=2 probe only; no large sweep"
+  },
+  "decision": "retain-as-diagnostic-seam",
+  "conclusion": "The replay localizes the unresolved Phase 4 gap to retained corner-basis transport across the directional sweep. The directional K maps and one-site projector algebra remain green; the generic truncated fixed-point candidate remains needs_review.",
+  "next_action": "introduce an explicit tracked corner-basis state and replay it through every move before attempting a new paired-gauge admission gate"
+}
