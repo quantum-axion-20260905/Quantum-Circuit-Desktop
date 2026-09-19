@@ -1747,7 +1747,12 @@ def run_ctmrg(
             tolerance=max(float(payload.tolerance) * 10.0, 1e-6),
         )
     gauge_conditioning = virtual_leg_conditioning_report(xp, tensors)
+    environment_diagnostics = _environment_diagnostics(xp, environments)
     converged = bool(residual <= float(payload.tolerance))
+    if payload.ctmrg_projector == "biorthogonal-bilinear":
+        raw_basis_ready = raw_residual <= max(float(payload.tolerance) * 10.0, 1e-6)
+        transfer_gap_ready = environment_diagnostics.get("correlation_length") is not None
+        converged = bool(converged and raw_basis_ready and transfer_gap_ready)
     optimization_consistency_error: float | None = None
     if (
         optimization_info is not None
@@ -1785,6 +1790,14 @@ def run_ctmrg(
             "biorthogonal-bilinear currently reports no principled discarded-weight estimate; its zero discarded value means not-estimated",
             "biorthogonal-bilinear remains needs_review until directional boundary covariance and paired-gauge gates pass",
         ])
+        if raw_residual > max(float(payload.tolerance) * 10.0, 1e-6):
+            warnings.append(
+                f"biorthogonal-bilinear raw boundary-basis residual is {raw_residual:.3e}; its invariant spectrum alone cannot declare convergence"
+            )
+        if environment_diagnostics.get("correlation_length") is None:
+            warnings.append(
+                "biorthogonal-bilinear transfer gap is unresolved; fixed-point status remains unconverged"
+            )
     if raw_residual > max(float(payload.tolerance) * 10.0, 1e-6) and residual <= float(payload.tolerance):
         warnings.append(
             f"raw boundary-basis residual is {raw_residual:.3e}; convergence uses a gauge-invariant environment spectrum"
@@ -1982,7 +1995,6 @@ def run_ctmrg(
             "biorthogonal-bilinear currently has no principled discarded-weight estimate",
             "biorthogonal-bilinear is a 1x1 candidate and is not admitted to optimization or production use",
         ])
-    environment_diagnostics = _environment_diagnostics(xp, environments)
     research_result = ResearchResult(
         status="needs_review",
         method=result_method,
@@ -2006,7 +2018,11 @@ def run_ctmrg(
         ),
         convergence=ConvergenceReport(
             converged=converged,
-            criterion="normalized corner/edge environment residual",
+            criterion=(
+                "normalized corner/edge residual plus raw boundary-basis and resolved transfer-gap checks"
+                if payload.ctmrg_projector == "biorthogonal-bilinear" else
+                "normalized corner/edge environment residual"
+            ),
             points=points,
             warnings=list(warnings),
         ),

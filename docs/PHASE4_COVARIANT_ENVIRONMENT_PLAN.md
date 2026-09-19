@@ -127,6 +127,12 @@ raw residual alone cannot admit a solver. The candidate remains available only
 for diagnostics and is not a production path. Evidence:
 `docs/evidence/ctmrg_bilinear_projector_candidate_2026-09-19.json`.
 
+The fixed-point controller now has a candidate-specific safety gate: the
+bilinear path cannot report `converged` from the invariant spectrum alone; it
+also requires a small raw boundary-basis residual and a resolved transfer
+gap. The GHZ/random failure above is therefore surfaced as `unconverged`
+instead of a false green result.
+
 The bounded random D=2 gate improved for seeds 17/29/41, but remained above
 the declared `1e-4` paired-gauge tolerance for all three seeds. Therefore the
 default projector, optimization paths, and production admission remain

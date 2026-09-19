@@ -134,6 +134,8 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(result["reference_validation"]["passed"])
         self.assertEqual(result["research_gate"]["status"], "needs_review")
         self.assertFalse(result["research_gate"]["production_ready"])
+        self.assertFalse(result["converged"])
+        self.assertTrue(any("transfer gap is unresolved" in warning for warning in result["warnings"]))
         self.assertTrue(any("no principled discarded-weight estimate" in warning for warning in result["warnings"]))
 
     def test_symmetry_sector_ensemble_restores_ghz_gauge_gate(self):
