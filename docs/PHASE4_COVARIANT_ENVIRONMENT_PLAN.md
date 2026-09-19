@@ -564,6 +564,21 @@ This makes the dynamic path usable for controlled research probes, while
 multi-site periodic propagation and public payload admission remain blocked
 by design until their evidence gates are implemented.
 
+Commit `7597545` adds the periodic `run_dynamic_ctm_cell_sweep` path for
+bounded 1x1--2x2 cells. It follows the existing neighbor ordering and uses
+the neighboring environment's directional edge/layer for each absorption,
+then reconstructs the rectangular corner orientation explicitly. A 2x2
+complex128 replay executes 16 moves, reduces all four site boundaries to
+dimension one, and preserves every tested onsite Z and horizontal ZZ value
+under the paired virtual gauge below `1e-10`. CUDA complex64 also passes the
+16-move sweep with maximum onsite delta `1.79e-7` and interaction delta
+`2.24e-8`.
+
+This closes the bounded dynamic contraction/replay gate, but not public
+admission: a multi-site dynamic result runner, convergence/transfer-gap
+diagnostics, and public checkpoint-resume integration still need to be wired
+and audited before the candidate can replace the existing square path.
+
 - For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - For comparison, CPU random D=2 seeds 17/29/41 on the raw candidate: replay remains red, with maximum factor error

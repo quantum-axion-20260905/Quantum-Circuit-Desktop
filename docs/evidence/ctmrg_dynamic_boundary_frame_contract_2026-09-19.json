@@ -29,7 +29,8 @@
     "dynamic_four_direction_sweep": true,
     "dynamic_normalized_gauge_observable": true,
     "dynamic_one_site_runner": true,
-    "full_regression": "177/177"
+    "dynamic_periodic_cell_sweep": true,
+    "full_regression": "178/178"
   },
   "cuda_smoke": {
     "available": true,
@@ -59,6 +60,22 @@
       "dimensions_final": {"top": 1, "left": 1, "bottom": 1, "right": 1},
       "converged": true
     },
+    "passed": true
+  },
+  "cuda_dynamic_cell_sweep": {
+    "available": true,
+    "device": 0,
+    "dtype": "complex64",
+    "unit_cell": [2, 2],
+    "move_count": 16,
+    "max_normalized_onsite_delta": 1.7881393432617188e-07,
+    "interaction_delta": 2.2351741790771484e-08,
+    "dimensions_final": [
+      {"top": 1, "left": 1, "bottom": 1, "right": 1},
+      {"top": 1, "left": 1, "bottom": 1, "right": 1},
+      {"top": 1, "left": 1, "bottom": 1, "right": 1},
+      {"top": 1, "left": 1, "bottom": 1, "right": 1}
+    ],
     "passed": true
   },
   "interpretation": "The dynamic retained-sector selector is a tested reusable contract for the next rectangular environment state. It is not yet wired into the square fixed-chi CTMRG move and does not change public solver admission."
