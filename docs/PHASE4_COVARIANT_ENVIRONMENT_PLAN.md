@@ -328,6 +328,17 @@ The goal may continue across multiple sessions. A checkpoint is complete only
 when its tests and evidence are committed; a green job without a scientific
 gate is not completion.
 
+### Current checkpoint ledger (2026-09-19)
+
+| Checkpoint | State | Evidence / meaning |
+| --- | --- | --- |
+| C1 | passed | Versioned environment contract and map replay checks are committed. |
+| C2 | needs_review | Directional K maps and bilinear projector seams pass algebraic tests, but the raw dual-span candidate is still opt-in. |
+| C3 | partial | Fixed-point classification, sector-ensemble guard, chi diagnostics, and transported-environment probes are implemented; generic gauge covariance is not admitted. |
+| C4 | baseline passed | Torch unrolled/implicit map consistency is `12/12`, including six bounded GPU tests; the bilinear candidate remains blocked from optimization. |
+| C5 | incomplete | Random D=2 and existing 2x2 evidence still fail the production gauge/chi gates. |
+| C6 | not reached | No production promotion or release claim is allowed until C5 passes or the candidate failure is formally closed with a replacement strategy. |
+
 ## 8. Definition of done
 
 Done means the covariant candidate either passes Packet F and is promoted as a
