@@ -166,6 +166,36 @@
       "damping_0_75_2x2_iterations_24_fresh_gauge_drift": 2.4950034737465654e-05,
       "decision": "not promoted globally; preconditioning/damping are problem-dependent and do not resolve the transfer gap"
     },
+    "invariant_frame_factorization_probe": {
+      "cpu_complex128_1x1_iterations_8": {
+        "identity_linear_solve": {
+          "residual": 1.599999788215456e-08,
+          "fresh_gauge_drift": 0.0003170959829388448,
+          "replay_passed": true
+        },
+        "left_svd_basis": {
+          "residual": 1.1654817111406146e-09,
+          "fresh_gauge_drift": 0.009234951458885074,
+          "replay_passed": false
+        },
+        "right_svd_basis": {
+          "residual": 9.678720602757096e-09,
+          "fresh_gauge_drift": 0.01606355907454468,
+          "replay_passed": false
+        },
+        "polar_basis": {
+          "residual": 1.5999997771132257e-08,
+          "fresh_gauge_drift": 0.0003170959829388448,
+          "replay_passed": true
+        },
+        "reduced_overlap_basis": {
+          "residual": 6.399996843597933e-08,
+          "fresh_gauge_drift": 0.00031709598293848396,
+          "replay_passed": true
+        }
+      },
+      "decision": "no alternative invariant factorization closes both replay and paired-gauge gates; retain the linear-solve frame"
+    },
     "selected_strategy": "covariant-bilinear-v1 with full-rank transposed linear-solve dual frame and dtype-aware initialization"
   },
   "regression": {

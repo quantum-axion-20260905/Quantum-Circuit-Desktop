@@ -457,6 +457,10 @@ the SVD-root selector breaks the one-site replay, and global preconditioning or
 under-damping worsens 2x2 drift in at least one tested regime. The selected
 v1 full-rank linear-solve frame remains the least-wrong map; the next change
 must address the transfer-sector representation itself.
+Invariant overlap factorization probes (left/right SVD bases, polar basis, and
+reduced-overlap scaling) were also measured; the bases that lower residual
+break the one-site replay, while the replay-safe choices do not improve the
+transfer gap. Their exact values are recorded in the evidence packet.
 
 The bounded longer-sweep campaign confirms that the remaining gate is
 algorithmic rather than a missing replay tolerance. CPU complex128 2x2 at 16
