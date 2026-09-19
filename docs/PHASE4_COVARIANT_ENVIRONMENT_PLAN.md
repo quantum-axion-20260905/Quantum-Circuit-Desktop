@@ -579,6 +579,19 @@ admission: a multi-site dynamic result runner, convergence/transfer-gap
 diagnostics, and public checkpoint-resume integration still need to be wired
 and audited before the candidate can replace the existing square path.
 
+Commit `cd477f0` adds `run_dynamic_ctmrg_cell`, the bounded 1x1--2x2 result
+runner. It aggregates per-site norms and onsite terms, evaluates periodic
+cell interactions, emits convergence points plus transfer ratios/gaps and
+eigenvalue magnitudes, and returns all dynamic states for checkpointing. The
+2x2 product reference reports `Z=1`, `ZZ=1`, energy `1.5`, four transfer
+gaps equal to `1.0`, and `needs_review` status as required for an experimental
+path. The CUDA complex64 product smoke returns the same values.
+
+The remaining admission work is now concentrated in state persistence for a
+list of dynamic environments, resume-time digest validation, and a fresh
+paired-gauge multi-site result replay after resume. Public payload policy and
+optimization remain intentionally unchanged until those gates pass.
+
 - For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - For comparison, CPU random D=2 seeds 17/29/41 on the raw candidate: replay remains red, with maximum factor error
