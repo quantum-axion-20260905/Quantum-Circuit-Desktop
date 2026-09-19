@@ -222,6 +222,22 @@ class CTMRGTests(unittest.TestCase):
         self.assertLess(replay["maximum_covariance_edge_relative_error"], 1e-8)
         self.assertTrue(any("integrated reduced-boundary replay passes" in warning for warning in result["warnings"]))
 
+    def test_covariant_bilinear_rejects_unimplemented_sector_ensemble(self):
+        with self.assertRaisesRegex(ValueError, "sector-ensemble rank selection is not implemented"):
+            CTMRGPayload(
+                ctmrg_projector="covariant-bilinear",
+                virtual_bond_dim=2,
+                environment_sector_policy="symmetry-ensemble",
+                interactions=[IPEPSInteraction(
+                    left_site=0,
+                    right_site=0,
+                    displacement=[1, 0],
+                    left_pauli="Z",
+                    right_pauli="Z",
+                    coefficient=1.0,
+                )],
+            )
+
     def test_symmetry_sector_ensemble_restores_ghz_gauge_gate(self):
         tensor_data: list[list[float]] = []
         for physical in range(2):

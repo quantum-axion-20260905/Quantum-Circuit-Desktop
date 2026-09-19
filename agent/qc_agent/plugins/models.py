@@ -298,6 +298,11 @@ class CTMRGPayload(BaseModel):
                 raise ValueError("bilinear CTMRG projectors currently support only a 1x1 unit cell")
             if self.optimization != "none":
                 raise ValueError("bilinear CTMRG projectors are diagnostic-only and cannot alter an optimization path yet")
+        if self.ctmrg_projector == "covariant-bilinear" and self.environment_sector_policy != "single":
+            raise ValueError(
+                "covariant-bilinear currently requires environment_sector_policy='single'; "
+                "sector-ensemble rank selection is not implemented"
+            )
         if self.gauge_preconditioner != "none" and self.optimization != "none":
             raise ValueError("virtual-gauge preconditioning is diagnostic-only and cannot alter an optimization path yet")
         if self.environment_sector_policy != "single" and self.optimization != "none":
