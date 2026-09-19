@@ -294,8 +294,8 @@ class CTMRGPayload(BaseModel):
         if self.ctmrg_projector in {"biorthogonal-bilinear", "covariant-bilinear"}:
             if self.virtual_bond_dim > 2:
                 raise ValueError("bilinear CTMRG projectors currently require virtual_bond_dim<=2")
-            if self.unit_cell != [1, 1]:
-                raise ValueError("bilinear CTMRG projectors currently support only a 1x1 unit cell")
+            if self.ctmrg_projector == "biorthogonal-bilinear" and self.unit_cell != [1, 1]:
+                raise ValueError("biorthogonal-bilinear CTMRG projectors currently support only a 1x1 unit cell")
             if self.optimization != "none":
                 raise ValueError("bilinear CTMRG projectors are diagnostic-only and cannot alter an optimization path yet")
         if self.ctmrg_projector == "covariant-bilinear" and self.environment_sector_policy != "single":
@@ -539,8 +539,8 @@ class CTMRGSpinModelPayload(LatticeHamiltonianPayload):
             raise ValueError("CTMRG spin models require a 2D unit-cell dimensions=[nx, ny]")
         if any(int(size) > 2 for size in self.dimensions):
             raise ValueError("CTMRG spin model unit-cell dimensions are limited to 2x2")
-        if self.ctmrg_projector in {"biorthogonal-bilinear", "covariant-bilinear"} and self.dimensions != [1, 1]:
-            raise ValueError("bilinear CTMRG spin models currently support only a 1x1 unit cell")
+        if self.ctmrg_projector == "biorthogonal-bilinear" and self.dimensions != [1, 1]:
+            raise ValueError("biorthogonal-bilinear CTMRG spin models currently support only a 1x1 unit cell")
         return self
 
 

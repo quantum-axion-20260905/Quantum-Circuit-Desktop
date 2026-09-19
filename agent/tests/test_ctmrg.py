@@ -280,6 +280,39 @@ class CTMRGTests(unittest.TestCase):
             self.assertEqual(resumed["environment_map"]["map_id"], "ctmrg-covariant-bilinear-v1")
             self.assertEqual(resumed["iterations"], 8)
 
+    def test_covariant_bilinear_runs_bounded_two_by_two_observable_replay(self):
+        rng = np.random.default_rng(17)
+        tensors = rng.normal(size=(4, 2, 2, 2, 2, 2)) + 1j * rng.normal(size=(4, 2, 2, 2, 2, 2))
+        tensors = tensors.astype(np.complex128)
+        tensors /= np.linalg.norm(tensors.reshape(4, -1), axis=1)[:, None, None, None, None, None]
+        tensor_data = [[float(value.real), float(value.imag)] for value in tensors.reshape(-1)]
+        result = run_ctmrg(np, CTMRGPayload(
+            unit_cell=[2, 2],
+            ctmrg_projector="covariant-bilinear",
+            virtual_bond_dim=2,
+            dtype="complex128",
+            tensor_data=tensor_data,
+            environment_bond_dim=2,
+            iterations=4,
+            gauge_validation=True,
+            interactions=[IPEPSInteraction(
+                left_site=0,
+                right_site=1,
+                displacement=[1, 0],
+                left_pauli="Z",
+                right_pauli="Z",
+                coefficient=1.0,
+            )],
+        ))
+        self.assertEqual(result["unit_cell"], [2, 2])
+        self.assertEqual(result["environment_map"]["map_id"], "ctmrg-covariant-bilinear-v1")
+        replay = result["covariant_reduced_boundary_sweep_replay"]
+        self.assertTrue(replay["performed"])
+        self.assertTrue(replay["passed"])
+        self.assertEqual(replay["site_count"], 4)
+        self.assertLess(replay["maximum_normalized_observable_abs_error"], 1e-8)
+        self.assertFalse(result["research_gate"]["production_ready"])
+
     def test_symmetry_sector_ensemble_restores_ghz_gauge_gate(self):
         tensor_data: list[list[float]] = []
         for physical in range(2):

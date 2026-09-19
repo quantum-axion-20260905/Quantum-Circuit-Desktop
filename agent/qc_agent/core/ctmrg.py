@@ -1779,6 +1779,111 @@ def _covariant_bilinear_sweep_covariance_replay(
     }
 
 
+def _covariant_unit_cell_sweep_covariance_replay(
+    xp: Any,
+    environments: list[CTMEnvironment],
+    gauged_environments: list[CTMEnvironment],
+    layers: list[Any],
+    gauged_layers: list[Any],
+    tensors: list[Any],
+    gauged_tensors: list[Any],
+    unit_cell: list[int],
+    chi: int,
+) -> dict[str, Any]:
+    """Check physical covariance after one real multi-site CTM sweep.
+
+    Multi-site environments may use different internal retained-basis frames
+    even when their physical contractions are identical.  Comparing raw
+    corner/edge entries would therefore reject a valid sweep for a purely
+    coordinate reason.  This replay compares normalized onsite observables
+    after the actual periodic sweep and keeps the raw component discrepancy
+    visible as a diagnostic.  It is the bounded 2x2 gate for the covariant
+    candidate; it does not admit a thermodynamic result by itself.
+    """
+
+    if not environments or len(environments) != len(gauged_environments):
+        raise ValueError("multi-site covariance replay environment counts must match")
+    if len(environments) != len(layers) or len(environments) != len(tensors):
+        raise ValueError("multi-site covariance replay tensor counts must match")
+    next_environments, discarded = _unit_cell_sweep(
+        xp,
+        environments,
+        layers,
+        int(chi),
+        list(unit_cell),
+        tensors=tensors,
+        projector_method="covariant-bilinear",
+    )
+    next_gauged_environments, gauged_discarded = _unit_cell_sweep(
+        xp,
+        gauged_environments,
+        gauged_layers,
+        int(chi),
+        list(unit_cell),
+        tensors=gauged_tensors,
+        projector_method="covariant-bilinear",
+    )
+    site_reports: list[dict[str, Any]] = []
+    tolerance = 1e-6 if "64" in str(tensors[0].dtype) else 1e-10
+    raw_component_errors: list[float] = []
+    observable_errors: list[float] = []
+    for index, (environment, gauged_environment, tensor, gauged_tensor) in enumerate(
+        zip(next_environments, next_gauged_environments, tensors, gauged_tensors)
+    ):
+        raw_error = max(
+            float(_host(xp.linalg.norm(left - right))) / max(_max_abs(xp, left), 1e-30)
+            for left, right in zip(environment.tensors(), gauged_environment.tensors())
+        )
+        z_operator = _pauli_matrix(
+            xp,
+            tensor.dtype,
+            "Z",
+            getattr(tensor, "device", None),
+        )
+        denominator = _environment_contraction(
+            xp, environment, _double_layer(xp, tensor)
+        )
+        gauged_denominator = _environment_contraction(
+            xp, gauged_environment, _double_layer(xp, gauged_tensor)
+        )
+        z_value = _environment_contraction(
+            xp, environment, _double_layer(xp, tensor, z_operator)
+        ) / (denominator + 1e-30)
+        gauged_z_value = _environment_contraction(
+            xp, gauged_environment, _double_layer(xp, gauged_tensor, z_operator)
+        ) / (gauged_denominator + 1e-30)
+        observable_error = float(abs(_real(z_value) - _real(gauged_z_value)))
+        raw_component_errors.append(float(raw_error))
+        observable_errors.append(observable_error)
+        site_reports.append({
+            "site": int(index),
+            "raw_component_relative_error": float(raw_error),
+            "z_value": _real(z_value),
+            "gauged_z_value": _real(gauged_z_value),
+            "normalized_observable_abs_error": observable_error,
+            "tolerance": tolerance,
+            "passed": bool(observable_error <= tolerance),
+        })
+    return {
+        "performed": True,
+        "method": "covariant-unit-cell-sweep-normalized-observable-replay",
+        "unit_cell": list(unit_cell),
+        "site_count": len(site_reports),
+        "steps": site_reports,
+        "discarded_weight": float(discarded),
+        "gauged_discarded_weight": float(gauged_discarded),
+        "maximum_raw_component_relative_error": max(raw_component_errors, default=0.0),
+        "maximum_normalized_observable_abs_error": max(observable_errors, default=0.0),
+        "tolerance": tolerance,
+        "passed": bool(all(item["passed"] for item in site_reports)),
+        "limitations": [
+            "physical observable ratios are compared because raw multi-site boundary entries may differ by an internal retained-basis frame",
+            "the replay covers one periodic sweep and a bounded onsite observable only",
+            "two-site interaction covariance and multi-site checkpoint frame state remain separate gates",
+        ],
+    }
+
+
 def _term_expectation(xp: Any, env: CTMEnvironment, tensor: Any, term: PauliTerm) -> float:
     if len(term.paulis) > 1:
         raise ValueError("one-site CTMRG onsite terms must act on at most one unit-cell site")
@@ -2878,15 +2983,21 @@ def run_ctmrg(
                 virtual_bond_dim=int(payload.virtual_bond_dim),
             )
             if payload.ctmrg_projector in {"biorthogonal-bilinear", "covariant-bilinear"}:
-                directional_boundary_transport_validation = _directional_boundary_transport_validation(
-                    xp,
-                    environments[0],
-                    transported_environments[0],
-                    layers[0],
-                    gauged_layers[0],
-                    paired_virtual_gauge_matrices(xp, tensors[0]),
-                    boundary_dim=int(environments[0].C1.shape[0]),
-                )
+                if len(tensors) == 1:
+                    directional_boundary_transport_validation = _directional_boundary_transport_validation(
+                        xp,
+                        environments[0],
+                        transported_environments[0],
+                        layers[0],
+                        gauged_layers[0],
+                        paired_virtual_gauge_matrices(xp, tensors[0]),
+                        boundary_dim=int(environments[0].C1.shape[0]),
+                    )
+                else:
+                    directional_boundary_transport_validation = {
+                        "performed": False,
+                        "reason": "multi-site covariant replay uses normalized observable ratios and shared-frame diagnostics",
+                    }
                 if payload.ctmrg_projector == "biorthogonal-bilinear":
                     directional_sweep_covariance_replay = _directional_bilinear_sweep_covariance_replay(
                         xp,
@@ -2911,17 +3022,30 @@ def run_ctmrg(
                         sweeps=1,
                     )
                 else:
-                    covariant_reduced_boundary_sweep_replay = _covariant_bilinear_sweep_covariance_replay(
-                        xp,
-                        environments[0],
-                        transported_environments[0],
-                        layers[0],
-                        gauged_layers[0],
-                        paired_virtual_gauge_matrices(xp, tensors[0]),
-                        boundary_dim=int(environments[0].C1.shape[0]),
-                        chi=int(payload.environment_bond_dim),
-                        sweeps=1,
-                    )
+                    if len(tensors) == 1:
+                        covariant_reduced_boundary_sweep_replay = _covariant_bilinear_sweep_covariance_replay(
+                            xp,
+                            environments[0],
+                            transported_environments[0],
+                            layers[0],
+                            gauged_layers[0],
+                            paired_virtual_gauge_matrices(xp, tensors[0]),
+                            boundary_dim=int(environments[0].C1.shape[0]),
+                            chi=int(payload.environment_bond_dim),
+                            sweeps=1,
+                        )
+                    else:
+                        covariant_reduced_boundary_sweep_replay = _covariant_unit_cell_sweep_covariance_replay(
+                            xp,
+                            environments,
+                            transported_environments,
+                            layers,
+                            gauged_layers,
+                            tensors,
+                            gauged_tensors,
+                            unit_cell,
+                            int(payload.environment_bond_dim),
+                        )
                     directional_sweep_covariance_replay = {
                         "performed": False,
                         "reason": "raw bilinear replay is not the covariant-bilinear candidate gate",
