@@ -158,6 +158,11 @@ class CTMRGTests(unittest.TestCase):
         self.assertFalse(replay["passed"])
         top_step = next(step for step in replay["steps"] if step["direction"] == "top")
         self.assertGreater(top_step["factor_errors"]["corner_left_relative_error"], 1e-3)
+        tracked = result["tracked_basis_sweep_replay"]
+        self.assertTrue(tracked["performed"])
+        self.assertTrue(tracked["passed"])
+        self.assertLess(tracked["maximum_factor_relative_error"], 1e-8)
+        self.assertLess(tracked["maximum_moved_edge_relative_error"], 1e-8)
         self.assertTrue(any("paired-gauge probe fails" in warning for warning in result["warnings"]))
         self.assertTrue(any("no principled discarded-weight estimate" in warning for warning in result["warnings"]))
 

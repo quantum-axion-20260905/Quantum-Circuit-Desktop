@@ -1330,6 +1330,206 @@ def _directional_bilinear_sweep_covariance_replay(
     }
 
 
+def _tracked_bilinear_sweep_covariance_replay(
+    xp: Any,
+    environment: CTMEnvironment,
+    gauged_environment: CTMEnvironment,
+    layer: Any,
+    gauged_layer: Any,
+    virtual_gauges: tuple[Any, Any, Any, Any],
+    boundary_dim: int,
+    chi: int,
+    *,
+    sweeps: int = 1,
+) -> dict[str, Any]:
+    """Replay a split primal/dual basis through bounded one-site moves.
+
+    This is the next-step prototype after the raw bilinear replay.  Corner
+    contractions use the primal transported basis ``K @ P`` while grown-edge
+    contractions use the dual basis ``K**(-T) @ P``.  The prototype is kept
+    separate from the production move until retained-subspace selection,
+    normalization, and checkpoint semantics are defined for the state.
+    """
+
+    if int(sweeps) < 1:
+        raise ValueError("sweeps must be positive")
+    if int(boundary_dim) < 1 or int(chi) < 1:
+        raise ValueError("boundary_dim and chi must be positive")
+
+    directions = ("left", "right", "top", "bottom")
+    current = environment
+    current_gauged = gauged_environment
+    reports: list[dict[str, Any]] = []
+
+    def relative_error(actual: Any, expected: Any) -> float:
+        scale = max(_max_abs(xp, expected), 1e-30)
+        return float(_host(xp.linalg.norm(actual - expected))) / scale
+
+    def moved_edge(environment_value: CTMEnvironment, direction: str) -> Any:
+        return getattr(environment_value, {
+            "left": "T4",
+            "right": "T2",
+            "top": "T1",
+            "bottom": "T3",
+        }[direction])
+
+    def moved_corners(environment_value: CTMEnvironment, direction: str) -> tuple[Any, Any]:
+        if direction == "left":
+            return environment_value.C1, environment_value.C4
+        if direction == "right":
+            return environment_value.C2, environment_value.C3
+        if direction == "top":
+            return environment_value.C1, environment_value.C2
+        return environment_value.C4, environment_value.C3
+
+    for sweep_index in range(int(sweeps)):
+        for direction in directions:
+            first, second, grown = _directional_boundary_factors(
+                xp, current, layer, direction
+            )
+            gauged_first, gauged_second, gauged_grown = _directional_boundary_factors(
+                xp, current_gauged, gauged_layer, direction
+            )
+            maps = directional_boundary_gauge_map(
+                xp,
+                virtual_gauges,
+                boundary_dim=int(boundary_dim),
+                direction=direction,
+            )
+            corner_left, corner_right, edge_left, edge_right, basis_report = (
+                transport_bilinear_retained_basis_pair(
+                    xp,
+                    first,
+                    second,
+                    maps["grown_row"],
+                    maps["grown_col"],
+                )
+            )
+            original_left = first.T @ first
+            original_right = second.T @ second
+            original_edge = xp.einsum(
+                "ia,idj,jb->adb", first, grown, second
+            )
+            gauged_left = corner_left.T @ gauged_first
+            gauged_right = corner_right.T @ gauged_second
+            gauged_edge = xp.einsum(
+                "ia,idj,jb->adb", edge_left, gauged_grown, edge_right
+            )
+
+            if direction == "left":
+                next_environment = CTMEnvironment(
+                    original_left, current.C2, current.C3, original_right,
+                    current.T1, current.T2, current.T3, original_edge,
+                )
+                next_gauged_environment = CTMEnvironment(
+                    gauged_left, current_gauged.C2, current_gauged.C3, gauged_right,
+                    current_gauged.T1, current_gauged.T2, current_gauged.T3, gauged_edge,
+                )
+            elif direction == "right":
+                next_environment = CTMEnvironment(
+                    current.C1, original_left, original_right, current.C4,
+                    current.T1, original_edge, current.T3, current.T4,
+                )
+                next_gauged_environment = CTMEnvironment(
+                    current_gauged.C1, gauged_left, gauged_right, current_gauged.C4,
+                    current_gauged.T1, gauged_edge, current_gauged.T3, current_gauged.T4,
+                )
+            elif direction == "top":
+                next_environment = CTMEnvironment(
+                    original_left, original_right, current.C3, current.C4,
+                    original_edge, current.T2, current.T3, current.T4,
+                )
+                next_gauged_environment = CTMEnvironment(
+                    gauged_left, gauged_right, current_gauged.C3, current_gauged.C4,
+                    gauged_edge, current_gauged.T2, current_gauged.T3, current_gauged.T4,
+                )
+            else:
+                next_environment = CTMEnvironment(
+                    current.C1, current.C2, original_right, original_left,
+                    current.T1, current.T2, original_edge, current.T4,
+                )
+                next_gauged_environment = CTMEnvironment(
+                    current_gauged.C1, current_gauged.C2, gauged_right, gauged_left,
+                    current_gauged.T1, current_gauged.T2, gauged_edge, current_gauged.T4,
+                )
+
+            expected_edge = xp.einsum(
+                "oi,aid->aod", maps["grown_middle"], original_edge
+            )
+            original_corners = moved_corners(next_environment, direction)
+            gauged_corners = moved_corners(next_gauged_environment, direction)
+            tolerance = 1e-6 if "64" in str(first.dtype) else 1e-10
+            corner_output_error = max(
+                relative_error(gauged_corners[0], original_corners[0]),
+                relative_error(gauged_corners[1], original_corners[1]),
+            )
+            moved_edge_error = relative_error(
+                moved_edge(next_gauged_environment, direction), expected_edge
+            )
+            factor_errors = {
+                "corner_left_relative_error": relative_error(
+                    gauged_first, maps["corner_left"] @ first
+                ),
+                "corner_right_relative_error": relative_error(
+                    gauged_second, maps["corner_right"] @ second
+                ),
+                "grown_edge_relative_error": relative_error(
+                    gauged_grown,
+                    xp.einsum(
+                        "ab,bic,oi,dc->aod",
+                        maps["grown_row"],
+                        grown,
+                        maps["grown_middle"],
+                        maps["grown_col"],
+                    ),
+                ),
+            }
+            reports.append({
+                "sweep": sweep_index + 1,
+                "direction": direction,
+                "factor_errors": factor_errors,
+                "retained_basis_transport": basis_report,
+                "corner_output_relative_error": corner_output_error,
+                "moved_edge_relative_error": moved_edge_error,
+                "tolerance": tolerance,
+                "passed": bool(
+                    all(value <= tolerance for value in factor_errors.values())
+                    and corner_output_error <= tolerance
+                    and moved_edge_error <= tolerance
+                    and basis_report.get("passed", False)
+                ),
+            })
+            current = next_environment
+            current_gauged = next_gauged_environment
+
+    return {
+        "performed": True,
+        "method": "bounded-tracked-primal-dual-bilinear-sweep-replay",
+        "sweeps": int(sweeps),
+        "directions_per_sweep": list(directions),
+        "steps": reports,
+        "maximum_factor_relative_error": max(
+            (max(item["factor_errors"].values()) for item in reports),
+            default=0.0,
+        ),
+        "maximum_corner_output_relative_error": max(
+            (float(item["corner_output_relative_error"]) for item in reports),
+            default=0.0,
+        ),
+        "maximum_moved_edge_relative_error": max(
+            (float(item["moved_edge_relative_error"]) for item in reports),
+            default=0.0,
+        ),
+        "passed": bool(all(item["passed"] for item in reports)),
+        "limitations": [
+            "this is a bounded diagnostic prototype, not the production CTMRG move",
+            "the split basis is known and transported; no retained subspace is selected",
+            "normalization, damping, multi-site periodic updates, and checkpoint state are not integrated",
+            "a passing replay does not establish a converged thermodynamic fixed point",
+        ],
+    }
+
+
 def _term_expectation(xp: Any, env: CTMEnvironment, tensor: Any, term: PauliTerm) -> float:
     if len(term.paulis) > 1:
         raise ValueError("one-site CTMRG onsite terms must act on at most one unit-cell site")
@@ -2324,6 +2524,10 @@ def run_ctmrg(
         "performed": False,
         "reason": "not run for this request",
     }
+    tracked_basis_sweep_replay: dict[str, Any] = {
+        "performed": False,
+        "reason": "not run for this request",
+    }
     if bool(getattr(payload, "gauge_validation", False)):
         if int(payload.virtual_bond_dim) <= 1:
             gauge_validation["reason"] = "virtual_bond_dim=1 has no non-trivial virtual gauge probe"
@@ -2427,6 +2631,17 @@ def run_ctmrg(
                     chi=int(payload.environment_bond_dim),
                     sweeps=1,
                 )
+                tracked_basis_sweep_replay = _tracked_bilinear_sweep_covariance_replay(
+                    xp,
+                    environments[0],
+                    transported_environments[0],
+                    layers[0],
+                    gauged_layers[0],
+                    paired_virtual_gauge_matrices(xp, tensors[0]),
+                    boundary_dim=int(environments[0].C1.shape[0]),
+                    chi=int(payload.environment_bond_dim),
+                    sweeps=1,
+                )
                 transported_gauged_result = run_ctmrg(
                     xp,
                     probe_payload,
@@ -2473,6 +2688,10 @@ def run_ctmrg(
                 if not directional_sweep_covariance_replay["passed"]:
                     warnings.append(
                         "biorthogonal-bilinear bounded directional sweep replay still loses covariance; tracked retained-basis transport remains unresolved"
+                    )
+                if tracked_basis_sweep_replay["passed"]:
+                    warnings.append(
+                        "tracked primal/dual basis replay passes as a bounded prototype but is not integrated into the production CTMRG move"
                     )
             if not gauge_validation["passed"]:
                 warnings.append(
@@ -2590,6 +2809,7 @@ def run_ctmrg(
             "transported_gauge_validation": transported_gauge_validation,
             "directional_boundary_transport_validation": directional_boundary_transport_validation,
             "directional_sweep_covariance_replay": directional_sweep_covariance_replay,
+            "tracked_basis_sweep_replay": tracked_basis_sweep_replay,
             "gauge_conditioning": gauge_conditioning,
             "gauge_preconditioning": gauge_preconditioning,
             "research_gate": research_gate,
@@ -2637,6 +2857,7 @@ def run_ctmrg(
         "transported_gauge_validation": transported_gauge_validation,
         "directional_boundary_transport_validation": directional_boundary_transport_validation,
         "directional_sweep_covariance_replay": directional_sweep_covariance_replay,
+        "tracked_basis_sweep_replay": tracked_basis_sweep_replay,
         "gauge_conditioning": gauge_conditioning,
         "gauge_preconditioning": gauge_preconditioning,
         "research_gate": research_gate,
