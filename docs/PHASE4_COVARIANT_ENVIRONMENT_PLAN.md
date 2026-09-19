@@ -481,6 +481,33 @@ fixed-point classification remains `needs_review`.
 The next numerical gate is covariant initialization/fixed-point convergence,
 not another projector normalization shortcut.
 
+### Dynamic retained-sector contract checkpoint (2026-09-19)
+
+Commit `d77e136` adds `select_covariant_dynamic_boundary_frame`, the first
+implementation seam for the v2 rectangular environment state. It inspects the
+invariant reduced overlap `S = L.T @ R`, estimates the supported numerical
+rank, and returns the largest admissible primal/dual frame up to the requested
+dimension. A rank-deficient request is reduced explicitly; it is never hidden
+behind a pseudoinverse or a regularizer. The report records the requested
+dimension, retained dimension, rank estimate, threshold, biorthogonal error,
+and an explicit `fixed_chi_admission: false` marker.
+
+The full-rank path is delegated to the replay-tested v1 selector, preserving
+the transposed linear-solve normalization. The reduced path uses the same
+invariant-overlap SVD construction at the effective rank and returns a
+rectangular frame. Three unit tests cover full-rank equivalence, explicit
+rank-one reduction, and empty-sector rejection; the full regression is now
+`170/170`.
+
+This is an architectural contract, not yet a production solver upgrade: the
+current `CTMEnvironment` stores square fixed-`chi` corners/edges and therefore
+cannot consume a changing retained dimension. The next packet must introduce
+an immutable rectangular boundary-state type, directional shape validation,
+checkpoint serialization/digest support, and a bounded one-site move that
+uses this state. Only after that state survives the existing covariance replay
+and transfer-gap gates can dynamic retention be enabled in the public CTMRG
+policy.
+
 - For comparison, CPU complex128 canonical GHZ on the raw candidate: left/right/bottom pass, top fails with corner
   factor relative error `5.7097e-1` and moved-edge error `1.5037`.
 - For comparison, CPU random D=2 seeds 17/29/41 on the raw candidate: replay remains red, with maximum factor error

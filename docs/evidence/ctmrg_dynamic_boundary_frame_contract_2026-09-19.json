@@ -1,0 +1,27 @@
+{
+  "schema": "quantum-circuit/ctmrg-evidence-v1",
+  "date": "2026-09-19",
+  "revision": "d77e136",
+  "candidate": "covariant-bilinear-v2-contract",
+  "environment_map": "ctmrg-covariant-dynamic-frame-v1",
+  "scope": {
+    "backend": "NumPy",
+    "dtype": "complex128",
+    "unit_cell": "selector-level",
+    "requested_retained_dimensions": [2]
+  },
+  "contract": {
+    "reduced_object": "S = L.T @ R",
+    "rank_policy": "estimate rank from a relative singular floor and retain min(requested_dim, rank)",
+    "rank_deficiency_policy": "return an explicitly reduced rectangular frame; never use a pseudoinverse",
+    "biorthogonal_rule": "P.T @ Q = I",
+    "fixed_chi_admission": false
+  },
+  "tests": {
+    "full_rank_equivalence": true,
+    "rank_one_reduction": true,
+    "empty_sector_rejection": true,
+    "full_regression": "170/170"
+  },
+  "interpretation": "The dynamic retained-sector selector is a tested reusable contract for the next rectangular environment state. It is not yet wired into the square fixed-chi CTMRG move and does not change public solver admission."
+}
