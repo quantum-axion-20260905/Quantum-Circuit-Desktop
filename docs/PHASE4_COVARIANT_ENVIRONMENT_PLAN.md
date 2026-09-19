@@ -164,6 +164,9 @@ tested as well: the projected grown edge transforms only by its declared
 middle virtual gauge, with the retained boundary indices preserved. This
 separates edge covariance from the still-open corner-basis update and is now
 the seam used by the raw dual-span candidate.
+The directional map and projector-pair transport are now exposed together as
+a tested four-direction seam; it still does not infer a gauge or choose a
+retained subspace.
 
 A bounded chi probe for seed 17 was run at chi=2 and chi=3. In CPU
 complex128, both points remain unconverged and the normalized residual rises
