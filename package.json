@@ -8,7 +8,9 @@
   "scripts": {
     "dev:web": "npm -w apps/web run dev",
     "build:web": "npm -w apps/web run build",
-    "lint:web": "npm -w apps/web run lint"
+    "lint:web": "npm -w apps/web run lint",
+    "dev:desktop": "npm -w apps/desktop run dev",
+    "build:desktop": "npm -w apps/desktop run build"
   }
 }
 

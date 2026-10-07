@@ -8,6 +8,7 @@ use tauri::{Manager, RunEvent, State};
 struct AgentState { child: Option<Child>, port: u16, token: String }
 struct AppState { db: Mutex<Option<Connection>>, agent: Mutex<AgentState> }
 
+#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 struct RunRequest { kind: String, circuit: Value, config: Value }
 

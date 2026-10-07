@@ -504,7 +504,7 @@ export function CircuitEditor() {
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (menuBarRef.current && !menuBarRef.current.contains(event.target as Node)) {
+      if (menuBarRef.current && !menuBarRef.current.contains(event.target as unknown as HTMLElement)) {
         setOpenMenu(null);
       }
     }
