@@ -196,29 +196,467 @@ export function ResearchWorkspace({ mode }: { mode: WorkspaceMode }) {
   const sweepFailed = isSweep ? Number(output.failed ?? 0) : 0;
   const validation = output ? (isSweep ? Number(output.failed ?? 1) === 0 : output.norm2 != null ? Math.abs(Number(output.norm2) - 1) < 1e-5 : totalCounts > 0 ? totalCounts === Number(output.shots ?? totalCounts) : false) : false;
 
-  if (mode === "run") return <main style={{ maxWidth: 960, width: "100%", margin: "0 auto", padding: "42px 32px" }}>
-    <div style={{ marginBottom: 30 }}><h1 style={{ fontSize: 24, margin: 0 }}>Run simulation</h1><p style={{ color: "#64748b", margin: "8px 0 0" }}>Check the circuit first, then run it locally.</p></div>
-    <section style={card}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 24 }}>
-        <Metric label="Circuit" value={`${nQubits} qubits · ${ops.length} gates`} />
-        {backend === "tensor-network" && simulationQubits > nQubits ? <Metric label="Simulation" value={`${Math.max(nQubits, simulationQubits)} qubits`} /> : null}
-        <Metric label="Compute" value={backend === "reference" ? "Reference CPU" : "Local backend"} />
-        <Metric label="GPU" value={capabilities?.gpu?.available ? "Available" : "Not required"} tone={capabilities?.gpu?.available ? "success" : undefined} />
-      </div>
-      <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
-        <Button variant="secondary" onClick={analyze} disabled={busy !== null}>{busy === "analyze" ? "Analyzing…" : "Analyze feasibility"}</Button>
-        {parameterNames.length === 0 ? <Button variant="primary" onClick={run} disabled={busy !== null || !report?.feasible}>{busy === "run" ? "Running…" : "Run simulation"}</Button> : <Button variant="primary" onClick={runSweep} disabled={busy !== null}>{busy === "run" ? "Running…" : "Run parameter sweep"}</Button>}
-      </div>
-    </section>
-    {report ? <section style={{ ...card, marginTop: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 18 }}><strong>{report.feasible ? "Ready to run" : "Run not recommended"}</strong><span style={{ color: report.feasible ? "#047857" : "#b45309", fontSize: 13 }}>{report.feasible ? "Within current budget" : "Adjust circuit or limits"}</span></div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 24 }}><Metric label="Estimated memory" value={report.estimated_peak_memory_mb != null ? `${report.estimated_peak_memory_mb} MB` : "—"} /><Metric label="Path cost" value={report.path_cost ?? "—"} /><Metric label="Estimated time" value={report.estimated_time_ms != null ? `${report.estimated_time_ms} ms` : "—"} />{report.tn_method === "mps" ? <Metric label="Bond dimension" value={report.bond_dim != null ? Number(report.bond_dim) : bondDim} /> : null}</div>
-      {Array.isArray(report.warnings) && report.warnings.length > 0 ? <div style={{ marginTop: 18, color: "#92400e", fontSize: 13 }}>{report.warnings.join(" · ")}</div> : null}
-    </section> : null}
-    {jobProgress ? <ComputeProgress job={jobProgress} onCancel={() => void cancelJob()} canceling={canceling} onRetry={() => retryRef.current?.()} retrying={busy === "run"} /> : null}
-    {error ? <div style={{ color: "#b91c1c", marginTop: 16, fontSize: 13 }}>{error}</div> : null}
-    <details open={advanced} onToggle={(e) => setAdvanced((e.target as HTMLDetailsElement).open)} style={{ marginTop: 24 }}><summary style={{ cursor: "pointer", color: "#475569", fontSize: 13 }}>Advanced settings</summary><div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 14, alignItems: "center" }}><label>Backend <select value={backend} onChange={(e) => setBackend(e.target.value as Backend)}><option value="auto">Auto</option><option value="statevector">GPU statevector</option><option value="tensor-network">GPU tensor network</option><option value="reference">Reference CPU</option></select></label><label>Optimizer <select value={optimizer} onChange={(e) => setOptimizer(e.target.value as Optimizer)}><option value="auto">Auto</option><option value="cotengra">Cotengra</option></select></label>{backend === "tensor-network" ? <><label>Simulation qubits <input type="number" min={nQubits} max={4096} value={simulationNQubits} onChange={(e) => setSimulationQubits(Math.max(nQubits, Math.min(4096, Number(e.target.value) || nQubits)))} /></label><label>TN output <select value={tnResultType} onChange={(e) => setTnResultType(e.target.value as TNResultType)}><option value="samples">Samples</option><option value="selected_amplitudes">Selected amplitudes</option></select></label><label>Bond dimension <input type="number" min={1} max={4096} value={bondDim} onChange={(e) => setBondDim(Math.max(1, Math.min(4096, Number(e.target.value) || 1)))} /></label><label>Truncation cutoff <input type="number" min={0} max={1} step="any" value={truncationCutoff} onChange={(e) => setTruncationCutoff(Math.max(0, Math.min(1, Number(e.target.value) || 0)))} /></label></> : null}<label>Shots <input type="number" min={1} max={200000} value={shots} onChange={(e) => setShots(Number(e.target.value) || 1)} /></label><label>Bitstrings <input value={bitstrings} onChange={(e) => setBitstrings(e.target.value)} placeholder="auto" /></label><label><input type="checkbox" checked={noiseEnabled} onChange={(e) => setNoiseEnabled(e.target.checked)} /> Noise trajectories</label>{noiseEnabled ? <><label>1q depolarizing <input type="number" min={0} max={1} step="any" value={noise.one_qubit_depolarizing} onChange={(e) => setNoise((current) => ({ ...current, one_qubit_depolarizing: Math.max(0, Math.min(1, Number(e.target.value) || 0)) }))} /></label><label>2q depolarizing <input type="number" min={0} max={1} step="any" value={noise.two_qubit_depolarizing} onChange={(e) => setNoise((current) => ({ ...current, two_qubit_depolarizing: Math.max(0, Math.min(1, Number(e.target.value) || 0)) }))} /></label><label>Readout flip <input type="number" min={0} max={1} step="any" value={noise.readout_flip} onChange={(e) => setNoise((current) => ({ ...current, readout_flip: Math.max(0, Math.min(1, Number(e.target.value) || 0)) }))} /></label></> : null}{parameterNames.length > 0 ? <div style={{ flexBasis: "100%", display: "flex", gap: 14, flexWrap: "wrap", marginTop: 4, alignItems: "center", color: "#475569", fontSize: 13 }}><span>Sweep values (comma-separated radians)</span>{parameterNames.map((name) => <label key={name}>{name} <input value={sweepValues[name] ?? "0, 1.57079632679, 3.14159265359"} onChange={(e) => setSweepValues((current) => ({ ...current, [name]: e.target.value }))} placeholder="0, 1.57, 3.14" /></label>)}</div> : null}</div></details>
-  </main>;
+  if (mode === "run") {
+    const depth = Math.max(0, ...ops.map((op) => op.col), -1) + 1;
+    const twoQ = ops.filter((op) => op.name === "cx" || op.name === "cz").length;
+
+    return (
+      <main style={{ maxWidth: "100%", width: "100%", margin: 0, padding: "16px 20px 48px", boxSizing: "border-box" }}>
+        {/* Top Control Header */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 16,
+            padding: "10px 16px",
+            background: "#ffffff",
+            borderRadius: 10,
+            border: "1px solid var(--qc-border)",
+            boxShadow: "var(--qc-shadow-sm)",
+            marginBottom: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: ".05em" }}>
+                Quantum Execution Engine
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>
+                {nQubits} Qubits · {ops.length} Gates · Depth {depth}
+              </div>
+            </div>
+            <div style={{ width: 1, height: 28, background: "#e2e8f0" }} />
+            <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "#475569" }}>
+              <span>2-Qubit gates: <strong>{twoQ}</strong></span>
+              <span>•</span>
+              <span>GPU: <strong style={{ color: capabilities?.gpu?.available ? "#059669" : "#64748b" }}>{capabilities?.gpu?.available ? "Available" : "Standard"}</strong></span>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <Button variant="secondary" onClick={analyze} disabled={busy !== null}>
+              {busy === "analyze" ? "Analyzing Feasibility…" : "🔍 Preflight Feasibility"}
+            </Button>
+            {parameterNames.length === 0 ? (
+              <Button
+                variant="primary"
+                onClick={run}
+                disabled={busy !== null || (report != null && !report.feasible)}
+                style={{ minWidth: 150, padding: "8px 18px", fontSize: 13, fontWeight: 700 }}
+              >
+                {busy === "run" ? "Simulating…" : "▶ Run Simulation"}
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                onClick={runSweep}
+                disabled={busy !== null || (report != null && !report.feasible)}
+                style={{ minWidth: 160, padding: "8px 18px", fontSize: 13, fontWeight: 700 }}
+              >
+                {busy === "run" ? "Sweeping…" : "▶ Run Parameter Sweep"}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Two-Column Studio Layout */}
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(340px, 0.9fr) minmax(440px, 1.1fr)", gap: 18 }}>
+          {/* LEFT: Execution & Simulation Settings */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Backend & Parameters Card */}
+            <section style={card}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4, color: "#0f172a" }}>
+                Backend & Solver Configuration
+              </div>
+              <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
+                Select execution backend and measurement sampling parameters.
+              </div>
+
+              <div style={{ display: "grid", gap: 12 }}>
+                <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
+                  <span style={{ fontWeight: 500, color: "#334155" }}>Compute Backend</span>
+                  <select
+                    value={backend}
+                    onChange={(e) => setBackend(e.target.value as Backend)}
+                    style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 13, background: "#f8fafc" }}
+                  >
+                    <option value="auto">Auto (Adaptive)</option>
+                    <option value="statevector">GPU Statevector (Exact)</option>
+                    <option value="tensor-network">GPU Tensor Network (MPS)</option>
+                    <option value="reference">Reference CPU</option>
+                  </select>
+                </label>
+
+                <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
+                  <span style={{ fontWeight: 500, color: "#334155" }}>Shots (Samples)</span>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {[1024, 4096, 8192].map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setShots(s)}
+                        style={{
+                          padding: "3px 8px",
+                          borderRadius: 4,
+                          border: shots === s ? "1px solid #2563eb" : "1px solid #e2e8f0",
+                          background: shots === s ? "#eff6ff" : "#fff",
+                          color: shots === s ? "#1d4ed8" : "#475569",
+                          fontSize: 12,
+                          fontWeight: shots === s ? 700 : 500,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                    <input
+                      type="number"
+                      min={1}
+                      max={200000}
+                      value={shots}
+                      onChange={(e) => setShots(Number(e.target.value) || 1)}
+                      style={{ width: 70, padding: "3px 6px", borderRadius: 4, border: "1px solid #cbd5e1", fontSize: 12, textAlign: "center" }}
+                    />
+                  </div>
+                </label>
+
+                <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
+                  <span style={{ fontWeight: 500, color: "#334155" }}>Target Bitstrings</span>
+                  <input
+                    value={bitstrings}
+                    onChange={(e) => setBitstrings(e.target.value)}
+                    placeholder="auto (or 00, 11)"
+                    style={{ width: 140, padding: "4px 8px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 12, background: "#f8fafc" }}
+                  />
+                </label>
+
+                <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
+                  <span style={{ fontWeight: 500, color: "#334155" }}>Tensor Optimizer</span>
+                  <select
+                    value={optimizer}
+                    onChange={(e) => setOptimizer(e.target.value as Optimizer)}
+                    style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #cbd5e1", fontSize: 13, background: "#f8fafc" }}
+                  >
+                    <option value="auto">Auto (Greedy / TN)</option>
+                    <option value="cotengra">Cotengra (Hyper-optimized)</option>
+                  </select>
+                </label>
+
+                {backend === "tensor-network" && (
+                  <div style={{ padding: 12, borderRadius: 8, background: "#f8fafc", border: "1px solid #e2e8f0", display: "grid", gap: 10, marginTop: 4 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#1e293b" }}>Tensor Network Parameters</div>
+                    <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
+                      <span>Simulation Qubits</span>
+                      <input
+                        type="number"
+                        min={nQubits}
+                        max={4096}
+                        value={simulationNQubits}
+                        onChange={(e) => setSimulationQubits(Math.max(nQubits, Math.min(4096, Number(e.target.value) || nQubits)))}
+                        style={{ width: 70, padding: "3px 6px", borderRadius: 4, border: "1px solid #cbd5e1", textAlign: "center" }}
+                      />
+                    </label>
+                    <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
+                      <span>Bond Dimension χ</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={4096}
+                        value={bondDim}
+                        onChange={(e) => setBondDim(Math.max(1, Math.min(4096, Number(e.target.value) || 1)))}
+                        style={{ width: 70, padding: "3px 6px", borderRadius: 4, border: "1px solid #cbd5e1", textAlign: "center" }}
+                      />
+                    </label>
+                    <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
+                      <span>Truncation Cutoff</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={1}
+                        step="any"
+                        value={truncationCutoff}
+                        onChange={(e) => setTruncationCutoff(Math.max(0, Math.min(1, Number(e.target.value) || 0)))}
+                        style={{ width: 70, padding: "3px 6px", borderRadius: 4, border: "1px solid #cbd5e1", textAlign: "center" }}
+                      />
+                    </label>
+                    <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12 }}>
+                      <span>Output Type</span>
+                      <select
+                        value={tnResultType}
+                        onChange={(e) => setTnResultType(e.target.value as TNResultType)}
+                        style={{ padding: "3px 6px", borderRadius: 4, border: "1px solid #cbd5e1", fontSize: 12 }}
+                      >
+                        <option value="samples">Measurement Samples</option>
+                        <option value="selected_amplitudes">Selected Amplitudes</option>
+                      </select>
+                    </label>
+                  </div>
+                )}
+
+                {/* Advanced Noise & Sweep Details */}
+                <details open={advanced} onToggle={(e) => setAdvanced((e.target as HTMLDetailsElement).open)} style={{ borderTop: "1px solid #f1f5f9", paddingTop: 8 }}>
+                  <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#475569" }}>Advanced Noise Model & Environment</summary>
+                  <div style={{ marginTop: 10 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", fontWeight: 500, color: "#334155" }}>
+                    <input
+                      type="checkbox"
+                      checked={noiseEnabled}
+                      onChange={(e) => setNoiseEnabled(e.target.checked)}
+                      style={{ cursor: "pointer" }}
+                    />
+                    Enable Realistic Depolarizing & Readout Noise
+                  </label>
+                  {noiseEnabled && (
+                    <div style={{ display: "grid", gap: 8, marginTop: 10, padding: 10, background: "#fffbeb", borderRadius: 6, border: "1px solid #fde68a", fontSize: 12 }}>
+                      <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>1-qubit depolarizing:</span>
+                        <input
+                          type="number"
+                          step="0.001"
+                          min={0}
+                          max={1}
+                          value={noise.one_qubit_depolarizing}
+                          onChange={(e) => setNoise((c) => ({ ...c, one_qubit_depolarizing: Number(e.target.value) || 0 }))}
+                          style={{ width: 70, padding: "2px 6px", borderRadius: 4, border: "1px solid #cbd5e1" }}
+                        />
+                      </label>
+                      <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>2-qubit depolarizing:</span>
+                        <input
+                          type="number"
+                          step="0.001"
+                          min={0}
+                          max={1}
+                          value={noise.two_qubit_depolarizing}
+                          onChange={(e) => setNoise((c) => ({ ...c, two_qubit_depolarizing: Number(e.target.value) || 0 }))}
+                          style={{ width: 70, padding: "2px 6px", borderRadius: 4, border: "1px solid #cbd5e1" }}
+                        />
+                      </label>
+                      <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>Readout flip error:</span>
+                        <input
+                          type="number"
+                          step="0.001"
+                          min={0}
+                          max={1}
+                          value={noise.readout_flip}
+                          onChange={(e) => setNoise((c) => ({ ...c, readout_flip: Number(e.target.value) || 0 }))}
+                          style={{ width: 70, padding: "2px 6px", borderRadius: 4, border: "1px solid #cbd5e1" }}
+                        />
+                      </label>
+                    </div>
+                  )}
+                  </div>
+                </details>
+
+                {/* Parameter sweep values */}
+                {parameterNames.length > 0 && (
+                  <div style={{ padding: 10, background: "#f0fdf4", borderRadius: 6, border: "1px solid #bbf7d0", fontSize: 12 }}>
+                    <strong style={{ color: "#166534" }}>Parameterized Circuit:</strong>
+                    <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+                      {parameterNames.map((name) => (
+                        <label key={name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span>{name} (radians):</span>
+                          <input
+                            value={sweepValues[name] ?? "0, 1.57, 3.14"}
+                            onChange={(e) => setSweepValues((c) => ({ ...c, [name]: e.target.value }))}
+                            style={{ width: 140, padding: "3px 6px", borderRadius: 4, border: "1px solid #cbd5e1" }}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Feasibility Preflight Report */}
+            {report && (
+              <section style={card}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <strong style={{ fontSize: 14, color: report.feasible ? "#059669" : "#b45309" }}>
+                    {report.feasible ? "✓ Feasibility Preflight Passed" : "⚠️ High Computational Budget"}
+                  </strong>
+                  <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: report.feasible ? "#dcfce7" : "#fef3c7", color: report.feasible ? "#166534" : "#92400e", fontWeight: 600 }}>
+                    {report.feasible ? "Feasible" : "Check Limit"}
+                  </span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, fontSize: 12 }}>
+                  <div style={{ padding: 8, background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+                    <div style={{ color: "#64748b", fontSize: 10, textTransform: "uppercase" }}>Estimated RAM</div>
+                    <div style={{ fontWeight: 700, marginTop: 2, color: "#0f172a" }}>{report.estimated_peak_memory_mb != null ? `${report.estimated_peak_memory_mb} MB` : "—"}</div>
+                  </div>
+                  <div style={{ padding: 8, background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+                    <div style={{ color: "#64748b", fontSize: 10, textTransform: "uppercase" }}>Estimated Time</div>
+                    <div style={{ fontWeight: 700, marginTop: 2, color: "#0f172a" }}>{report.estimated_time_ms != null ? `${report.estimated_time_ms} ms` : "—"}</div>
+                  </div>
+                  <div style={{ padding: 8, background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+                    <div style={{ color: "#64748b", fontSize: 10, textTransform: "uppercase" }}>Path Cost</div>
+                    <div style={{ fontWeight: 700, marginTop: 2, color: "#0f172a" }}>{report.path_cost ?? "—"}</div>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {jobProgress && (
+              <ComputeProgress job={jobProgress} onCancel={() => void cancelJob()} canceling={canceling} onRetry={() => retryRef.current?.()} retrying={busy === "run"} />
+            )}
+
+            {error && (
+              <div role="alert" style={{ padding: 12, borderRadius: 8, color: "#991b1b", background: "#fef2f2", border: "1px solid #fecaca", fontSize: 13 }}>
+                ⚠️ {error}
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: Live Results & Measurement Histogram */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {output ? (
+              <>
+                {/* Result KPI Summary Card */}
+                <section style={card}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>Simulation Output & Metrics</div>
+                    <span style={{ fontSize: 12, padding: "3px 8px", borderRadius: 4, background: validation ? "#dcfce7" : "#fef3c7", color: validation ? "#166534" : "#92400e", fontWeight: 600 }}>
+                      {validation ? "✓ State Validated" : "Review Needed"}
+                    </span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                    <div style={{ padding: "8px 10px", background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+                      <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase" }}>Dominant State</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "#0f766e", marginTop: 2 }}>{dominant ? `|${dominant.key}⟩` : "—"}</div>
+                    </div>
+                    <div style={{ padding: "8px 10px", background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+                      <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase" }}>Dominant Prob</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "#0f766e", marginTop: 2 }}>
+                        {dominant && totalCounts ? `${(dominant.value / totalCounts * 100).toFixed(1)}%` : "—"}
+                      </div>
+                    </div>
+                    <div style={{ padding: "8px 10px", background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+                      <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase" }}>Total Shots</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", marginTop: 2 }}>{output.shots ?? totalCounts}</div>
+                    </div>
+                    <div style={{ padding: "8px 10px", background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0" }}>
+                      <div style={{ fontSize: 10, color: "#64748b", textTransform: "uppercase" }}>Execution Time</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: "#1e293b", marginTop: 2 }}>
+                        {output.provenance?.elapsed_ms != null ? `${Number(output.provenance.elapsed_ms).toFixed(1)} ms` : "—"}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Probability Histogram Card */}
+                {counts.length > 0 && (
+                  <section style={card}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>Measurement Probability Distribution</div>
+                      <span style={{ fontSize: 12, color: "#64748b" }}>{allCounts.length} measured states</span>
+                    </div>
+                    <div style={{ display: "grid", gap: 10 }}>
+                      {counts.map((item) => {
+                        const pct = totalCounts > 0 ? (item.value / totalCounts) * 100 : 0;
+                        return (
+                          <div key={item.key} style={{ display: "grid", gridTemplateColumns: "64px 1fr 70px 50px", gap: 10, alignItems: "center", fontSize: 12 }}>
+                            <code style={{ fontWeight: 700, color: "#0f172a", background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, textAlign: "center" }}>
+                              |{item.key}⟩
+                            </code>
+                            <div style={{ height: 18, background: "#f1f5f9", borderRadius: 4, overflow: "hidden", display: "flex", alignItems: "center" }}>
+                              <div
+                                style={{
+                                  width: `${pct}%`,
+                                  height: "100%",
+                                  background: "linear-gradient(90deg, #0f766e, #2dd4bf)",
+                                  borderRadius: 4,
+                                  transition: "width 300ms ease",
+                                }}
+                              />
+                            </div>
+                            <span style={{ textAlign: "right", fontWeight: 700, color: "#0f766e" }}>{pct.toFixed(2)}%</span>
+                            <span style={{ textAlign: "right", color: "#64748b" }}>{item.value}x</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
+
+                {/* Selected Amplitudes */}
+                {amplitudes.length > 0 && (
+                  <section style={card}>
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>Statevector Complex Amplitudes</div>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      {amplitudes.map((item) => (
+                        <div key={item.key} style={{ display: "grid", gridTemplateColumns: "64px 1fr 60px", gap: 10, alignItems: "center", fontSize: 12 }}>
+                          <code style={{ background: "#eff6ff", color: "#1d4ed8", padding: "2px 6px", borderRadius: 4, textAlign: "center" }}>|{item.key}⟩</code>
+                          <div style={{ height: 8, background: "#e2e8f0", borderRadius: 4, overflow: "hidden" }}>
+                            <div style={{ width: `${(item.value / maxAmplitude) * 100}%`, height: "100%", background: "#2563eb" }} />
+                          </div>
+                          <span style={{ textAlign: "right", fontWeight: 600 }}>{item.value.toFixed(4)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                {/* Sweep results */}
+                {isSweep && sweepRows.length > 0 && (
+                  <section style={card}>
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Parameter Sweep Results</div>
+                    <div style={{ fontSize: 12, color: "#64748b", marginBottom: 12 }}>{sweepCompleted}/{sweepPoints} points completed</div>
+                    <div style={{ maxHeight: 200, overflowY: "auto", display: "grid", gap: 6, fontSize: 12 }}>
+                      {sweepRows.map((row, index) => {
+                        const point = row.result as Record<string, unknown> | undefined;
+                        const params = row.parameters as Record<string, unknown> | undefined;
+                        return (
+                          <div key={index} style={{ padding: "6px 8px", background: "#f8fafc", borderRadius: 4, border: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between" }}>
+                            <code>{JSON.stringify(params ?? {})}</code>
+                            <span style={{ color: "#059669", fontWeight: 600 }}>{point ? "✓ Done" : "Failed"}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
+              </>
+            ) : (
+              <div
+                style={{
+                  ...card,
+                  minHeight: 380,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  textAlign: "center",
+                  color: "#64748b",
+                  background: "#f8fafc",
+                  border: "2px dashed #cbd5e1",
+                }}
+              >
+                <div style={{ fontSize: 36, marginBottom: 12 }}>⚡</div>
+                <div style={{ fontSize: 17, fontWeight: 700, color: "#1e293b", marginBottom: 6 }}>
+                  Ready to Run Simulation
+                </div>
+                <p style={{ maxWidth: 380, fontSize: 13, color: "#64748b", margin: "0 0 20px" }}>
+                  Your circuit contains <strong>{nQubits} qubits</strong> and <strong>{ops.length} gates</strong>. Click the run button below to evaluate the quantum state on the active compute engine.
+                </p>
+                <Button
+                  variant="primary"
+                  onClick={run}
+                  disabled={busy !== null}
+                  style={{ padding: "10px 24px", fontSize: 14, fontWeight: 700 }}
+                >
+                  ▶ Run Simulation Now
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return <main style={{ maxWidth: 960, width: "100%", margin: "0 auto", padding: "42px 32px" }}>
     <div style={{ marginBottom: 30 }}><h1 style={{ fontSize: 24, margin: 0 }}>Results</h1><p style={{ color: "#64748b", margin: "8px 0 0" }}>{output ? "Latest simulation result." : "Run a simulation to see its result here."}</p></div>
