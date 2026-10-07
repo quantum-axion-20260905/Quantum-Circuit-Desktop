@@ -19,6 +19,27 @@ class DomainPlugin(Protocol):
     info: PluginInfo
 
 
+class BaseDomainPlugin:
+    """Convenient base class for domain plugins with optional action implementations."""
+
+    info: PluginInfo
+
+    def preview_lattice(self, payload: Any) -> dict[str, Any]:
+        raise NotImplementedError("preview_lattice is not implemented by this plugin")
+
+    def build_hamiltonian(self, payload: Any) -> dict[str, Any]:
+        raise NotImplementedError("build_hamiltonian is not implemented by this plugin")
+
+    def build_ctmrg(self, payload: Any) -> dict[str, Any]:
+        raise NotImplementedError("build_ctmrg is not implemented by this plugin")
+
+    def map_fermions(self, payload: Any) -> dict[str, Any]:
+        raise NotImplementedError("map_fermions is not implemented by this plugin")
+
+    def build_hubbard(self, payload: Any) -> dict[str, Any]:
+        raise NotImplementedError("build_hubbard is not implemented by this plugin")
+
+
 PLUGIN_ACTIONS = (
     "preview_lattice",
     "build_hamiltonian",
@@ -29,7 +50,12 @@ PLUGIN_ACTIONS = (
 
 
 def plugin_actions(plugin: DomainPlugin) -> tuple[str, ...]:
-    return tuple(action for action in PLUGIN_ACTIONS if callable(getattr(plugin, action, None)))
+    return tuple(
+        action
+        for action in PLUGIN_ACTIONS
+        if callable(getattr(plugin, action, None))
+        and getattr(type(plugin), action, None) is not getattr(BaseDomainPlugin, action, None)
+    )
 
 
 def validate_plugin(plugin: DomainPlugin) -> None:

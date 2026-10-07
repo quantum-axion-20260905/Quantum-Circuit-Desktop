@@ -1254,6 +1254,8 @@ class CTMRGTests(unittest.TestCase):
             boundary_mps_transfer_fixed_point=True,
             boundary_mps_transfer_cycles=3,
             boundary_mps_transfer_tolerance=1e-10,
+            boundary_mps_transfer_gauge_covariance=True,
+            boundary_mps_transfer_gauge_tolerance=1e-10,
         )
 
         result, _ = run_dynamic_ctmrg_payload(np, payload)
@@ -1264,6 +1266,9 @@ class CTMRGTests(unittest.TestCase):
         self.assertTrue(result["boundary_mps_transfer_validation"]["performed"])
         self.assertTrue(result["boundary_mps_transfer_validation"]["converged"])
         self.assertTrue(result["research_gate"]["gates"]["boundary_mps_transfer_fixed_point"]["passed"])
+        self.assertTrue(result["boundary_mps_transfer_gauge_validation"]["performed"])
+        self.assertTrue(result["boundary_mps_transfer_gauge_validation"]["passed"])
+        self.assertTrue(result["research_gate"]["gates"]["boundary_mps_transfer_gauge_covariance"]["passed"])
 
     def test_dynamic_convergence_study_reports_sector_and_reference_spread(self):
         from qc_agent.core.ctmrg_dynamic import run_dynamic_ctmrg_convergence_study

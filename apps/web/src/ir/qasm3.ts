@@ -121,42 +121,93 @@ export function parseMinimalQasm3(qasm: string): { nQubits: number; ops: ParsedQ
   const lines = qasm
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .split(/\r?\n/)
-    .map((l) => l.trim())
-    .map((l) => l.replace(/\/\/.*$/, "").trim())
+    .map((l) => l.replace(/#.*$/, "").replace(/\/\/.*$/, "").trim())
     .filter(Boolean);
 
   let nQubits = 0;
   let registerName = "q";
   for (const line of lines) {
-    const m = line.match(/^qubit(?:\[(\d+)\])?\s+([A-Za-z_][A-Za-z0-9_]*)\s*;\s*$/);
+    const m = line.match(/^qubit(?:\[(\d+)\])?\s+([A-Za-z_][A-Za-z0-9_]*)\s*;\s*$/i);
     if (m) {
       nQubits = m[1] ? Number(m[1]) : 1;
       registerName = m[2];
     }
   }
-  if (!nQubits) throw new Error("Failed to find qubit register declaration");
+  if (!nQubits) throw new Error("Qubit registeri topilmadi (masalan, 'qubit[2] q;').");
 
   const register = registerName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const ops: ParsedQasmOp[] = [];
-  for (const line of lines) {
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line = lines[idx];
     if (/^OPENQASM\s+3(?:\.0)?\s*;$/i.test(line) || /^include\s+"stdgates\.inc"\s*;$/i.test(line) || /^input\s+float(?:\[[^\]]+\])?\s+[A-Za-z_][A-Za-z0-9_]*\s*;$/i.test(line)) continue;
+    if (/^qubit(?:\[\d+\])?\s+[A-Za-z_][A-Za-z0-9_]*\s*;\s*$/i.test(line)) continue;
     if (/^barrier\b.*;$/i.test(line)) continue;
+
+    // Single-qubit Pauli / Clifford gates
     let m = line.match(new RegExp(`^(h|x)\\s+${register}\\[(\\d+)\\]\\s*;\\s*$`, "i"));
     if (m) {
-      ops.push({ name: m[1] as GateName, target: Number(m[2]) });
+      ops.push({ name: m[1].toLowerCase() as GateName, target: Number(m[2]) });
       continue;
     }
+    // Convenience single-qubit equivalents
+    m = line.match(new RegExp(`^z\\s+${register}\\[(\\d+)\\]\\s*;\\s*$`, "i"));
+    if (m) {
+      ops.push({ name: "rz", theta: Math.PI, target: Number(m[1]) });
+      continue;
+    }
+    m = line.match(new RegExp(`^y\\s+${register}\\[(\\d+)\\]\\s*;\\s*$`, "i"));
+    if (m) {
+      ops.push({ name: "ry", theta: Math.PI, target: Number(m[1]) });
+      continue;
+    }
+    m = line.match(new RegExp(`^s\\s+${register}\\[(\\d+)\\]\\s*;\\s*$`, "i"));
+    if (m) {
+      ops.push({ name: "rz", theta: Math.PI / 2, target: Number(m[1]) });
+      continue;
+    }
+    m = line.match(new RegExp(`^sdg\\s+${register}\\[(\\d+)\\]\\s*;\\s*$`, "i"));
+    if (m) {
+      ops.push({ name: "rz", theta: -Math.PI / 2, target: Number(m[1]) });
+      continue;
+    }
+    m = line.match(new RegExp(`^t\\s+${register}\\[(\\d+)\\]\\s*;\\s*$`, "i"));
+    if (m) {
+      ops.push({ name: "rz", theta: Math.PI / 4, target: Number(m[1]) });
+      continue;
+    }
+    m = line.match(new RegExp(`^tdg\\s+${register}\\[(\\d+)\\]\\s*;\\s*$`, "i"));
+    if (m) {
+      ops.push({ name: "rz", theta: -Math.PI / 4, target: Number(m[1]) });
+      continue;
+    }
+
+    // Rotation gates
     m = line.match(new RegExp(`^(rx|ry|rz)\\((.+)\\)\\s+${register}\\[(\\d+)\\]\\s*;\\s*$`, "i"));
     if (m) {
       ops.push({ name: m[1].toLowerCase() as GateName, ...parseAngle(m[2]), target: Number(m[3]) });
       continue;
     }
-    m = line.match(new RegExp(`^(cx|cz)\\s+${register}\\[(\\d+)\\]\\s*,\\s*${register}\\[(\\d+)\\]\\s*;\\s*$`, "i"));
+
+    // 2-qubit gates (CX, CZ, CNOT, SWAP)
+    m = line.match(new RegExp(`^(cx|cz|cnot)\\s+${register}\\[(\\d+)\\]\\s*,\\s*${register}\\[(\\d+)\\]\\s*;\\s*$`, "i"));
     if (m) {
-      ops.push({ name: m[1].toLowerCase() as GateName, control: Number(m[2]), target: Number(m[3]) });
+      const gateName = m[1].toLowerCase() === "cnot" ? "cx" : (m[1].toLowerCase() as GateName);
+      ops.push({ name: gateName, control: Number(m[2]), target: Number(m[3]) });
       continue;
     }
-    throw new Error(`Unsupported OpenQASM 3 statement: ${line}`);
+    m = line.match(new RegExp(`^swap\\s+${register}\\[(\\d+)\\]\\s*,\\s*${register}\\[(\\d+)\\]\\s*;\\s*$`, "i"));
+    if (m) {
+      const q1 = Number(m[1]);
+      const q2 = Number(m[2]);
+      // Synthesize SWAP as 3 alternating CX gates
+      ops.push({ name: "cx", control: q1, target: q2 });
+      ops.push({ name: "cx", control: q2, target: q1 });
+      ops.push({ name: "cx", control: q1, target: q2 });
+      continue;
+    }
+
+    throw new Error(`QASM3 qatori tushunarsiz (${idx + 1}-qator): "${line}"`);
   }
   return { nQubits, ops };
 }
+

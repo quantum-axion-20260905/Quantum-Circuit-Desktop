@@ -259,6 +259,8 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
     boundary_reference_evaluations = 0
     boundary_transfer_fixed_point_work = 0
     boundary_transfer_fixed_point_cycles = 0
+    boundary_transfer_gauge_covariance_work = 0
+    boundary_transfer_gauge_covariance_runs = 0
     if bool(getattr(payload, "boundary_mps_reference", False)):
         boundary_width = int(getattr(payload, "boundary_mps_width", 4))
         boundary_height = int(getattr(payload, "boundary_mps_height", 4))
@@ -277,6 +279,20 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
             * max(1, double_layer_dim)
         )
         iteration_values += transfer_width * max(1, transfer_bond_dim) ** 2 * max(1, double_layer_dim)
+    if bool(getattr(payload, "boundary_mps_transfer_gauge_covariance", False)):
+        gauge_cycles = int(getattr(payload, "boundary_mps_transfer_cycles", 8))
+        gauge_width = int(getattr(payload, "boundary_mps_width", 4))
+        gauge_bond_dim = int(getattr(payload, "boundary_mps_bond_dim", 16))
+        boundary_transfer_gauge_covariance_runs = 4
+        boundary_transfer_gauge_covariance_work = (
+            boundary_transfer_gauge_covariance_runs
+            * gauge_cycles
+            * max(1, cell_sites // max(1, int(payload.unit_cell[0])))
+            * max(1, gauge_width)
+            * max(1, gauge_bond_dim) ** 3
+            * max(1, double_layer_dim)
+        )
+        iteration_values += gauge_width * max(1, gauge_bond_dim) ** 2 * max(1, double_layer_dim)
     work = max(1, int(payload.iterations)) * max(1, cell_sites) * max(1, environment_bond_dim) ** 3 * max(1, double_layer_dim)
     projector = getattr(payload, "ctmrg_projector", "half-density")
     if projector == "full-svd":
@@ -329,6 +345,7 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
     if boundary_reference_evaluations:
         work += boundary_reference_evaluations * max(1, boundary_width) * max(1, boundary_height) * max(1, boundary_bond_dim) ** 3 * max(1, double_layer_dim)
     work += boundary_transfer_fixed_point_work
+    work += boundary_transfer_gauge_covariance_work
     estimated_ms = int(1 + work / 25_000)
     warnings: list[str] = [
         "CTMRG is an experimental infinite-2D path; compare environment-dimension convergence",
@@ -358,6 +375,10 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
     if boundary_transfer_fixed_point_cycles:
         warnings.append(
             "boundary-MPS transfer fixed-point is an independent finite-cylinder diagnostic; its residual does not prove infinite-lattice convergence"
+        )
+    if boundary_transfer_gauge_covariance_runs:
+        warnings.append(
+            "boundary-MPS transfer gauge covariance is an opt-in finite-cylinder replay; tracked-frame compression and dense width<=2 spectrum remain diagnostic-only"
         )
     if getattr(payload, "optimization", "none") == "product-coordinate-descent" and virtual_bond_dim != 1:
         warnings.append("product-coordinate-descent optimization requires virtual_bond_dim=1")
@@ -439,6 +460,8 @@ def estimate_ctmrg(payload: Any, *, gpu_free_mb: float | None = None) -> dict[st
         "gauge_probe_evaluations": gauge_probe_evaluations,
         "boundary_mps_transfer_fixed_point": bool(boundary_transfer_fixed_point_cycles),
         "boundary_mps_transfer_cycles": boundary_transfer_fixed_point_cycles,
+        "boundary_mps_transfer_gauge_covariance": bool(boundary_transfer_gauge_covariance_runs),
+        "boundary_mps_transfer_gauge_runs_per_point": boundary_transfer_gauge_covariance_runs,
         "full_update_max_evaluations": getattr(payload, "full_update_max_evaluations", None),
         "blocking_warnings": blocking_warnings,
         "warnings": warnings,

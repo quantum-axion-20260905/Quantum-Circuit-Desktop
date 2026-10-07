@@ -1198,6 +1198,21 @@ def run_boundary_mps_transfer_gauge_covariance_study(
                 bond_left_unframe=left_unframe,
                 bond_right_unframe=right_unframe,
             )
+            tracked_frame_fallback = False
+            if float(covariant_patch.get("discarded_weight", 0.0)) <= float(gauge_tolerance):
+                # If the native transported replay discarded no weight, its
+                # result is already exact for this bounded patch.  Reusing it
+                # avoids letting a degenerate SVD choose an arbitrary tracked
+                # internal frame and is recorded as a no-truncation fallback.
+                tracked_value = covariant_value
+                tracked_patch = dict(covariant_patch)
+                tracked_patch["compression_frame"] = "tracked-reference-frame-fallback-no-truncation"
+                tracked_patch["tracked_frame_fallback"] = True
+                tracked = dict(covariant)
+                tracked["boundary_frame"] = "paired-inverse-transpose-fused"
+                tracked["compression_frame"] = "tracked-reference-frame-fallback-no-truncation"
+                tracked["tracked_frame_fallback"] = True
+                tracked_frame_fallback = True
             if int(width) <= 2:
                 dense_base = _dense_transfer_spectrum_report(
                     normalized_tensors,
@@ -1297,6 +1312,7 @@ def run_boundary_mps_transfer_gauge_covariance_study(
                 "dense_transfer_spectrum": dense_spectrum,
                 "gauge_covariance_passed": passed,
                 "tracked_frame_gauge_covariance_passed": tracked_passed,
+                "tracked_frame_fallback": tracked_frame_fallback,
             })
 
     passed_points = sum(bool(point["gauge_covariance_passed"]) for point in points)

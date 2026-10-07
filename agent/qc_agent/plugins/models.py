@@ -243,6 +243,8 @@ class CTMRGPayload(BaseModel):
     boundary_mps_transfer_fixed_point: bool = False
     boundary_mps_transfer_cycles: int = Field(default=8, ge=1, le=64)
     boundary_mps_transfer_tolerance: float = Field(default=1e-8, gt=0.0, le=1.0)
+    boundary_mps_transfer_gauge_covariance: bool = False
+    boundary_mps_transfer_gauge_tolerance: float = Field(default=1e-8, gt=0.0, le=1.0)
     iterations: int = Field(default=20, ge=1, le=200)
     tolerance: float = Field(default=1e-8, gt=0, le=1.0)
     optimization: Literal["none", "product-coordinate-descent", "simple-update", "full-update"] = "none"
@@ -327,6 +329,17 @@ class CTMRGPayload(BaseModel):
             raise ValueError("boundary-MPS reference diagnostics are contraction-only and cannot run inside optimization yet")
         if self.boundary_mps_reference and self.environment_sector_policy != "single":
             raise ValueError("boundary-MPS reference diagnostics and symmetry-sector ensembles are separate experimental policies")
+        if self.boundary_mps_transfer_gauge_covariance:
+            if self.virtual_bond_dim != 2:
+                raise ValueError("boundary-MPS transfer gauge covariance currently requires virtual_bond_dim=2")
+            if self.optimization != "none":
+                raise ValueError("boundary-MPS transfer gauge covariance is contraction-only")
+            if self.environment_sector_policy != "single":
+                raise ValueError("boundary-MPS transfer gauge covariance and symmetry-sector ensembles are separate policies")
+            if self.gauge_preconditioner != "none":
+                raise ValueError("boundary-MPS transfer gauge covariance and gauge preconditioning are separate policies")
+            if self.boundary_mps_width > 8:
+                raise ValueError("boundary-MPS transfer gauge covariance currently supports width<=8")
         if self.optimization != "none" and (self.checkpoint_path is not None or self.resume_from is not None):
             raise ValueError(
                 "CTMRG optimizer checkpoint/resume is not supported yet; checkpointing currently covers contraction-only runs"

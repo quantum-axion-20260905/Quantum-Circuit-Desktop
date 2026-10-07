@@ -136,6 +136,7 @@ def dynamic_ctmrg_research_gate(
     reference_validation: dict[str, Any] | None = None,
     boundary_mps_validation: dict[str, Any] | None = None,
     boundary_mps_transfer_validation: dict[str, Any] | None = None,
+    boundary_mps_transfer_gauge_validation: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return explicit admission gates for the experimental dynamic path.
 
@@ -189,6 +190,20 @@ def dynamic_ctmrg_research_gate(
     boundary_mps_transfer_passed = bool(
         not boundary_mps_transfer_requested
         or (boundary_mps_transfer.get("performed") and boundary_mps_transfer.get("converged"))
+    )
+    boundary_mps_transfer_gauge = boundary_mps_transfer_gauge_validation or {
+        "requested": False,
+        "performed": False,
+        "passed": True,
+        "reason": "boundary-MPS transfer gauge-covariance replay was not requested",
+    }
+    boundary_mps_transfer_gauge_requested = bool(boundary_mps_transfer_gauge.get("requested"))
+    boundary_mps_transfer_gauge_passed = bool(
+        not boundary_mps_transfer_gauge_requested
+        or (
+            boundary_mps_transfer_gauge.get("performed")
+            and boundary_mps_transfer_gauge.get("passed")
+        )
     )
     gates: dict[str, dict[str, Any]] = {
         "bounded_cell": {
@@ -244,6 +259,18 @@ def dynamic_ctmrg_research_gate(
             "boundary-MPS transfer fixed-point diagnostic was not requested"
             if not boundary_mps_transfer_requested else
             str(boundary_mps_transfer.get("reason", "boundary-MPS transfer fixed point did not converge")),
+        },
+        "boundary_mps_transfer_gauge_covariance": {
+            "passed": boundary_mps_transfer_gauge_passed,
+            "requested": boundary_mps_transfer_gauge_requested,
+            "performed": bool(boundary_mps_transfer_gauge.get("performed")),
+            "tracked_frame_passed_points": boundary_mps_transfer_gauge.get("tracked_frame_passed_points"),
+            "point_count": boundary_mps_transfer_gauge.get("point_count"),
+            "reason": "tracked-frame boundary replay passed"
+            if boundary_mps_transfer_gauge_passed and boundary_mps_transfer_gauge_requested else
+            "boundary-MPS transfer gauge-covariance replay was not requested"
+            if not boundary_mps_transfer_gauge_requested else
+            str(boundary_mps_transfer_gauge.get("reason", "boundary-MPS transfer gauge-covariance replay failed")),
         },
         "transfer_gap": {
             "passed": transfer_gap_resolved,

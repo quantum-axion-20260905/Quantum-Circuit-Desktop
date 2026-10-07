@@ -1420,7 +1420,37 @@ def run_dynamic_ctmrg_payload(
         boundary_mps_transfer_validation["requested"] = True
         boundary_mps_transfer_validation["performed"] = True
         boundary_mps_transfer_validation["passed"] = bool(boundary_mps_transfer_validation.get("converged"))
+    boundary_mps_transfer_gauge_validation: dict[str, Any] = {
+        "requested": bool(getattr(payload, "boundary_mps_transfer_gauge_covariance", False)),
+        "performed": False,
+        "passed": True,
+        "reason": "boundary-MPS transfer gauge-covariance replay was not requested",
+    }
+    if boundary_mps_transfer_gauge_validation["requested"]:
+        from .ctmrg_boundary_mps import run_boundary_mps_transfer_gauge_covariance_study
+
+        boundary_mps_transfer_gauge_validation = dict(run_boundary_mps_transfer_gauge_covariance_study(
+            tensors,
+            payload.unit_cell,
+            widths=[int(payload.boundary_mps_width)],
+            boundary_bond_dims=[int(payload.boundary_mps_bond_dim)],
+            cycles=int(payload.boundary_mps_transfer_cycles),
+            cutoff=float(payload.boundary_mps_cutoff),
+            tolerance=float(payload.boundary_mps_transfer_tolerance),
+            gauge_tolerance=float(payload.boundary_mps_transfer_gauge_tolerance),
+        ))
+        boundary_mps_transfer_gauge_validation["requested"] = True
+        boundary_mps_transfer_gauge_validation["performed"] = True
+        boundary_mps_transfer_gauge_validation["passed"] = bool(
+            boundary_mps_transfer_gauge_validation.get("tracked_frame_passed_points", 0)
+            == boundary_mps_transfer_gauge_validation.get("point_count", 0)
+        )
+        if not boundary_mps_transfer_gauge_validation["passed"]:
+            boundary_mps_transfer_gauge_validation["reason"] = (
+                "one or more tracked-frame boundary replay points failed"
+            )
     result["boundary_mps_transfer_validation"] = boundary_mps_transfer_validation
+    result["boundary_mps_transfer_gauge_validation"] = boundary_mps_transfer_gauge_validation
     result["boundary_mps_validation"] = boundary_mps_validation
     research_gate = dynamic_ctmrg_research_gate(
         unit_cell=unit_cell,
@@ -1436,6 +1466,7 @@ def run_dynamic_ctmrg_payload(
         reference_validation=reference_validation,
         boundary_mps_validation=boundary_mps_validation,
         boundary_mps_transfer_validation=boundary_mps_transfer_validation,
+        boundary_mps_transfer_gauge_validation=boundary_mps_transfer_gauge_validation,
     )
     result["research_gate"] = research_gate
     research_result = dict(result.get("research_result", {}))
@@ -1444,6 +1475,7 @@ def run_dynamic_ctmrg_payload(
     research_result["details"]["research_gate"] = research_gate
     research_result["details"]["boundary_mps_validation"] = boundary_mps_validation
     research_result["details"]["boundary_mps_transfer_validation"] = boundary_mps_transfer_validation
+    research_result["details"]["boundary_mps_transfer_gauge_validation"] = boundary_mps_transfer_gauge_validation
     research_result["details"]["environment_initialization_sector_seed"] = initialization_sector_seed
     research_result["metrics"] = dict(research_result.get("metrics", {}))
     research_result["metrics"]["reference_max_abs_error"] = reference_validation.get("max_abs_error")

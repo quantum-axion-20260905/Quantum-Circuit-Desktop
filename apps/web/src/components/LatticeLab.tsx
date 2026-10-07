@@ -22,10 +22,10 @@ type Boundary = "open" | "periodic";
 type MaterialName = "spin" | "hubbard";
 type PEPSContraction = "auto" | "boundary-mps";
 
-const shell: React.CSSProperties = { maxWidth: 1180, width: "100%", margin: "0 auto", padding: "32px 28px 54px", color: "var(--qc-dark-text)" };
-const card: React.CSSProperties = { border: "1px solid var(--qc-dark-border)", borderRadius: "var(--qc-radius-xl)", background: "var(--qc-dark-surface)", padding: 20, boxShadow: "var(--qc-shadow-lg)" };
+const shell: React.CSSProperties = { maxWidth: "100%", width: "100%", margin: 0, padding: "20px 24px 60px", color: "var(--qc-dark-text)", boxSizing: "border-box" };
+const card: React.CSSProperties = { border: "1px solid var(--qc-dark-border)", borderRadius: "var(--qc-radius-lg)", background: "var(--qc-dark-surface)", padding: 20, boxShadow: "var(--qc-shadow-lg)" };
 const fieldStyle: React.CSSProperties = { display: "grid", gap: 6, color: "var(--qc-dark-text-muted)", fontSize: 12 };
-const input: React.CSSProperties = { width: 82, border: "1px solid var(--qc-dark-border-strong)", borderRadius: "var(--qc-radius-md)", background: "var(--qc-dark-canvas)", color: "var(--qc-dark-text)", padding: "8px 9px" };
+const input: React.CSSProperties = { width: 88, border: "1px solid var(--qc-dark-border-strong)", borderRadius: "var(--qc-radius-md)", background: "var(--qc-dark-canvas)", color: "var(--qc-dark-text)", padding: "7px 10px" };
 
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : "Operation failed.";

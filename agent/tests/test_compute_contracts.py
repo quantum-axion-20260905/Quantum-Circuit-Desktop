@@ -111,10 +111,12 @@ class ComputeContractTests(unittest.TestCase):
 
     def test_ctmrg_preflight_prices_boundary_mps_transfer_fixed_point(self):
         payload = CTMRGPayload(
+            virtual_bond_dim=2,
             boundary_mps_transfer_fixed_point=True,
             boundary_mps_width=2,
             boundary_mps_bond_dim=2,
             boundary_mps_transfer_cycles=3,
+            boundary_mps_transfer_gauge_covariance=True,
             interactions=[{
                 "left_site": 0,
                 "right_site": 0,
@@ -128,6 +130,8 @@ class ComputeContractTests(unittest.TestCase):
         self.assertTrue(report["feasible"])
         self.assertTrue(report["boundary_mps_transfer_fixed_point"])
         self.assertEqual(report["boundary_mps_transfer_cycles"], 3)
+        self.assertTrue(report["boundary_mps_transfer_gauge_covariance"])
+        self.assertEqual(report["boundary_mps_transfer_gauge_runs_per_point"], 4)
         self.assertTrue(any("transfer fixed-point" in warning for warning in report["warnings"]))
 
     def test_ctmrg_gradient_update_evaluation_budget_is_admitted_explicitly(self):
