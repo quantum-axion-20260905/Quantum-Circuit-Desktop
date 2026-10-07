@@ -22,7 +22,7 @@ type Boundary = "open" | "periodic";
 type MaterialName = "spin" | "hubbard";
 type PEPSContraction = "auto" | "boundary-mps";
 
-const shell: React.CSSProperties = { maxWidth: "100%", width: "100%", margin: 0, padding: "20px 24px 60px", color: "var(--qc-dark-text)", boxSizing: "border-box" };
+const shell: React.CSSProperties = { maxWidth: "100%", width: "100%", margin: 0, padding: "12px 16px 40px", color: "var(--qc-dark-text)", boxSizing: "border-box" };
 const card: React.CSSProperties = { border: "1px solid var(--qc-dark-border)", borderRadius: "var(--qc-radius-lg)", background: "var(--qc-dark-surface)", padding: 20, boxShadow: "var(--qc-shadow-lg)" };
 const fieldStyle: React.CSSProperties = { display: "grid", gap: 6, color: "var(--qc-dark-text-muted)", fontSize: 12 };
 const input: React.CSSProperties = { width: 88, border: "1px solid var(--qc-dark-border-strong)", borderRadius: "var(--qc-radius-md)", background: "var(--qc-dark-canvas)", color: "var(--qc-dark-text)", padding: "7px 10px" };
@@ -351,115 +351,125 @@ export function LatticeLab() {
 
   return (
     <main style={{ ...shell, background: "radial-gradient(circle at 10% 0%, rgba(14,165,233,.14), transparent 34%), radial-gradient(circle at 90% 8%, rgba(168,85,247,.12), transparent 32%)", minHeight: "100%" }}>
-      {/* 1. Header with Live Status & Circuit Link */}
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 20, alignItems: "center", marginBottom: 18, flexWrap: "wrap", borderBottom: "1px solid rgba(51,65,85,.6)", paddingBottom: 16 }}>
-        <div>
-          <div style={{ color: "#38bdf8", fontSize: 11, fontWeight: 700, letterSpacing: ".15em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6 }}>
-            <span>⚛️ Quantum Many-Body Studio</span>
-            <span style={{ color: "#64748b" }}>•</span>
-            <span style={{ color: material === "spin" ? "#818cf8" : "#34d399" }}>{material === "spin" ? "Spin Lattice" : "Hubbard Materials"}</span>
-          </div>
-          <h1 style={{ fontSize: 26, margin: "6px 0 4px", letterSpacing: "-.03em", color: "#f8fafc" }}>
-            Condensed Matter & Tensor Network Lab
-          </h1>
-          <p style={{ margin: 0, color: "#94a3b8", fontSize: 13, maxWidth: 720 }}>
-            Configure arbitrary 1D/2D/3D geometries, synthesize sparse Hamiltonians, and compute ground-state properties via MPS/DMRG, real-time TEBD, 2D PEPS, or thermodynamic CTMRG.
-          </p>
+      {/* Compact Professional Studio Sub-Header & Navigation */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          padding: "6px 12px",
+          marginBottom: 16,
+          background: "rgba(15, 23, 42, 0.75)",
+          backdropFilter: "blur(8px)",
+          border: "1px solid rgba(51, 65, 85, 0.6)",
+          borderRadius: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        {/* Left: Professional Tabs */}
+        <div style={{ display: "flex", gap: 4, alignItems: "center", overflowX: "auto" }}>
+          {[
+            { id: "overview", label: "🌐 Geometry & Model", badge: `${siteCount} sites` },
+            { id: "solvers", label: "⚡ Ground State & DMRG", badge: dmrgEnergy != null || groundEnergy != null ? "Solved" : undefined },
+            { id: "dynamics", label: "🌊 Dynamics (TEBD / PEPS)", badge: energies.length ? `${energies.length} pts` : undefined },
+            { id: "ctmrg", label: "📈 2D Infinite (CTMRG)" },
+            { id: "convergence", label: "🔬 Convergence" },
+            { id: "all", label: "📑 All Panels" }
+          ].map((t) => {
+            const isActive = labTab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setLabTab(t.id as typeof labTab)}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: isActive ? "#0284c7" : "transparent",
+                  color: isActive ? "#ffffff" : "#94a3b8",
+                  fontWeight: isActive ? 600 : 500,
+                  fontSize: 12,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  transition: "all 120ms ease",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span>{t.label}</span>
+                {t.badge && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      padding: "1px 5px",
+                      borderRadius: 999,
+                      background: isActive ? "rgba(255,255,255,0.25)" : "rgba(51,65,85,0.6)",
+                      color: isActive ? "#ffffff" : "#cbd5e1"
+                    }}
+                  >
+                    {t.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", background: "#0b1225", padding: "10px 16px", borderRadius: 10, border: "1px solid rgba(51,65,85,.6)" }}>
-          <div style={{ fontSize: 12, color: "#64748b", textAlign: "right" }}>
-            Current System<br />
-            <strong style={{ color: "#38bdf8", fontSize: 16 }}>{siteCount} sites</strong> ({qubitCount} qubits)
-          </div>
-          <div style={{ width: 1, height: 28, background: "#334155" }} />
-          <div style={{ fontSize: 12, color: "#64748b" }}>
-            Model Status<br />
-            <strong style={{ color: hamiltonian ? "#4ade80" : "#f59e0b", fontSize: 13 }}>
-              {hamiltonian ? `${hamiltonian.terms.length} terms` : "No Hamiltonian"}
-            </strong>
+
+        {/* Right: Presets Dropdown & Status Pill */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
+          {/* Quick Model Presets Dropdown */}
+          <select
+            defaultValue=""
+            onChange={(e) => {
+              if (e.target.value) {
+                applyModelPreset(e.target.value as "ising1d" | "heisenberg2d" | "hubbard2d" | "xxz1d");
+                e.target.value = "";
+              }
+            }}
+            style={{
+              padding: "5px 10px",
+              borderRadius: 6,
+              border: "1px solid rgba(56, 189, 248, 0.35)",
+              background: "rgba(11, 18, 37, 0.9)",
+              color: "#7dd3fc",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              outline: "none",
+            }}
+            title="Kvant ko'p zarrali modellar shablonlari"
+          >
+            <option value="" disabled>⚡ Model Presets...</option>
+            <option value="ising1d">🧲 1D Ising Chain (L=8, J=1, h=0.5)</option>
+            <option value="heisenberg2d">🔄 2D Heisenberg Grid (4×4, J=1)</option>
+            <option value="hubbard2d">⚛️ 2D Fermi-Hubbard (3×3, U=4, t=1)</option>
+            <option value="xxz1d">🧬 1D Critical XXZ (L=10, Δ=1)</option>
+          </select>
+
+          {/* System & Model Status Pill */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "4px 10px",
+              background: "#0b1225",
+              borderRadius: 6,
+              border: "1px solid rgba(51,65,85,0.6)",
+              fontSize: 12,
+            }}
+          >
+            <span style={{ color: "#94a3b8" }}>
+              <strong style={{ color: "#38bdf8" }}>{siteCount}</strong> sites ({qubitCount}q)
+            </span>
+            <span style={{ color: "#334155" }}>|</span>
+            <span style={{ color: hamiltonian ? "#4ade80" : "#f59e0b", fontWeight: 600 }}>
+              {hamiltonian ? `${hamiltonian.terms.length} terms` : "No Model"}
+            </span>
           </div>
         </div>
-      </div>
-
-      {/* 2. Quick Presets Strip */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap", padding: "8px 12px", background: "rgba(15,23,42,0.6)", borderRadius: 8, border: "1px solid rgba(51,65,85,0.4)" }}>
-        <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-          ⚡ Quick Presets:
-        </span>
-        <button
-          onClick={() => applyModelPreset("ising1d")}
-          style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, border: "1px solid rgba(56,189,248,.3)", background: "rgba(56,189,248,.08)", color: "#7dd3fc", cursor: "pointer" }}
-        >
-          🧲 1D Ising Chain (L=8, J=1, h=0.5)
-        </button>
-        <button
-          onClick={() => applyModelPreset("heisenberg2d")}
-          style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, border: "1px solid rgba(168,85,247,.3)", background: "rgba(168,85,247,.08)", color: "#d8b4fe", cursor: "pointer" }}
-        >
-          🔄 2D Heisenberg Grid (4×4, J=1)
-        </button>
-        <button
-          onClick={() => applyModelPreset("hubbard2d")}
-          style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, border: "1px solid rgba(52,211,153,.3)", background: "rgba(52,211,153,.08)", color: "#6ee7b7", cursor: "pointer" }}
-        >
-          ⚛️ 2D Fermi-Hubbard (3×3, U=4, t=1)
-        </button>
-        <button
-          onClick={() => applyModelPreset("xxz1d")}
-          style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, border: "1px solid rgba(251,191,36,.3)", background: "rgba(251,191,36,.08)", color: "#fde68a", cursor: "pointer" }}
-        >
-          🧬 1D Critical XXZ (L=10, Δ=1)
-        </button>
-      </div>
-
-      {/* 3. Laboratory Navigation Tabs */}
-      <div style={{ display: "flex", gap: 4, marginBottom: 18, borderBottom: "1px solid rgba(51,65,85,.5)", paddingBottom: 8, overflowX: "auto" }}>
-        {[
-          { id: "overview", label: "🌐 Lattice & Model", badge: `${siteCount} sites` },
-          { id: "solvers", label: "⚡ Ground State & DMRG", badge: dmrgEnergy != null || groundEnergy != null ? "Solved" : undefined },
-          { id: "dynamics", label: "🌊 Dynamics (TEBD / PEPS)", badge: energies.length ? `${energies.length} pts` : undefined },
-          { id: "ctmrg", label: "📈 2D Infinite (CTMRG)", badge: "Thermodynamic" },
-          { id: "convergence", label: "🔬 Convergence Study", badge: studyRows.length ? `${studyRows.length} rows` : undefined },
-          { id: "all", label: "📑 All Panels" }
-        ].map((t) => {
-          const isActive = labTab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setLabTab(t.id as typeof labTab)}
-              style={{
-                padding: "8px 14px",
-                borderRadius: 8,
-                border: "none",
-                background: isActive ? "#0284c7" : "transparent",
-                color: isActive ? "#ffffff" : "#94a3b8",
-                fontWeight: isActive ? 600 : 500,
-                fontSize: 13,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                transition: "all 120ms ease",
-                boxShadow: isActive ? "0 2px 8px rgba(2,132,199,0.4)" : "none"
-              }}
-            >
-              <span>{t.label}</span>
-              {t.badge && (
-                <span
-                  style={{
-                    fontSize: 10,
-                    padding: "2px 6px",
-                    borderRadius: 999,
-                    background: isActive ? "rgba(255,255,255,0.25)" : "rgba(51,65,85,0.6)",
-                    color: isActive ? "#ffffff" : "#cbd5e1"
-                  }}
-                >
-                  {t.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
       </div>
 
       {/* 4. TAB CONTENTS */}
