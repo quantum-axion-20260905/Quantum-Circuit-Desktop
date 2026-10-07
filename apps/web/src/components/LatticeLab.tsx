@@ -64,6 +64,48 @@ export function LatticeLab() {
   const [groundResult, setGroundResult] = React.useState<Record<string, unknown> | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const retryRef = React.useRef<(() => void) | null>(null);
+  const [labTab, setLabTab] = React.useState<"overview" | "solvers" | "dynamics" | "ctmrg" | "convergence" | "all">("overview");
+
+  function applyModelPreset(type: "ising1d" | "heisenberg2d" | "hubbard2d" | "xxz1d") {
+    setError(null);
+    if (type === "ising1d") {
+      setDimension(1);
+      setSizes([8, 4, 2]);
+      setBoundary("open");
+      setMaterial("spin");
+      setModel("ising");
+      setCoupling(1);
+      setField(0.5);
+      setAnisotropy(1);
+    } else if (type === "heisenberg2d") {
+      setDimension(2);
+      setSizes([4, 4, 2]);
+      setBoundary("open");
+      setMaterial("spin");
+      setModel("heisenberg");
+      setCoupling(1);
+      setField(0.0);
+      setAnisotropy(1);
+    } else if (type === "hubbard2d") {
+      setDimension(2);
+      setSizes([3, 3, 2]);
+      setBoundary("open");
+      setMaterial("hubbard");
+      setHopping(1);
+      setOnsiteU(4);
+      setChemicalPotential(0);
+    } else if (type === "xxz1d") {
+      setDimension(1);
+      setSizes([10, 4, 2]);
+      setBoundary("open");
+      setMaterial("spin");
+      setModel("xxz");
+      setCoupling(1);
+      setField(0.0);
+      setAnisotropy(1);
+    }
+  }
+
   const [studyMode, setStudyMode] = React.useState<PhysicsStudyMode>("dmrg");
   const [studyRows, setStudyRows] = React.useState<PhysicsStudyRow[]>([]);
   const [studyManifest, setStudyManifest] = React.useState<JsonObject | null>(null);
@@ -307,40 +349,504 @@ export function LatticeLab() {
   const tebdReady = hamiltonian?.tebd_ready ?? true;
   const pepsEligible = material === "spin" && dimension > 1 && siteCount <= 64;
 
-  return <main style={{ ...shell, background: "radial-gradient(circle at 10% 0%, rgba(14,165,233,.16), transparent 34%), radial-gradient(circle at 90% 8%, rgba(168,85,247,.15), transparent 32%)", minHeight: "100%" }}>
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 20, alignItems: "end", marginBottom: 24 }}><div><div style={{ color: "#67e8f9", fontSize: 12, letterSpacing: ".14em", textTransform: "uppercase" }}>{material === "spin" ? "Physics plugins · spin lattice" : "Physics plugins · Hubbard materials"}</div><h1 style={{ fontSize: 30, margin: "8px 0 6px", letterSpacing: "-.04em" }}>Many-body laboratory</h1><p style={{ margin: 0, color: "#94a3b8", maxWidth: 680 }}>Build a 1D, 2D or 3D lattice, generate a sparse Hamiltonian, then evaluate energy or evolve it with GPU MPS/TEBD/PEPS. Every large run is admitted by a memory and contraction-width preflight.</p></div><div style={{ color: "#64748b", fontSize: 12, textAlign: "right" }}>Current circuit<br /><strong style={{ color: "#e2e8f0", fontSize: 18 }}>{nQubits} qubits</strong></div></div>
-    <section style={{ display: "grid", gridTemplateColumns: "minmax(270px, .7fr) minmax(420px, 1.3fr)", gap: 18 }}>
-      <div style={card}><div style={{ fontWeight: 700, fontSize: 16 }}>Lattice design</div><div style={{ color: "#64748b", fontSize: 12, marginTop: 5 }}>Snake ordering keeps the mapping deterministic for MPS.</div><div style={{ display: "grid", gap: 14, marginTop: 20 }}><label style={fieldStyle}>Dimension<select value={dimension} onChange={(e) => setDimension(Number(e.target.value) as 1 | 2 | 3)} style={input}><option value={1}>1D chain</option><option value={2}>2D grid</option><option value={3}>3D grid</option></select></label><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{activeDimensions.map((size, index) => <label key={index} style={fieldStyle}>{index === 0 ? "X" : index === 1 ? "Y" : "Z"}<input type="number" min={1} max={16} value={size} onChange={(e) => updateSize(index, e.target.value)} style={input} /></label>)}</div><label style={fieldStyle}>Boundary<select value={boundary} onChange={(e) => setBoundary(e.target.value as Boundary)} style={input}><option value="open">Open</option><option value="periodic">Periodic</option></select></label><div style={{ color: qubitCount > 64 ? "#fbbf24" : "#67e8f9", fontSize: 13 }}>{siteCount} sites · {qubitCount} mapped qubits{qubitCount > 64 ? " · preview only above 64 qubits" : " · ready for circuit coupling"}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Button variant="accent" onClick={() => void preview()} disabled={busy !== null}>{busy === "preview" ? "Previewing…" : "Preview lattice"}</Button><Button variant="secondary" onClick={() => { if (qubitCount <= 64) setNQubits(qubitCount); }} disabled={qubitCount > 64 || busy !== null}>Adopt {qubitCount} qubits</Button></div></div></div>
-      <div style={card}>{graph ? <LatticeCanvas graph={graph} /> : <div style={{ minHeight: 290, display: "grid", placeItems: "center", border: "1px dashed #334155", borderRadius: 14, color: "#64748b" }}>Preview a lattice to inspect its geometry.</div>}<div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginTop: 16 }}>{[["dimension", graph?.dimension ?? "—"], ["sites", graph?.sites.length ?? "—"], ["edges", graph?.edges.length ?? "—"], ["order", graph?.ordering ?? "—"]].map(([label, value]) => <div key={label} style={{ padding: "10px 11px", borderRadius: 10, background: "#0b1225" }}><div style={{ color: "#64748b", fontSize: 10, textTransform: "uppercase" }}>{label}</div><div style={{ color: "#e0f2fe", fontWeight: 700, marginTop: 4, fontSize: 14 }}>{value}</div></div>)}</div></div>
-    </section>
-    <section style={{ ...card, marginTop: 18 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-        <div><div style={{ fontWeight: 700, fontSize: 16 }}>Hamiltonian plugin</div><div style={{ color: "#64748b", fontSize: 12, marginTop: 5 }}>Sparse Pauli terms are reusable by energy, TEBD and future domain modules.</div></div>
-        <div style={{ color: "#67e8f9", fontSize: 13 }}>{hamiltonian ? `${hamiltonian.terms.length} terms generated` : "No model loaded"}</div>
+  return (
+    <main style={{ ...shell, background: "radial-gradient(circle at 10% 0%, rgba(14,165,233,.14), transparent 34%), radial-gradient(circle at 90% 8%, rgba(168,85,247,.12), transparent 32%)", minHeight: "100%" }}>
+      {/* 1. Header with Live Status & Circuit Link */}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 20, alignItems: "center", marginBottom: 18, flexWrap: "wrap", borderBottom: "1px solid rgba(51,65,85,.6)", paddingBottom: 16 }}>
+        <div>
+          <div style={{ color: "#38bdf8", fontSize: 11, fontWeight: 700, letterSpacing: ".15em", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 6 }}>
+            <span>⚛️ Quantum Many-Body Studio</span>
+            <span style={{ color: "#64748b" }}>•</span>
+            <span style={{ color: material === "spin" ? "#818cf8" : "#34d399" }}>{material === "spin" ? "Spin Lattice" : "Hubbard Materials"}</span>
+          </div>
+          <h1 style={{ fontSize: 26, margin: "6px 0 4px", letterSpacing: "-.03em", color: "#f8fafc" }}>
+            Condensed Matter & Tensor Network Lab
+          </h1>
+          <p style={{ margin: 0, color: "#94a3b8", fontSize: 13, maxWidth: 720 }}>
+            Configure arbitrary 1D/2D/3D geometries, synthesize sparse Hamiltonians, and compute ground-state properties via MPS/DMRG, real-time TEBD, 2D PEPS, or thermodynamic CTMRG.
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", background: "#0b1225", padding: "10px 16px", borderRadius: 10, border: "1px solid rgba(51,65,85,.6)" }}>
+          <div style={{ fontSize: 12, color: "#64748b", textAlign: "right" }}>
+            Current System<br />
+            <strong style={{ color: "#38bdf8", fontSize: 16 }}>{siteCount} sites</strong> ({qubitCount} qubits)
+          </div>
+          <div style={{ width: 1, height: 28, background: "#334155" }} />
+          <div style={{ fontSize: 12, color: "#64748b" }}>
+            Model Status<br />
+            <strong style={{ color: hamiltonian ? "#4ade80" : "#f59e0b", fontSize: 13 }}>
+              {hamiltonian ? `${hamiltonian.terms.length} terms` : "No Hamiltonian"}
+            </strong>
+          </div>
+        </div>
       </div>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "end", marginTop: 18 }}>
-        <label style={fieldStyle}>Domain<select value={material} onChange={(e) => { setMaterial(e.target.value as MaterialName); setHamiltonian(null); setEnergyResult(null); setGroundResult(null); setDmrgResult(null); setTebdResult(null); setPepsResult(null); }} style={input}><option value="spin">Spin lattice</option><option value="hubbard">Hubbard materials</option></select></label>
-        {material === "spin" ? <>
-          <label style={fieldStyle}>Model<select value={model} onChange={(e) => setModel(e.target.value as ModelName)} style={input}><option value="ising">Transverse Ising</option><option value="heisenberg">Heisenberg</option><option value="xxz">XXZ</option></select></label>
-          <label style={fieldStyle}>J<input type="number" step="any" value={coupling} onChange={(e) => setCoupling(Number(e.target.value) || 0)} style={input} /></label>
-          <label style={fieldStyle}>Field h<input type="number" step="any" value={field} onChange={(e) => setField(Number(e.target.value) || 0)} style={input} /></label>
-          <label style={fieldStyle}>Anisotropy Δ<input type="number" step="any" value={anisotropy} onChange={(e) => setAnisotropy(Number(e.target.value) || 0)} style={input} /></label>
-        </> : <>
-          <label style={fieldStyle}>Hopping t<input type="number" step="any" value={hopping} onChange={(e) => setHopping(Number(e.target.value) || 0)} style={input} /></label>
-          <label style={fieldStyle}>On-site U<input type="number" step="any" value={onsiteU} onChange={(e) => setOnsiteU(Number(e.target.value) || 0)} style={input} /></label>
-          <label style={fieldStyle}>Chemical μ<input type="number" step="any" value={chemicalPotential} onChange={(e) => setChemicalPotential(Number(e.target.value) || 0)} style={input} /></label>
-        </>}
-        <Button variant="accent" onClick={() => void generateHamiltonian()} disabled={busy !== null}>{busy === "hamiltonian" ? "Generating…" : "Generate Hamiltonian"}</Button>
+
+      {/* 2. Quick Presets Strip */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap", padding: "8px 12px", background: "rgba(15,23,42,0.6)", borderRadius: 8, border: "1px solid rgba(51,65,85,0.4)" }}>
+        <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+          ⚡ Quick Presets:
+        </span>
+        <button
+          onClick={() => applyModelPreset("ising1d")}
+          style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, border: "1px solid rgba(56,189,248,.3)", background: "rgba(56,189,248,.08)", color: "#7dd3fc", cursor: "pointer" }}
+        >
+          🧲 1D Ising Chain (L=8, J=1, h=0.5)
+        </button>
+        <button
+          onClick={() => applyModelPreset("heisenberg2d")}
+          style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, border: "1px solid rgba(168,85,247,.3)", background: "rgba(168,85,247,.08)", color: "#d8b4fe", cursor: "pointer" }}
+        >
+          🔄 2D Heisenberg Grid (4×4, J=1)
+        </button>
+        <button
+          onClick={() => applyModelPreset("hubbard2d")}
+          style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, border: "1px solid rgba(52,211,153,.3)", background: "rgba(52,211,153,.08)", color: "#6ee7b7", cursor: "pointer" }}
+        >
+          ⚛️ 2D Fermi-Hubbard (3×3, U=4, t=1)
+        </button>
+        <button
+          onClick={() => applyModelPreset("xxz1d")}
+          style={{ padding: "4px 10px", fontSize: 12, borderRadius: 6, border: "1px solid rgba(251,191,36,.3)", background: "rgba(251,191,36,.08)", color: "#fde68a", cursor: "pointer" }}
+        >
+          🧬 1D Critical XXZ (L=10, Δ=1)
+        </button>
       </div>
-      {hamiltonian ? <details style={{ marginTop: 16, color: "#94a3b8", fontSize: 12 }}><summary style={{ cursor: "pointer" }}>Inspect sparse terms</summary><pre style={{ maxHeight: 180, overflow: "auto", background: "#0b1225", padding: 12, borderRadius: 10 }}>{JSON.stringify(hamiltonian.terms.slice(0, 12), null, 2)}</pre></details> : null}
-    </section>
-    <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 18, marginTop: 18 }}><div style={card}><div style={{ fontWeight: 700 }}>Energy and ground state</div><p style={{ color: "#64748b", fontSize: 12, lineHeight: 1.5 }}>Use MPS for the current circuit, DMRG for a variational ground state, or exact diagonalization as a small-system check.</p><div style={{ display: "flex", gap: 14, alignItems: "end", flexWrap: "wrap" }}><label style={fieldStyle}>Bond dimension<input type="number" min={1} max={64} value={bondDim} onChange={(e) => setBondDim(Math.max(1, Math.min(64, Number(e.target.value) || 1)))} style={input} /></label><label style={fieldStyle}>DMRG sweeps<input type="number" min={1} max={64} value={sweeps} onChange={(e) => setSweeps(Math.max(1, Math.min(64, Number(e.target.value) || 1)))} style={fieldStyle} /></label><Button variant="accent" onClick={() => void runEnergy()} disabled={busy !== null || !hamiltonian || hamiltonian.n_qubits !== nQubits}>{busy === "energy" ? "Running…" : "Evaluate energy"}</Button><Button variant="primary" onClick={() => void runVariationalGround()} disabled={busy !== null || !hamiltonian}>{busy === "dmrg" ? "Optimizing…" : "DMRG ground state"}</Button><Button variant="ghost" onClick={() => void runGround()} disabled={busy !== null || !hamiltonian || hamiltonian.n_qubits > 12}>{busy === "ground" ? "Diagonalizing…" : "Exact ground state"}</Button></div><div style={{ display: "flex", gap: 28, flexWrap: "wrap", alignItems: "baseline", marginTop: 22 }}>{energy != null ? <div style={{ fontSize: 30, fontWeight: 750, color: "#67e8f9" }}>{Number(energy).toFixed(7)}<span style={{ fontSize: 13, color: "#64748b", marginLeft: 8 }}>MPS energy</span></div> : null}{dmrgEnergy != null ? <div style={{ fontSize: 30, fontWeight: 750, color: "#7dd3fc" }}>{Number(dmrgEnergy).toFixed(7)}<span style={{ fontSize: 13, color: "#64748b", marginLeft: 8 }}>DMRG ground</span></div> : null}{groundEnergy != null ? <div style={{ fontSize: 30, fontWeight: 750, color: "#f0abfc" }}>{Number(groundEnergy).toFixed(7)}<span style={{ fontSize: 13, color: "#64748b", marginLeft: 8 }}>exact ground</span></div> : null}</div></div><div style={card}><div style={{ fontWeight: 700 }}>TEBD / PEPS evolution</div><p style={{ color: "#64748b", fontSize: 12, lineHeight: 1.5 }}>Choose the evolution backend that matches the geometry and problem size.</p>{hamiltonian && !tebdReady ? <div style={{ color: "#fbbf24", fontSize: 12, marginBottom: 12 }}>This Hamiltonian has Jordan–Wigner parity strings longer than the safe 64-locality limit; TEBD is disabled.</div> : null}{hamiltonian && tebdReady && hamiltonian.terms.some((term) => Object.keys(term.paulis).length > 2) ? <div style={{ color: "#94a3b8", fontSize: 12, marginBottom: 12 }}>Parity strings use a CX network; compare bond-dimension and time-step convergence.</div> : null}<div style={{ display: "flex", gap: 14, alignItems: "end", flexWrap: "wrap" }}><label style={fieldStyle}>dt<input type="number" step="any" value={dt} onChange={(e) => setDt(Number(e.target.value) || 0.01)} style={input} /></label><label style={fieldStyle}>Steps<input type="number" min={1} max={10000} value={steps} onChange={(e) => setSteps(Math.max(1, Math.min(10000, Number(e.target.value) || 1)))} style={input} /></label><label style={fieldStyle}>PEPS contraction<select value={pepsContraction} onChange={(e) => setPepsContraction(e.target.value as PEPSContraction)} style={input}><option value="auto">Auto · double-layer</option><option value="boundary-mps">Boundary-MPS · 2D open</option></select></label>{pepsContraction === "boundary-mps" ? <label style={fieldStyle}>Environment χ<input type="number" min={1} max={64} value={boundaryBondDim} onChange={(e) => setBoundaryBondDim(Math.max(1, Math.min(64, Number(e.target.value) || 1)))} style={input} /></label> : null}<Button variant="danger" onClick={() => void runEvolution()} disabled={busy !== null || !hamiltonian || hamiltonian.n_qubits !== nQubits || !tebdReady}>{busy === "tebd" ? "Evolving…" : "Run TEBD"}</Button><Button variant="secondary" onClick={() => void runNativePEPS()} disabled={busy !== null || !hamiltonian || !pepsEligible || hamiltonian.n_qubits !== nQubits || (pepsContraction === "boundary-mps" && (dimension !== 2 || boundary !== "open"))}>{busy === "peps" ? "Evolving…" : "Run native PEPS"}</Button></div>{pepsContraction === "boundary-mps" && (dimension !== 2 || boundary !== "open") ? <div style={{ color: "#fbbf24", fontSize: 12, marginTop: 10 }}>Boundary-MPS requires an open 2D lattice; choose Auto for 3D or periodic geometry.</div> : null}{pepsEligible ? <div style={{ color: "#64748b", fontSize: 12, marginTop: 10 }}>2D/3D spin lattice · bounded double-layer contraction · boundary-MPS environment χ is explicit · up to 64 sites</div> : null}{tebdResult ? <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 18, fontSize: 12 }}><div><span style={{ color: "#64748b" }}>TEBD norm</span><br /><strong>{Number(tebdResult.norm2 ?? 0).toFixed(6)}</strong></div><div><span style={{ color: "#64748b" }}>TEBD bond</span><br /><strong>{String(tebdResult.bond_dim_used ?? "—")}</strong></div><div><span style={{ color: "#64748b" }}>TEBD discarded</span><br /><strong>{Number(tebdResult.discarded_weight ?? 0).toExponential(2)}</strong></div></div> : null}{pepsResult ? <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginTop: 12, fontSize: 12 }}><div><span style={{ color: "#64748b" }}>PEPS norm</span><br /><strong>{Number(pepsResult.norm2 ?? 0).toFixed(6)}</strong></div><div><span style={{ color: "#64748b" }}>PEPS bond</span><br /><strong>{String(pepsResult.bond_dim_used ?? "—")}</strong></div><div><span style={{ color: "#64748b" }}>PEPS discarded</span><br /><strong>{Number(pepsResult.discarded_weight ?? 0).toExponential(2)}</strong></div></div> : null}</div></section>
-    <PhysicsConvergenceStudy mode={studyMode} rows={studyRows} manifest={studyManifest} running={busy === "study"} disabled={!hamiltonian || busy !== null} availableModes={["dmrg", ...(tebdReady ? ["tebd" as const] : []), ...(pepsEligible ? ["peps" as const] : [])]} onModeChange={setStudyMode} onRun={() => void runConvergenceStudy(studyMode)} />
-    {material === "spin" ? <CTMRGLabPanel dimensions={activeDimensions} model={model} coupling={coupling} field={field} anisotropy={anisotropy} onResult={(result, request, label) => { setLatestOutput(result); addExperiment({ label: `Physics · ${label}`, source: request.source, kind: request.kind, status: "done", request, result, provenance: result.provenance }); }} /> : null}
-    {observableRows.length ? <section style={{ ...card, marginTop: 18 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}><div><div style={{ fontWeight: 700 }}>Structured observables</div><div style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>Named Pauli expectations are stored with the run artifact and provenance.</div></div><div style={{ color: "#67e8f9", fontSize: 12 }}>{observableRows.length}{evidenceResult && Array.isArray(evidenceResult.observables) && evidenceResult.observables.length > observableRows.length ? " shown" : " observables"}</div></div><div style={{ overflowX: "auto", marginTop: 14 }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}><thead><tr style={{ color: "#64748b", textAlign: "left" }}><th style={{ padding: "8px 10px" }}>Label</th><th style={{ padding: "8px 10px" }}>Pauli support</th><th style={{ padding: "8px 10px" }}>Coefficient</th><th style={{ padding: "8px 10px" }}>Value</th></tr></thead><tbody>{observableRows.map((row, index) => <tr key={`${String(row.label ?? "observable")}-${index}`} style={{ borderTop: "1px solid #1e293b" }}><td style={{ padding: "8px 10px", color: "#e0f2fe" }}>{String(row.label ?? `Observable ${index + 1}`)}</td><td style={{ padding: "8px 10px", color: "#94a3b8" }}>{row.paulis && typeof row.paulis === "object" ? Object.entries(row.paulis as Record<string, unknown>).map(([qubit, pauli]) => `${String(pauli)}${qubit}`).join(" · ") || "I" : "—"}</td><td style={{ padding: "8px 10px" }}>{Number(row.coefficient ?? 1).toFixed(4)}</td><td style={{ padding: "8px 10px", color: "#67e8f9" }}>{Number(row.value ?? 0).toFixed(8)}</td></tr>)}</tbody></table></div></section> : null}
-    {pepsResult ? <ConvergenceDiagnostics result={pepsResult as AgentResult} /> : null}
-    {jobProgress ? <ComputeProgress job={jobProgress} dark onCancel={() => void cancelJob()} canceling={canceling} onRetry={() => retryRef.current?.()} retrying={busy !== null} /> : null}
-    {energies.length ? <section style={{ ...card, marginTop: 18 }}><div style={{ fontWeight: 700, marginBottom: 12 }}>Energy trajectory</div><EnergyChart values={energies} />{warningList.length ? <div style={{ color: "#fbbf24", fontSize: 12, marginTop: 12 }}>{warningList.join(" · ")}</div> : null}</section> : null}
-    {error ? <div role="alert" style={{ marginTop: 18, padding: 12, borderRadius: 10, color: "#fecaca", background: "rgba(127,29,29,.35)", border: "1px solid rgba(248,113,113,.3)", fontSize: 13 }}>{error}</div> : null}
-  </main>;
+
+      {/* 3. Laboratory Navigation Tabs */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 18, borderBottom: "1px solid rgba(51,65,85,.5)", paddingBottom: 8, overflowX: "auto" }}>
+        {[
+          { id: "overview", label: "🌐 Lattice & Model", badge: `${siteCount} sites` },
+          { id: "solvers", label: "⚡ Ground State & DMRG", badge: dmrgEnergy != null || groundEnergy != null ? "Solved" : undefined },
+          { id: "dynamics", label: "🌊 Dynamics (TEBD / PEPS)", badge: energies.length ? `${energies.length} pts` : undefined },
+          { id: "ctmrg", label: "📈 2D Infinite (CTMRG)", badge: "Thermodynamic" },
+          { id: "convergence", label: "🔬 Convergence Study", badge: studyRows.length ? `${studyRows.length} rows` : undefined },
+          { id: "all", label: "📑 All Panels" }
+        ].map((t) => {
+          const isActive = labTab === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setLabTab(t.id as typeof labTab)}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 8,
+                border: "none",
+                background: isActive ? "#0284c7" : "transparent",
+                color: isActive ? "#ffffff" : "#94a3b8",
+                fontWeight: isActive ? 600 : 500,
+                fontSize: 13,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                transition: "all 120ms ease",
+                boxShadow: isActive ? "0 2px 8px rgba(2,132,199,0.4)" : "none"
+              }}
+            >
+              <span>{t.label}</span>
+              {t.badge && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    padding: "2px 6px",
+                    borderRadius: 999,
+                    background: isActive ? "rgba(255,255,255,0.25)" : "rgba(51,65,85,0.6)",
+                    color: isActive ? "#ffffff" : "#cbd5e1"
+                  }}
+                >
+                  {t.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 4. TAB CONTENTS */}
+
+      {/* OVERVIEW TAB: Lattice Geometry + Hamiltonian Plugin */}
+      {(labTab === "overview" || labTab === "all") && (
+        <div style={{ display: "grid", gap: 18, marginBottom: 18 }}>
+          <section style={{ display: "grid", gridTemplateColumns: "minmax(320px, 0.8fr) minmax(440px, 1.2fr)", gap: 18 }}>
+            {/* Lattice Design Card */}
+            <div style={card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>Lattice geometry</div>
+                <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "#0b1225", color: "#38bdf8" }}>Deterministic Snake</span>
+              </div>
+              <div style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>
+                Configure 1D chain, 2D grid, or 3D cube geometry with open or periodic boundaries.
+              </div>
+              <div style={{ display: "grid", gap: 14, marginTop: 18 }}>
+                <label style={fieldStyle}>
+                  Dimension
+                  <select value={dimension} onChange={(e) => setDimension(Number(e.target.value) as 1 | 2 | 3)} style={input}>
+                    <option value={1}>1D chain</option>
+                    <option value={2}>2D grid</option>
+                    <option value={3}>3D grid</option>
+                  </select>
+                </label>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {activeDimensions.map((size, index) => (
+                    <label key={index} style={fieldStyle}>
+                      {index === 0 ? "X size" : index === 1 ? "Y size" : "Z size"}
+                      <input type="number" min={1} max={16} value={size} onChange={(e) => updateSize(index, e.target.value)} style={input} />
+                    </label>
+                  ))}
+                </div>
+                <label style={fieldStyle}>
+                  Boundary conditions
+                  <select value={boundary} onChange={(e) => setBoundary(e.target.value as Boundary)} style={input}>
+                    <option value="open">Open (OBC)</option>
+                    <option value="periodic">Periodic (PBC)</option>
+                  </select>
+                </label>
+                <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(11,18,37,0.7)", border: "1px solid rgba(51,65,85,0.4)", color: qubitCount > 64 ? "#fbbf24" : "#67e8f9", fontSize: 12 }}>
+                  <strong>{siteCount}</strong> sites · <strong>{qubitCount}</strong> mapped qubits
+                  {qubitCount > 64 ? " (preview only above 64 qubits)" : " • ready for simulation"}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <Button variant="accent" onClick={() => void preview()} disabled={busy !== null}>
+                    {busy === "preview" ? "Previewing…" : "Preview lattice"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => { if (qubitCount <= 64) setNQubits(qubitCount); }}
+                    disabled={qubitCount > 64 || busy !== null}
+                    title="Circuit editor qubitlar sonini ushbu panjaraga tenglashtirish"
+                  >
+                    Adopt {qubitCount} qubits to circuit
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Lattice Visualization Canvas Card */}
+            <div style={card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>Spatial preview & graph layout</div>
+                <span style={{ fontSize: 12, color: "#94a3b8" }}>{activeDimensions.join(" × ")}</span>
+              </div>
+              {graph ? (
+                <LatticeCanvas graph={graph} />
+              ) : (
+                <div style={{ minHeight: 280, display: "grid", placeItems: "center", border: "1px dashed #334155", borderRadius: 12, color: "#64748b", background: "rgba(11,18,37,0.5)" }}>
+                  Preview a lattice to inspect its spatial geometry and couplings.
+                </div>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginTop: 14 }}>
+                {[
+                  ["dimension", graph?.dimension ?? `${dimension}D`],
+                  ["sites", graph?.sites.length ?? siteCount],
+                  ["edges", graph?.edges.length ?? "—"],
+                  ["ordering", graph?.ordering ?? "snake"]
+                ].map(([label, value]) => (
+                  <div key={label} style={{ padding: "8px 10px", borderRadius: 8, background: "#0b1225", border: "1px solid rgba(51,65,85,.4)" }}>
+                    <div style={{ color: "#64748b", fontSize: 10, textTransform: "uppercase" }}>{label}</div>
+                    <div style={{ color: "#e0f2fe", fontWeight: 700, marginTop: 2, fontSize: 13 }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* Hamiltonian Plugin Card */}
+          <section style={card}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>Hamiltonian model synthesizer</div>
+                <div style={{ color: "#64748b", fontSize: 12, marginTop: 2 }}>
+                  Generate sparse Pauli operators for energy evaluation, TEBD real-time evolution, and variational DMRG.
+                </div>
+              </div>
+              <div style={{ padding: "4px 10px", borderRadius: 6, background: hamiltonian ? "rgba(34,197,94,.1)" : "rgba(234,179,8,.1)", color: hamiltonian ? "#4ade80" : "#facc15", fontSize: 12, fontWeight: 600 }}>
+                {hamiltonian ? `✓ ${hamiltonian.terms.length} terms loaded` : "No model generated"}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "end", marginTop: 16 }}>
+              <label style={fieldStyle}>
+                Domain
+                <select
+                  value={material}
+                  onChange={(e) => {
+                    setMaterial(e.target.value as MaterialName);
+                    setHamiltonian(null);
+                    setEnergyResult(null);
+                    setGroundResult(null);
+                    setDmrgResult(null);
+                    setTebdResult(null);
+                    setPepsResult(null);
+                  }}
+                  style={input}
+                >
+                  <option value="spin">Spin lattice</option>
+                  <option value="hubbard">Hubbard materials</option>
+                </select>
+              </label>
+              {material === "spin" ? (
+                <>
+                  <label style={fieldStyle}>
+                    Model
+                    <select value={model} onChange={(e) => setModel(e.target.value as ModelName)} style={input}>
+                      <option value="ising">Transverse Ising</option>
+                      <option value="heisenberg">Heisenberg</option>
+                      <option value="xxz">XXZ</option>
+                    </select>
+                  </label>
+                  <label style={fieldStyle}>
+                    Coupling J
+                    <input type="number" step="any" value={coupling} onChange={(e) => setCoupling(Number(e.target.value) || 0)} style={input} />
+                  </label>
+                  <label style={fieldStyle}>
+                    Field h
+                    <input type="number" step="any" value={field} onChange={(e) => setField(Number(e.target.value) || 0)} style={input} />
+                  </label>
+                  <label style={fieldStyle}>
+                    Anisotropy Δ
+                    <input type="number" step="any" value={anisotropy} onChange={(e) => setAnisotropy(Number(e.target.value) || 0)} style={input} />
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label style={fieldStyle}>
+                    Hopping t
+                    <input type="number" step="any" value={hopping} onChange={(e) => setHopping(Number(e.target.value) || 0)} style={input} />
+                  </label>
+                  <label style={fieldStyle}>
+                    On-site U
+                    <input type="number" step="any" value={onsiteU} onChange={(e) => setOnsiteU(Number(e.target.value) || 0)} style={input} />
+                  </label>
+                  <label style={fieldStyle}>
+                    Chemical μ
+                    <input type="number" step="any" value={chemicalPotential} onChange={(e) => setChemicalPotential(Number(e.target.value) || 0)} style={input} />
+                  </label>
+                </>
+              )}
+              <Button variant="accent" onClick={() => void generateHamiltonian()} disabled={busy !== null}>
+                {busy === "hamiltonian" ? "Generating…" : "Generate Hamiltonian"}
+              </Button>
+            </div>
+            {hamiltonian ? (
+              <details style={{ marginTop: 14, color: "#94a3b8", fontSize: 12 }}>
+                <summary style={{ cursor: "pointer", color: "#38bdf8" }}>Inspect sparse Pauli terms ({hamiltonian.terms.length} terms)</summary>
+                <pre style={{ maxHeight: 180, overflow: "auto", background: "#0b1225", padding: 12, borderRadius: 10, marginTop: 8 }}>
+                  {JSON.stringify(hamiltonian.terms.slice(0, 16), null, 2)}
+                </pre>
+              </details>
+            ) : null}
+          </section>
+        </div>
+      )}
+
+      {/* SOLVERS TAB: DMRG, Exact Diagonalization & Circuit Energy */}
+      {(labTab === "solvers" || labTab === "all") && (
+        <section style={{ ...card, marginBottom: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>Variational & Ground State Solvers</div>
+              <p style={{ color: "#64748b", fontSize: 12, margin: "2px 0 0" }}>
+                Optimize ground state using DMRG (Density Matrix Renormalization Group) or Exact Diagonalization check.
+              </p>
+            </div>
+            {!hamiltonian && (
+              <div style={{ color: "#fbbf24", fontSize: 12 }}>⚠️ Generate Hamiltonian first in the Lattice tab</div>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 14, alignItems: "end", flexWrap: "wrap", padding: "12px 0" }}>
+            <label style={fieldStyle}>
+              Bond dimension χ
+              <input type="number" min={1} max={64} value={bondDim} onChange={(e) => setBondDim(Math.max(1, Math.min(64, Number(e.target.value) || 1)))} style={input} />
+            </label>
+            <label style={fieldStyle}>
+              DMRG sweeps
+              <input type="number" min={1} max={64} value={sweeps} onChange={(e) => setSweeps(Math.max(1, Math.min(64, Number(e.target.value) || 1)))} style={input} />
+            </label>
+            <Button variant="accent" onClick={() => void runEnergy()} disabled={busy !== null || !hamiltonian || hamiltonian.n_qubits !== nQubits}>
+              {busy === "energy" ? "Evaluating…" : "Evaluate MPS Circuit Energy"}
+            </Button>
+            <Button variant="primary" onClick={() => void runVariationalGround()} disabled={busy !== null || !hamiltonian}>
+              {busy === "dmrg" ? "Optimizing…" : "DMRG Ground State"}
+            </Button>
+            <Button variant="ghost" onClick={() => void runGround()} disabled={busy !== null || !hamiltonian || hamiltonian.n_qubits > 12}>
+              {busy === "ground" ? "Diagonalizing…" : "Exact ED (≤12 qubits)"}
+            </Button>
+          </div>
+          <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "baseline", marginTop: 18, padding: "16px", borderRadius: 10, background: "#0b1225", border: "1px solid rgba(51,65,85,.5)" }}>
+            {energy != null ? (
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>MPS Circuit Energy</div>
+                <div style={{ fontSize: 28, fontWeight: 750, color: "#38bdf8" }}>{Number(energy).toFixed(7)}</div>
+              </div>
+            ) : null}
+            {dmrgEnergy != null ? (
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>DMRG Ground Energy</div>
+                <div style={{ fontSize: 28, fontWeight: 750, color: "#4ade80" }}>{Number(dmrgEnergy).toFixed(7)}</div>
+              </div>
+            ) : null}
+            {groundEnergy != null ? (
+              <div>
+                <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase" }}>Exact ED Ground</div>
+                <div style={{ fontSize: 28, fontWeight: 750, color: "#f472b6" }}>{Number(groundEnergy).toFixed(7)}</div>
+              </div>
+            ) : null}
+            {energy == null && dmrgEnergy == null && groundEnergy == null && (
+              <div style={{ color: "#64748b", fontSize: 13 }}>No solver run yet. Choose a solver above to compute ground state energy.</div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* DYNAMICS TAB: TEBD / PEPS Real-Time Evolution */}
+      {(labTab === "dynamics" || labTab === "all") && (
+        <section style={{ ...card, marginBottom: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>Time Evolution & Dynamics (TEBD / PEPS)</div>
+              <p style={{ color: "#64748b", fontSize: 12, margin: "2px 0 0" }}>
+                Real-time unitary or imaginary evolution on 1D chains (MPS/TEBD) or 2D/3D lattices (PEPS).
+              </p>
+            </div>
+          </div>
+          {hamiltonian && !tebdReady ? (
+            <div style={{ color: "#fbbf24", fontSize: 12, marginBottom: 12, padding: 8, background: "rgba(245,158,11,.1)", borderRadius: 6 }}>
+              ⚠️ Jordan–Wigner parity string exceeds safe limit; TEBD is disabled for this Hamiltonian.
+            </div>
+          ) : null}
+          <div style={{ display: "flex", gap: 14, alignItems: "end", flexWrap: "wrap", padding: "10px 0" }}>
+            <label style={fieldStyle}>
+              Time step dt
+              <input type="number" step="any" value={dt} onChange={(e) => setDt(Number(e.target.value) || 0.01)} style={input} />
+            </label>
+            <label style={fieldStyle}>
+              Steps
+              <input type="number" min={1} max={10000} value={steps} onChange={(e) => setSteps(Math.max(1, Math.min(10000, Number(e.target.value) || 1)))} style={input} />
+            </label>
+            <label style={fieldStyle}>
+              PEPS method
+              <select value={pepsContraction} onChange={(e) => setPepsContraction(e.target.value as PEPSContraction)} style={input}>
+                <option value="auto">Auto · double-layer</option>
+                <option value="boundary-mps">Boundary-MPS · 2D open</option>
+              </select>
+            </label>
+            {pepsContraction === "boundary-mps" && (
+              <label style={fieldStyle}>
+                Environment χ
+                <input type="number" min={1} max={64} value={boundaryBondDim} onChange={(e) => setBoundaryBondDim(Math.max(1, Math.min(64, Number(e.target.value) || 1)))} style={input} />
+              </label>
+            )}
+            <Button variant="danger" onClick={() => void runEvolution()} disabled={busy !== null || !hamiltonian || hamiltonian.n_qubits !== nQubits || !tebdReady}>
+              {busy === "tebd" ? "Evolving…" : "Run TEBD (1D)"}
+            </Button>
+            <Button variant="secondary" onClick={() => void runNativePEPS()} disabled={busy !== null || !hamiltonian || !pepsEligible || hamiltonian.n_qubits !== nQubits || (pepsContraction === "boundary-mps" && (dimension !== 2 || boundary !== "open"))}>
+              {busy === "peps" ? "Evolving…" : "Run native PEPS (2D/3D)"}
+            </Button>
+          </div>
+          {tebdResult ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 14, fontSize: 12, padding: 12, background: "#0b1225", borderRadius: 8 }}>
+              <div><span style={{ color: "#64748b" }}>TEBD norm²</span><br /><strong style={{ color: "#e0f2fe" }}>{Number(tebdResult.norm2 ?? 0).toFixed(6)}</strong></div>
+              <div><span style={{ color: "#64748b" }}>Bond dim used</span><br /><strong style={{ color: "#e0f2fe" }}>{String(tebdResult.bond_dim_used ?? "—")}</strong></div>
+              <div><span style={{ color: "#64748b" }}>Discarded weight</span><br /><strong style={{ color: "#e0f2fe" }}>{Number(tebdResult.discarded_weight ?? 0).toExponential(2)}</strong></div>
+            </div>
+          ) : null}
+          {pepsResult ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 14, fontSize: 12, padding: 12, background: "#0b1225", borderRadius: 8 }}>
+              <div><span style={{ color: "#64748b" }}>PEPS norm²</span><br /><strong style={{ color: "#e0f2fe" }}>{Number(pepsResult.norm2 ?? 0).toFixed(6)}</strong></div>
+              <div><span style={{ color: "#64748b" }}>Bond dim used</span><br /><strong style={{ color: "#e0f2fe" }}>{String(pepsResult.bond_dim_used ?? "—")}</strong></div>
+              <div><span style={{ color: "#64748b" }}>Discarded weight</span><br /><strong style={{ color: "#e0f2fe" }}>{Number(pepsResult.discarded_weight ?? 0).toExponential(2)}</strong></div>
+            </div>
+          ) : null}
+          {energies.length ? (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, color: "#cbd5e1" }}>Energy trajectory E(t)</div>
+              <EnergyChart values={energies} />
+              {warningList.length ? <div style={{ color: "#fbbf24", fontSize: 12, marginTop: 8 }}>{warningList.join(" · ")}</div> : null}
+            </div>
+          ) : null}
+        </section>
+      )}
+
+      {/* CTMRG TAB: 2D Infinite Thermodynamics */}
+      {(labTab === "ctmrg" || labTab === "all") && material === "spin" && (
+        <div style={{ marginBottom: 18 }}>
+          <CTMRGLabPanel
+            dimensions={activeDimensions}
+            model={model}
+            coupling={coupling}
+            field={field}
+            anisotropy={anisotropy}
+            onResult={(result, request, label) => {
+              setLatestOutput(result);
+              addExperiment({ label: `Physics · ${label}`, source: request.source, kind: request.kind, status: "done", request, result, provenance: result.provenance });
+            }}
+          />
+        </div>
+      )}
+
+      {/* CONVERGENCE STUDY TAB */}
+      {(labTab === "convergence" || labTab === "all") && (
+        <div style={{ marginBottom: 18 }}>
+          <PhysicsConvergenceStudy
+            mode={studyMode}
+            rows={studyRows}
+            manifest={studyManifest}
+            running={busy === "study"}
+            disabled={!hamiltonian || busy !== null}
+            availableModes={["dmrg", ...(tebdReady ? ["tebd" as const] : []), ...(pepsEligible ? ["peps" as const] : [])]}
+            onModeChange={setStudyMode}
+            onRun={() => void runConvergenceStudy(studyMode)}
+          />
+          {pepsResult ? <ConvergenceDiagnostics result={pepsResult as AgentResult} /> : null}
+        </div>
+      )}
+
+      {/* OBSERVABLES TABLE */}
+      {observableRows.length > 0 && (
+        <section style={{ ...card, marginTop: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
+            <div>
+              <div style={{ fontWeight: 700 }}>Structured observables</div>
+              <div style={{ color: "#64748b", fontSize: 12, marginTop: 4 }}>Named Pauli expectations are stored with provenance.</div>
+            </div>
+            <div style={{ color: "#67e8f9", fontSize: 12 }}>{observableRows.length} observables</div>
+          </div>
+          <div style={{ overflowX: "auto", marginTop: 14 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ color: "#64748b", textAlign: "left" }}>
+                  <th style={{ padding: "8px 10px" }}>Label</th>
+                  <th style={{ padding: "8px 10px" }}>Pauli support</th>
+                  <th style={{ padding: "8px 10px" }}>Coefficient</th>
+                  <th style={{ padding: "8px 10px" }}>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {observableRows.map((row, index) => (
+                  <tr key={`${String(row.label ?? "observable")}-${index}`} style={{ borderTop: "1px solid #1e293b" }}>
+                    <td style={{ padding: "8px 10px", color: "#e0f2fe" }}>{String(row.label ?? `Observable ${index + 1}`)}</td>
+                    <td style={{ padding: "8px 10px", color: "#94a3b8" }}>
+                      {row.paulis && typeof row.paulis === "object"
+                        ? Object.entries(row.paulis as Record<string, unknown>).map(([qubit, pauli]) => `${String(pauli)}${qubit}`).join(" · ") || "I"
+                        : "—"}
+                    </td>
+                    <td style={{ padding: "8px 10px" }}>{Number(row.coefficient ?? 1).toFixed(4)}</td>
+                    <td style={{ padding: "8px 10px", color: "#67e8f9" }}>{Number(row.value ?? 0).toFixed(8)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {jobProgress ? <ComputeProgress job={jobProgress} dark onCancel={() => void cancelJob()} canceling={canceling} onRetry={() => retryRef.current?.()} retrying={busy !== null} /> : null}
+
+      {error ? (
+        <div role="alert" style={{ marginTop: 18, padding: 12, borderRadius: 10, color: "#fecaca", background: "rgba(127,29,29,.35)", border: "1px solid rgba(248,113,113,.3)", fontSize: 13 }}>
+          {error}
+        </div>
+      ) : null}
+    </main>
+  );
+
 }
