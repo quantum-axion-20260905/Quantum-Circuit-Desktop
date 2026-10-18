@@ -64,6 +64,121 @@ export function LatticeLab() {
   const [groundResult, setGroundResult] = React.useState<Record<string, unknown> | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const retryRef = React.useRef<(() => void) | null>(null);
+  function getMaterialPhaseInsight(): { title: string; badge: string; description: string; orderParameter: string } {
+    if (material === "spin") {
+      if (model === "ising") {
+        const ratio = Math.abs(coupling) > 1e-9 ? Math.abs(field / coupling) : 999;
+        if (ratio < 0.95) {
+          return {
+            title: "Ferromagnetic Ordered Phase",
+            badge: "Spontaneous Symmetry Broken",
+            description: "Kvant fluktuatsiyalari kuchsiz; qo'shni spinlar parallel tartiblangan. Zanjir chekkalarida ferromagnit qutblanish mavjud.",
+            orderParameter: "⟨Z_i⟩ ≠ 0 (Long-range order)"
+          };
+        } else if (ratio > 1.05) {
+          return {
+            title: "Quantum Paramagnetic Phase",
+            badge: "Disordered / Polarized",
+            description: "Ko'ndalang magnit maydoni g'olib; barcha spinlar X-o'qi bo'ylab qutblangan, energetik tirqish (mass gap) mavjud.",
+            orderParameter: "⟨X_i⟩ ≈ 1, ⟨Z_i⟩ = 0"
+          };
+        } else {
+          return {
+            title: "Quantum Critical Point (h ≈ J)",
+            badge: "Criticality (c = 1/2 CFT)",
+            description: "Massasiz Majorana fermionlari va konform maydon nazariyasi (CFT) bilan tavsiflanuvchi uzluksiz kvant fazaviy o'tish nuqtasi.",
+            orderParameter: "Power-law correlations ⟨Z_0 Z_r⟩ ~ r^(-1/4)"
+          };
+        }
+      } else if (model === "heisenberg") {
+        if (coupling > 0) {
+          return {
+            title: "Antiferromagnetic Phase (Néel / Singlet)",
+            badge: "SU(2) Invariant",
+            description: "Qo'shni spinlar antiparallel o'zaro ta'sirlashadi; 1D da gapless spin to'lqinlari (spinonlar), 2D da Néel tartibi kuzatiladi.",
+            orderParameter: "Staggered Magnetization ⟨(-1)^i S_i^z⟩"
+          };
+        } else {
+          return {
+            title: "Ferromagnetic State",
+            badge: "Fully Polarized",
+            description: "Barcha spinlar bir xil yo'nalishga intiladi; asosiy holat to'liq ferromagnit ko'p spinli holatdir.",
+            orderParameter: "Total Spin S_total = N/2"
+          };
+        }
+      } else {
+        // xxz
+        if (anisotropy > 1.05) {
+          return {
+            title: "Ising-like Gapped Antiferromagnet",
+            badge: "Discrete Z2 Broken",
+            description: "Anizotropiya z-o'qi bo'ylab antiferromagnit tartib hosil qiladi, qo'zg'alishlar energetik tirqishga ega.",
+            orderParameter: "Néel Order with Exponential Decay"
+          };
+        } else if (anisotropy < -1.05) {
+          return {
+            title: "Ferromagnetic Phase",
+            badge: "Anisotropic FM",
+            description: "Z-yo'nalishidagi kuchli ferromagnit o'zaro ta'sir spinlarni to'liq qutblaydi.",
+            orderParameter: "Ferromagnetic Polarization"
+          };
+        } else {
+          return {
+            title: "Tomonaga–Luttinger Liquid (XY Critical)",
+            badge: "Gapless Critical",
+            description: "Kvant anizotropik suyuqligi; korrelyatsiyalar darajali (power-law) pasayadi, tezkor spinon to'lqinlari mavjud.",
+            orderParameter: "Algebraic Decay, Central Charge c = 1"
+          };
+        }
+      }
+    } else {
+      // hubbard
+      const ratio = Math.abs(hopping) > 1e-9 ? onsiteU / Math.abs(hopping) : 999;
+      if (ratio > 4.0) {
+        return {
+          title: "Strongly Correlated Mott Insulator",
+          badge: "Mott-Hubbard Dielectric",
+          description: "Kuchli Kulon itarilishi (U >> t) tufayli elektronlar har bir saytda lokallashadi. Magnit o'zaro ta'sir super-almashtirish J_ex = 4t²/U ga teng.",
+          orderParameter: "Charge Gap Δ_c ~ U, Local Spin Moments"
+        };
+      } else if (ratio < 1.0) {
+        return {
+          title: "Fermi Liquid Metallic Phase",
+          badge: "Conductive Metal",
+          description: "Elektronlar erkin harakatlanadi (hopping t g'olib), Fermi sathi hosil bo'ladi va o'tkazuvchanlik yuqori bo'ladi.",
+          orderParameter: "Delocalized Band Electrons"
+        };
+      } else {
+        return {
+          title: "Crossover Mott-Metal Regime",
+          badge: "Intermediate Correlation",
+          description: "Kinetik energiya va Kulon itarilishi o'rtasidagi raqobat; o'ta o'tkazuvchanlik va noan'anaviy korrelyatsiyalar faol zonasi.",
+          orderParameter: "Competing Superconducting & Magnetic Fluctuations"
+        };
+      }
+    }
+  }
+
+  function exportPythonModel() {
+    const code = `# Quantum Circuit Studio - Many-body Physics Exporter
+# Model: ${material === "spin" ? model : "Fermi-Hubbard"}
+# Lattice: ${activeDimensions.join("x")} (${boundary} boundary)
+import numpy as np
+
+n_qubits = ${hamiltonian?.n_qubits ?? qubitCount}
+terms = ${JSON.stringify(hamiltonian?.terms ?? [], null, 2)}
+
+print(f"Loaded {len(terms)} Pauli Hamiltonian terms on {n_qubits} qubits")
+`;
+    const blob = new Blob([code], { type: "text/x-python" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `many_body_${material}_${model}_${activeDimensions.join("x")}.py`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const [labTab, setLabTab] = React.useState<"overview" | "solvers" | "dynamics" | "ctmrg" | "convergence" | "all">("overview");
 
   function applyModelPreset(type: "ising1d" | "heisenberg2d" | "hubbard2d" | "xxz1d") {
@@ -644,6 +759,34 @@ export function LatticeLab() {
                 </pre>
               </details>
             ) : null}
+
+            {/* Material Phase & Physical Insight Banner */}
+            {(() => {
+              const insight = getMaterialPhaseInsight();
+              return (
+                <div style={{ marginTop: 16, padding: "12px 14px", borderRadius: 8, background: "rgba(11,18,37,0.85)", border: "1px solid rgba(56,189,248,0.25)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                  <div style={{ maxWidth: 640 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 14 }}>🔬</span>
+                      <strong style={{ fontSize: 14, color: "#38bdf8" }}>{insight.title}</strong>
+                      <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: 4, background: "rgba(56,189,248,0.15)", color: "#7dd3fc", fontWeight: 600 }}>{insight.badge}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.4 }}>{insight.description}</div>
+                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>Order Parameter: <code style={{ color: "#e2e8f0" }}>{insight.orderParameter}</code></div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={exportPythonModel}
+                      disabled={!hamiltonian}
+                      style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid rgba(56,189,248,0.3)", background: "rgba(56,189,248,0.1)", color: "#7dd3fc", fontSize: 12, fontWeight: 600, cursor: hamiltonian ? "pointer" : "not-allowed" }}
+                      title="Ushbu modelni Python kodi sifatida yuklab olish"
+                    >
+                      🐍 Export Python Model
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </section>
         </div>
       )}
