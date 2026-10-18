@@ -28,7 +28,7 @@ export function emitQasm3(nQubits: number, nodes: IrNode[]) {
   const ops = [...nodes].sort((a, b) => (a.col - b.col) || (a.y - b.y) || (a.x - b.x));
   for (const op of ops) {
     const name = op.name;
-    if (name === "h" || name === "x") {
+    if (name === "h" || name === "x" || name === "y" || name === "z" || name === "s" || name === "t") {
       lines.push(`${name} q[${op.target}];`);
       continue;
     }
@@ -144,7 +144,7 @@ export function parseMinimalQasm3(qasm: string): { nQubits: number; ops: ParsedQ
     if (/^barrier\b.*;$/i.test(line)) continue;
 
     // Single-qubit Pauli / Clifford gates
-    let m = line.match(new RegExp(`^(h|x)\\s+${register}\\[(\\d+)\\]\\s*;\\s*$`, "i"));
+    let m = line.match(new RegExp(`^(h|x|y|z|s|t)\\s+${register}\\[(\\d+)\\]\\s*;\\s*$`, "i"));
     if (m) {
       ops.push({ name: m[1].toLowerCase() as GateName, target: Number(m[2]) });
       continue;

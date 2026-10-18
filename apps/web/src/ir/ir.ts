@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const GateNameSchema = z.enum(["h", "x", "rx", "ry", "rz", "cx", "cz"]);
+export const GateNameSchema = z.enum(["h", "x", "y", "z", "s", "t", "rx", "ry", "rz", "cx", "cz"]);
 export type GateName = z.infer<typeof GateNameSchema>;
 
 export const IrNodeSchema = z.object({

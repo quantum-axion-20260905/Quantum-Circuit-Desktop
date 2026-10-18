@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
-export type GateName = "h" | "x" | "rx" | "ry" | "rz" | "cx" | "cz";
+export type GateName = "h" | "x" | "y" | "z" | "s" | "t" | "rx" | "ry" | "rz" | "cx" | "cz";
 
 export type GateOp = {
   id: string;

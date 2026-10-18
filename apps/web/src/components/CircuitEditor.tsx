@@ -23,6 +23,9 @@ import { loadLatestCircuitVersion, saveCircuitVersion } from "../lib/projectStor
 import { CIRCUIT_PRESETS } from "../lib/circuitPresets";
 import { circuitToQuantikz, circuitToCsv } from "../ir/latexExport";
 import { Button } from "../ui";
+import { simulateCircuit } from "../lib/quantumSim";
+import { BlochSphere } from "./BlochSphere";
+import { PhaseDisks } from "./PhaseDisks";
 
 const LANE_START_X = 80;
 const LANE_END_PADDING = 180;
@@ -166,9 +169,16 @@ function LaneNode({ data }: { data: GateNodeData }) {
 export function CircuitEditor() {
   const { ops, setOps, nQubits, setNQubits, replaceCircuit, clear, undo, redo, canUndo, canRedo, analysis } = useCircuit();
   const rfRef = React.useRef<ReactFlowInstance | null>(null);
+  const reactFlowWrapper = React.useRef<HTMLDivElement | null>(null);
   const importInputRef = React.useRef<HTMLInputElement | null>(null);
   const [rfReady, setRfReady] = React.useState(false);
   const [editorNotice, setEditorNotice] = React.useState<string | null>(null);
+  const [selectedQubitForBloch, setSelectedQubitForBloch] = React.useState<number>(0);
+  const [activeProbeTab, setActiveProbeTab] = React.useState<"both" | "bloch" | "phases" | "hidden">("both");
+
+  const simState = useMemo(() => {
+    return simulateCircuit(nQubits, ops);
+  }, [nQubits, ops]);
   const edges = useMemo<Edge[]>(() => {
     const out: Edge[] = [];
     for (const op of ops) {
@@ -390,6 +400,69 @@ export function CircuitEditor() {
     }, 0);
   }, [nQubits, newGate, ops, setOps]);
 
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      const gateType = event.dataTransfer.getData("application/quantum-gate") as GateName;
+      if (!gateType) return;
+
+      if (!rfRef.current || !reactFlowWrapper.current) return;
+
+      const bounds = reactFlowWrapper.current.getBoundingClientRect();
+      let flowPos = { x: 0, y: 0 };
+      const rf = rfRef.current;
+      if ("screenToFlowPosition" in rf && typeof rf.screenToFlowPosition === "function") {
+        flowPos = rf.screenToFlowPosition({
+          x: event.clientX,
+          y: event.clientY,
+        });
+      } else if ("project" in rf && typeof rf.project === "function") {
+        flowPos = rf.project({
+          x: event.clientX - bounds.left,
+          y: event.clientY - bounds.top,
+        });
+      }
+
+      const targetQubit = clampInt((flowPos.y - 60) / 60, 0, nQubits - 1);
+      const desiredCol = Math.max(0, Math.round((flowPos.x - X0) / COL_W));
+
+      let controlQubit: number | undefined = undefined;
+      if (gateType === "cx" || gateType === "cz") {
+        if (targetQubit > 0) {
+          controlQubit = targetQubit - 1;
+        } else if (nQubits > 1) {
+          controlQubit = 1;
+        }
+      }
+
+      const opQubs = controlQubit !== undefined ? [controlQubit, targetQubit] : [targetQubit];
+      const occ = buildOccupancy(ops);
+      const col = resolveCol(occ, desiredCol, opQubs, "");
+
+      const id = `g${typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now().toString(36)}`;
+      const newOp: GateOp = {
+        id,
+        name: gateType,
+        target: targetQubit,
+        control: controlQubit,
+        theta: (gateType === "rx" || gateType === "ry" || gateType === "rz") ? (newGate.theta ?? 0.5) : undefined,
+        col,
+        x: colToX(col),
+        y: qubitToLaneY(targetQubit),
+      };
+
+      setEditorNotice(null);
+      setOps((prev) => [...prev, newOp]);
+      setEditorNotice(`'${gateType.toUpperCase()}' geyti q[${targetQubit}] simiga joylashtirildi.`);
+    },
+    [nQubits, newGate.theta, ops, setOps]
+  );
+
   const download = useCallback((name: string, content: string, type: string) => {
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
@@ -515,6 +588,10 @@ export function CircuitEditor() {
   const gateList: { id: GateName; label: string; desc: string }[] = [
     { id: "h", label: "H", desc: "Hadamard (Superposition)" },
     { id: "x", label: "X", desc: "Pauli-X (NOT)" },
+    { id: "y", label: "Y", desc: "Pauli-Y Gate" },
+    { id: "z", label: "Z", desc: "Pauli-Z (Phase Flip)" },
+    { id: "s", label: "S", desc: "Phase Gate (π/2)" },
+    { id: "t", label: "T", desc: "π/8 Gate (π/4)" },
     { id: "rx", label: "Rx", desc: "X-rotation gate" },
     { id: "ry", label: "Ry", desc: "Y-rotation gate" },
     { id: "rz", label: "Rz", desc: "Z-rotation gate" },
@@ -956,8 +1033,13 @@ export function CircuitEditor() {
             return (
               <button
                 key={g.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("application/quantum-gate", g.id);
+                  e.dataTransfer.effectAllowed = "copy";
+                }}
                 onClick={() => setNewGate((prev) => ({ ...prev, name: g.id }))}
-                title={g.desc}
+                title={`${g.desc} (Sim ustiga sudrab tashlang yoki bosing)`}
                 style={{
                   padding: "4px 9px",
                   borderRadius: 5,
@@ -966,7 +1048,7 @@ export function CircuitEditor() {
                   color: isSelected ? "#1d4ed8" : "#334155",
                   fontWeight: isSelected ? 700 : 500,
                   fontSize: 12,
-                  cursor: "pointer",
+                  cursor: "grab",
                   transition: "all 100ms ease"
                 }}
               >
@@ -974,6 +1056,9 @@ export function CircuitEditor() {
               </button>
             );
           })}
+          <span style={{ fontSize: 11, color: "#2563eb", background: "#eff6ff", padding: "3px 7px", borderRadius: 4, fontWeight: 600, marginLeft: 4 }}>
+            ✋ Drag & Drop
+          </span>
         </div>
 
         <div style={{ width: 1, height: 22, background: "#e2e8f0" }} />
@@ -1061,66 +1146,208 @@ export function CircuitEditor() {
       </div>
 
       {editorNotice ? <div role="status" style={{ padding: "6px 10px", color: "#92400e", background: "#fffbeb", borderBottom: "1px solid #fde68a", fontSize: 12 }}>{editorNotice}</div> : null}
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        onError={(code, message) => {
-          // React Strict Mode invokes React Flow's type-key memo twice in dev;
-          // error 002 is a known false positive when these maps are stable.
-          if (code !== "002") console.warn(`[React Flow ${code}] ${message}`);
-        }}
-        onInit={(inst) => {
-          rfRef.current = inst;
-          setRfReady(true);
-          try {
-            inst.setViewport({ x: 0, y: 12, zoom: 1 }, { duration: 0 });
-          } catch {}
+      <div
+        ref={reactFlowWrapper}
+        style={{ flex: 1, minHeight: 400, position: "relative" }}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onError={(code, message) => {
+            // React Strict Mode invokes React Flow's type-key memo twice in dev;
+            // error 002 is a known false positive when these maps are stable.
+            if (code !== "002") console.warn(`[React Flow ${code}] ${message}`);
+          }}
+          onInit={(inst) => {
+            rfRef.current = inst;
+            setRfReady(true);
+            try {
+              inst.setViewport({ x: 0, y: 12, zoom: 1 }, { duration: 0 });
+            } catch {}
+          }}
+        >
+          <Background gap={20} size={1} color="#e2e8f0" />
+          {showMiniMap ? <MiniMap /> : null}
+          <Controls />
+          {ops.length === 0 ? (
+            <div style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              background: "rgba(255, 255, 255, 0.95)",
+              backdropFilter: "blur(4px)",
+              border: "1px solid #cbd5e1",
+              borderRadius: 12,
+              padding: "24px 32px",
+              boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+              textAlign: "center",
+              maxWidth: 500,
+              zIndex: 10,
+            }}>
+              <h3 style={{ margin: "0 0 8px 0", fontSize: 17, color: "#0f172a" }}>Kvant Sxemasi Laboratoriyasiga Xush Kelibsiz!</h3>
+              <p style={{ margin: "0 0 16px 0", fontSize: 13, color: "#64748b", lineHeight: 1.5 }}>
+                Sxema tuzish uchun yuqoridagi paneldan geytni sim ustiga <b>sudrab tashlang</b> yoki quyidagi tayyor shablonlardan birini tanlang:
+              </p>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 14 }}>
+                <Button variant="primary" onClick={() => loadPreset("bell-state")}>
+                  ✨ Bell State (|Φ⁺⟩)
+                </Button>
+                <Button variant="secondary" onClick={() => loadPreset("ghz-state")}>
+                  GHZ State (3q)
+                </Button>
+                <Button variant="secondary" onClick={() => loadPreset("superposition")}>
+                  Superposition (4q)
+                </Button>
+              </div>
+              <div style={{ fontSize: 12, color: "#94a3b8", borderTop: "1px solid #e2e8f0", paddingTop: 10 }}>
+                💡 Maslahat: Geytlarni to‘g‘ridan-to‘g‘ri sim ustiga sudrab tashlang. Pastdagi <b>3D Blox Sferasi</b> va <b>Kvant Fazalari</b> real vaqtda avtomatik yangilanadi.
+              </div>
+            </div>
+          ) : null}
+        </ReactFlow>
+      </div>
+
+      {/* 4. Quirk Real-Time Probes: 3D Bloch Sphere & Inline Phase Disks */}
+      <div
+        style={{
+          borderTop: "1px solid #cbd5e1",
+          background: "#ffffff",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
-        <Background gap={20} size={1} color="#e2e8f0" />
-        {showMiniMap ? <MiniMap /> : null}
-        <Controls />
-        {ops.length === 0 ? (
-          <div style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            background: "rgba(255, 255, 255, 0.95)",
-            backdropFilter: "blur(4px)",
-            border: "1px solid #cbd5e1",
-            borderRadius: 12,
-            padding: "24px 32px",
-            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
-            textAlign: "center",
-            maxWidth: 500,
-            zIndex: 10,
-          }}>
-            <h3 style={{ margin: "0 0 8px 0", fontSize: 17, color: "#0f172a" }}>Kvant Sxemasi Laboratoriyasiga Xush Kelibsiz!</h3>
-            <p style={{ margin: "0 0 16px 0", fontSize: 13, color: "#64748b", lineHeight: 1.5 }}>
-              Sxema tuzish uchun yuqoridagi paneldan geyt qo‘shing yoki quyidagi tayyor shablonlardan birini tanlang:
-            </p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 14 }}>
-              <Button variant="primary" onClick={() => loadPreset("bell-state")}>
-                ✨ Bell State (|Φ⁺⟩)
-              </Button>
-              <Button variant="secondary" onClick={() => loadPreset("ghz-state")}>
-                GHZ State (3q)
-              </Button>
-              <Button variant="secondary" onClick={() => loadPreset("superposition")}>
-                Superposition (4q)
-              </Button>
-            </div>
-            <div style={{ fontSize: 12, color: "#94a3b8", borderTop: "1px solid #e2e8f0", paddingTop: 10 }}>
-              💡 Maslahat: Sxemani hisoblash va natijalarni ko‘rish uchun yuqoridagi <b>run</b> tabiga o‘ting.
-            </div>
+        {/* Probes Header Bar */}
+        <div
+          style={{
+            padding: "8px 14px",
+            background: "#f8fafc",
+            borderBottom: activeProbeTab === "hidden" ? "none" : "1px solid #e2e8f0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 16 }}>⚛️</span>
+            <span style={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>
+              Quirk Jonli Kvant Kuzatuvchisi (Live Quantum Probes)
+            </span>
+            <span
+              style={{
+                fontSize: 11,
+                padding: "2px 6px",
+                borderRadius: 4,
+                background: "#dbeafe",
+                color: "#1d4ed8",
+                fontWeight: 600,
+              }}
+            >
+              Real-time Simulation (&lt;1ms)
+            </span>
           </div>
-        ) : null}
 
-      </ReactFlow>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <button
+              onClick={() => setActiveProbeTab("both")}
+              style={{
+                padding: "4px 8px",
+                borderRadius: 4,
+                border: "1px solid",
+                borderColor: activeProbeTab === "both" ? "#2563eb" : "#cbd5e1",
+                background: activeProbeTab === "both" ? "#eff6ff" : "#fff",
+                color: activeProbeTab === "both" ? "#1d4ed8" : "#475569",
+                fontWeight: activeProbeTab === "both" ? 700 : 500,
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              ✨ Split View
+            </button>
+            <button
+              onClick={() => setActiveProbeTab("bloch")}
+              style={{
+                padding: "4px 8px",
+                borderRadius: 4,
+                border: "1px solid",
+                borderColor: activeProbeTab === "bloch" ? "#2563eb" : "#cbd5e1",
+                background: activeProbeTab === "bloch" ? "#eff6ff" : "#fff",
+                color: activeProbeTab === "bloch" ? "#1d4ed8" : "#475569",
+                fontWeight: activeProbeTab === "bloch" ? 700 : 500,
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              🌐 3D Bloch Sferasi
+            </button>
+            <button
+              onClick={() => setActiveProbeTab("phases")}
+              style={{
+                padding: "4px 8px",
+                borderRadius: 4,
+                border: "1px solid",
+                borderColor: activeProbeTab === "phases" ? "#2563eb" : "#cbd5e1",
+                background: activeProbeTab === "phases" ? "#eff6ff" : "#fff",
+                color: activeProbeTab === "phases" ? "#1d4ed8" : "#475569",
+                fontWeight: activeProbeTab === "phases" ? 700 : 500,
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              ⏱️ Kvant Fazalari (Phase Disks)
+            </button>
+            <button
+              onClick={() => setActiveProbeTab((t) => (t === "hidden" ? "both" : "hidden"))}
+              style={{
+                padding: "4px 8px",
+                borderRadius: 4,
+                border: "1px solid #cbd5e1",
+                background: "#fff",
+                color: "#64748b",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              {activeProbeTab === "hidden" ? "▼ Ochish" : "▲ Yashirish"}
+            </button>
+          </div>
+        </div>
+
+        {/* Probes Content */}
+        {activeProbeTab !== "hidden" && (
+          <div style={{ padding: 14, background: "#f8fafc" }}>
+            {activeProbeTab === "both" ? (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 14 }}>
+                <BlochSphere
+                  vector={simState.blochVectors[Math.min(selectedQubitForBloch, nQubits - 1)] ?? simState.blochVectors[0]}
+                  qubitIndex={Math.min(selectedQubitForBloch, nQubits - 1)}
+                  nQubits={nQubits}
+                  onSelectQubit={setSelectedQubitForBloch}
+                  allVectors={simState.blochVectors}
+                />
+                <PhaseDisks amplitudes={simState.amplitudes} nQubits={nQubits} />
+              </div>
+            ) : activeProbeTab === "bloch" ? (
+              <BlochSphere
+                vector={simState.blochVectors[Math.min(selectedQubitForBloch, nQubits - 1)] ?? simState.blochVectors[0]}
+                qubitIndex={Math.min(selectedQubitForBloch, nQubits - 1)}
+                nQubits={nQubits}
+                onSelectQubit={setSelectedQubitForBloch}
+                allVectors={simState.blochVectors}
+              />
+            ) : (
+              <PhaseDisks amplitudes={simState.amplitudes} nQubits={nQubits} />
+            )}
+          </div>
+        )}
+      </div>
       {(analysis?.counts || analysis?.amplitudes || analysis?.complexity) && (
         <div style={{ borderTop: "1px solid #d1d5db", background: "#ffffff", padding: 10, fontSize: 12 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Latest Analysis</div>
