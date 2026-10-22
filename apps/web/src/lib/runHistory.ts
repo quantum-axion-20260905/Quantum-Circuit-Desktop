@@ -17,7 +17,8 @@ import {
 export type ReplayRequest =
   | { source: "circuit"; kind: "simulation"; circuit: JsonObject; config: JsonObject; circuitQasm?: string }
   | { source: "circuit"; kind: "sweep"; payload: JsonObject; circuitQasm?: string }
-  | { source: "physics"; kind: "expectation" | "ground_state" | "dmrg" | "tebd" | "peps" | "ctmrg" | "ctmrg_convergence"; payload: JsonObject };
+  | { source: "physics"; kind: "expectation" | "ground_state" | "dmrg" | "tebd" | "peps" | "ctmrg" | "ctmrg_convergence"; payload: JsonObject }
+  | { source: "materials"; kind: "ground_state" | "dmrg" | "peps"; payload: JsonObject };
 
 export type ExperimentRecord = {
   id: string;
@@ -43,7 +44,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function isReplayRequest(value: unknown): value is ReplayRequest {
-  if (!isObject(value) || (value.source !== "circuit" && value.source !== "physics")) return false;
+  if (!isObject(value) || (value.source !== "circuit" && value.source !== "physics" && value.source !== "materials")) return false;
   if (typeof value.kind !== "string") return false;
   if (value.source === "circuit") {
     return value.kind === "simulation"
