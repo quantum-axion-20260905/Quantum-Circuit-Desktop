@@ -50,7 +50,7 @@ function App() {
       </header>
 
       {tab === "design" ? (
-        <div style={{ minHeight: 0, height: "100%", width: "100%", display: "flex", background: "#fff" }}>
+        <div className="qc-design-layout">
           <div style={{ minWidth: 0, flex: 1, height: "100%" }}>
             <CircuitEditor />
           </div>

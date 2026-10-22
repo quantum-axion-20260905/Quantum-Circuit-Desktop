@@ -544,3 +544,48 @@ button:disabled {
   .qc-agent-status { gap: 6px; }
 }
 
+
+/* Portrait and Adaptive Responsive Screens */
+.qc-design-layout {
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  background: #fff;
+}
+
+@media (orientation: portrait), (max-width: 1024px) {
+  .qc-app-shell {
+    grid-template-rows: auto minmax(0, 1fr) !important;
+    height: 100vh !important;
+  }
+
+  .qc-topbar {
+    padding: 8px 12px !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .qc-brand {
+    font-size: 13px !important;
+  }
+
+  .qc-nav {
+    overflow-x: auto !important;
+    width: 100% !important;
+    padding-bottom: 4px !important;
+    margin-left: 0 !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .qc-nav-button {
+    white-space: nowrap !important;
+    font-size: 12px !important;
+    padding: 6px 10px !important;
+  }
+
+  .qc-design-layout {
+    flex-direction: column !important;
+    overflow-y: auto !important;
+  }
+}
