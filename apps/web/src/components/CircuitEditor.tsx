@@ -1413,11 +1413,11 @@ export function CircuitEditor() {
         </ReactFlow>
       </div>
 
-      {/* 4. Quirk Real-Time Probes: 3D Bloch Sphere & Inline Phase Disks */}
+      {/* 4. Real-Time Quantum State Probes: 3D Bloch Sphere & Inline Phase Disks */}
       <div
         style={{
-          borderTop: "1px solid #cbd5e1",
-          background: "#ffffff",
+          borderTop: "1px solid #334155",
+          background: "#0b0f19",
           display: "flex",
           flexDirection: "column",
         }}
@@ -1426,8 +1426,8 @@ export function CircuitEditor() {
         <div
           style={{
             padding: "8px 14px",
-            background: "#f8fafc",
-            borderBottom: activeProbeTab === "hidden" ? "none" : "1px solid #e2e8f0",
+            background: "#111827",
+            borderBottom: activeProbeTab === "hidden" ? "none" : "1px solid #1e293b",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -1436,18 +1436,19 @@ export function CircuitEditor() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 16 }}>⚛️</span>
-            <span style={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>
-              Quirk Jonli Kvant Kuzatuvchisi (Live Quantum Probes)
+            <span style={{ fontWeight: 700, fontSize: 13, color: "#f8fafc" }}>
+              Quantum State Instruments (Bloch Sphere & Phase Disks)
             </span>
             <span
               style={{
                 fontSize: 11,
                 padding: "2px 6px",
                 borderRadius: 4,
-                background: "#dbeafe",
-                color: "#1d4ed8",
+                background: "#0b0f19",
+                border: "1px solid #334155",
+                color: "#38bdf8",
                 fontWeight: 600,
+                fontFamily: "monospace",
               }}
             >
               Real-time Simulation (&lt;1ms)
@@ -1458,71 +1459,71 @@ export function CircuitEditor() {
             <button
               onClick={() => setActiveProbeTab("both")}
               style={{
-                padding: "4px 8px",
+                padding: "4px 10px",
                 borderRadius: 4,
                 border: "1px solid",
-                borderColor: activeProbeTab === "both" ? "#2563eb" : "#cbd5e1",
-                background: activeProbeTab === "both" ? "#eff6ff" : "#fff",
-                color: activeProbeTab === "both" ? "#1d4ed8" : "#475569",
+                borderColor: activeProbeTab === "both" ? "#38bdf8" : "#334155",
+                background: activeProbeTab === "both" ? "#1e293b" : "#0b0f19",
+                color: activeProbeTab === "both" ? "#38bdf8" : "#94a3b8",
                 fontWeight: activeProbeTab === "both" ? 700 : 500,
                 fontSize: 12,
                 cursor: "pointer",
               }}
             >
-              ✨ Split View
+              Split View
             </button>
             <button
               onClick={() => setActiveProbeTab("bloch")}
               style={{
-                padding: "4px 8px",
+                padding: "4px 10px",
                 borderRadius: 4,
                 border: "1px solid",
-                borderColor: activeProbeTab === "bloch" ? "#2563eb" : "#cbd5e1",
-                background: activeProbeTab === "bloch" ? "#eff6ff" : "#fff",
-                color: activeProbeTab === "bloch" ? "#1d4ed8" : "#475569",
+                borderColor: activeProbeTab === "bloch" ? "#38bdf8" : "#334155",
+                background: activeProbeTab === "bloch" ? "#1e293b" : "#0b0f19",
+                color: activeProbeTab === "bloch" ? "#38bdf8" : "#94a3b8",
                 fontWeight: activeProbeTab === "bloch" ? 700 : 500,
                 fontSize: 12,
                 cursor: "pointer",
               }}
             >
-              🌐 3D Bloch Sferasi
+              3D Bloch Sphere
             </button>
             <button
               onClick={() => setActiveProbeTab("phases")}
               style={{
-                padding: "4px 8px",
+                padding: "4px 10px",
                 borderRadius: 4,
                 border: "1px solid",
-                borderColor: activeProbeTab === "phases" ? "#2563eb" : "#cbd5e1",
-                background: activeProbeTab === "phases" ? "#eff6ff" : "#fff",
-                color: activeProbeTab === "phases" ? "#1d4ed8" : "#475569",
+                borderColor: activeProbeTab === "phases" ? "#38bdf8" : "#334155",
+                background: activeProbeTab === "phases" ? "#1e293b" : "#0b0f19",
+                color: activeProbeTab === "phases" ? "#38bdf8" : "#94a3b8",
                 fontWeight: activeProbeTab === "phases" ? 700 : 500,
                 fontSize: 12,
                 cursor: "pointer",
               }}
             >
-              ⏱️ Kvant Fazalari (Phase Disks)
+              Complex Phase Disks
             </button>
             <button
               onClick={() => setActiveProbeTab((t) => (t === "hidden" ? "both" : "hidden"))}
               style={{
-                padding: "4px 8px",
+                padding: "4px 10px",
                 borderRadius: 4,
-                border: "1px solid #cbd5e1",
-                background: "#fff",
+                border: "1px solid #334155",
+                background: "#0b0f19",
                 color: "#64748b",
                 fontSize: 12,
                 cursor: "pointer",
               }}
             >
-              {activeProbeTab === "hidden" ? "▼ Ochish" : "▲ Yashirish"}
+              {activeProbeTab === "hidden" ? "Expand Probes" : "Collapse Probes"}
             </button>
           </div>
         </div>
 
         {/* Probes Content */}
         {activeProbeTab !== "hidden" && (
-          <div style={{ padding: 14, background: "#f8fafc" }}>
+          <div style={{ padding: 14, background: "#0b0f19" }}>
             {activeProbeTab === "both" ? (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: 14 }}>
                 <BlochSphere
