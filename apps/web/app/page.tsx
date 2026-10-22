@@ -5,13 +5,14 @@ import { CircuitEditor } from "../src/components/CircuitEditor";
 import { PhysicsLab } from "../src/components/PhysicsLab";
 import { MaterialsLab } from "../src/components/MaterialsLab";
 import { ChemistryLab } from "../src/components/ChemistryLab";
+import { QECStudio } from "../src/components/QECStudio";
 import { DesignSummary, ResearchWorkspace } from "../src/components/ResearchWorkspace";
 import { CircuitProvider } from "../src/state/circuitStore";
 import { UIContextProvider, useUIContext } from "../src/state/uiContext";
 import { invokeDesktop, isDesktop } from "../src/lib/desktop";
 import { AgentStatus } from "../src/components/AgentStatus";
 
-type Tab = "design" | "physics" | "materials" | "chemistry" | "run" | "results";
+type Tab = "design" | "physics" | "materials" | "chemistry" | "qec" | "run" | "results";
 
 function App() {
   const { activeTab, setActiveTab } = useUIContext();
@@ -26,6 +27,7 @@ function App() {
     physics: "Many-Body Physics",
     materials: "Materials Science",
     chemistry: "Quantum Chemistry",
+    qec: "Error Correction (QEC)",
     run: "Simulator & Run",
     results: "History & Results",
   };
@@ -38,7 +40,7 @@ function App() {
           <span style={{ fontWeight: 800, letterSpacing: "-.02em" }}>Quantum Circuit Workbench</span>
         </div>
         <nav className="qc-nav" aria-label="Primary navigation">
-          {(["design", "physics", "materials", "chemistry", "run", "results"] as Tab[]).map((item) => (
+          {(["design", "physics", "materials", "chemistry", "qec", "run", "results"] as Tab[]).map((item) => (
             <button
               key={item}
               onClick={() => setActiveTab(item)}
@@ -71,6 +73,10 @@ function App() {
       ) : tab === "chemistry" ? (
         <div style={{ minHeight: 0, height: "100%", width: "100%", overflow: "auto", background: "#0b0f19" }}>
           <ChemistryLab />
+        </div>
+      ) : tab === "qec" ? (
+        <div style={{ minHeight: 0, height: "100%", width: "100%", overflow: "auto", background: "#0b0f19" }}>
+          <QECStudio />
         </div>
       ) : (
         <div style={{ minHeight: 0, height: "100%", width: "100%", overflow: "auto", background: "#0b0f19" }}>

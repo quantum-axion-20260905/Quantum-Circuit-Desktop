@@ -896,6 +896,19 @@ export function CircuitEditor() {
                 </div>
               </button>
               <button
+                onClick={() => { setActiveTab("qec"); setOpenMenu(null); }}
+                style={{ width: "100%", padding: "7px 12px", border: "none", background: "transparent", textAlign: "left", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <span>🛡️</span>
+                <div>
+                  <div style={{ fontWeight: 600, color: "#0f172a" }}>Error Correction (QEC)</div>
+                  <div style={{ fontSize: 11, color: "#64748b" }}>Surface Code & Decoders</div>
+                </div>
+              </button>
+
+              <button
                 onClick={() => { setActiveTab("run"); setOpenMenu(null); }}
                 style={{ width: "100%", padding: "7px 12px", border: "none", background: "transparent", textAlign: "left", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
                 onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
