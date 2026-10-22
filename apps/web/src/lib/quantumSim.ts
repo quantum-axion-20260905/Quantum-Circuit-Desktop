@@ -138,7 +138,7 @@ function gateMatrix(name: string, theta?: number): Matrix2x2 {
   }
 }
 
-export function simulateCircuitLocal(nQubits: number, ops: GateOp[]): SimState {
+export function simulateCircuitLocal(nQubits: number, ops: GateOp[], maxCol?: number): SimState {
   const boundedQubits = Math.max(1, Math.min(10, nQubits));
   const dim = 1 << boundedQubits;
   let state: Complex[] = new Array(dim);
@@ -146,9 +146,13 @@ export function simulateCircuitLocal(nQubits: number, ops: GateOp[]): SimState {
     state[i] = i === 0 ? cOne() : cZero();
   }
 
-  // Sort operations column-by-column
+  // Sort operations column-by-column, optionally filtering up to maxCol
   const sortedOps = [...ops]
-    .filter((op) => op.target < boundedQubits && (op.control === undefined || op.control < boundedQubits))
+    .filter((op) =>
+      op.target < boundedQubits &&
+      (op.control === undefined || op.control < boundedQubits) &&
+      (maxCol === undefined || op.col <= maxCol)
+    )
     .sort((a, b) => a.col - b.col);
 
   for (const op of sortedOps) {

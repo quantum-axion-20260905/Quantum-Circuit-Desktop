@@ -41,6 +41,9 @@ type GateNodeData = {
   label: string;
   gate: GateOp;
   score?: number;
+  isActiveStep?: boolean;
+  prob0?: number;
+  prob1?: number;
 };
 
 function clampInt(n: number, min: number, max: number) {
@@ -105,21 +108,24 @@ function GateNode({ data }: { data: GateNodeData }) {
   const isCnotTarget = data.role === "target" && data.gate.name === "cx";
   const rotation = data.gate.theta === undefined ? null : Number(data.gate.theta.toFixed(3));
   const score = Math.max(0, Math.min(1, Number(data.score ?? 0)));
-  const glow = `0 0 0 ${1 + score * 2}px rgba(16, 185, 129, ${0.08 + score * 0.25})`;
+  const isCurrentStep = Boolean(data.isActiveStep);
+  const glow = isCurrentStep
+    ? "0 0 0 3px #3b82f6, 0 0 16px rgba(59, 130, 246, 0.85)"
+    : `0 0 0 ${1 + score * 2}px rgba(16, 185, 129, ${0.08 + score * 0.25})`;
   const boxStyle: React.CSSProperties = isControl
     ? {
         width: 16,
         height: 16,
         borderRadius: 999,
-        border: "2px solid #111827",
-        background: "#111827"
+        border: isCurrentStep ? "2px solid #2563eb" : "2px solid #111827",
+        background: isCurrentStep ? "#2563eb" : "#111827"
       }
     : isCnotTarget
       ? {
         width: 28,
         height: 28,
         borderRadius: 999,
-        border: "2px solid #0f172a",
+        border: isCurrentStep ? "2px solid #2563eb" : "2px solid #0f172a",
         background: "#fff",
         position: "relative"
       }
@@ -127,8 +133,8 @@ function GateNode({ data }: { data: GateNodeData }) {
         minWidth: 42,
         height: 32,
         borderRadius: 5,
-        border: "2px solid #0f172a",
-        background: data.gate.name === "h" ? "#dbeafe" : "#fff",
+        border: isCurrentStep ? "2px solid #2563eb" : "2px solid #0f172a",
+        background: isCurrentStep ? "#dbeafe" : data.gate.name === "h" ? "#eff6ff" : "#fff",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -140,11 +146,11 @@ function GateNode({ data }: { data: GateNodeData }) {
       };
 
   return (
-    <div style={{ ...boxStyle, boxSizing: "border-box", boxShadow: `${boxStyle.boxShadow ?? ""}, ${glow}` }} title={`${data.label} (${data.role})`}>
+    <div style={{ ...boxStyle, boxSizing: "border-box", boxShadow: isCurrentStep ? glow : `${boxStyle.boxShadow ?? ""}, ${glow}` }} title={`${data.label} (${data.role})`}>
       {isCnotTarget ? (
         <>
-          <span style={{ position: "absolute", left: 5, right: 5, top: 11, borderTop: "2px solid #0f172a" }} />
-          <span style={{ position: "absolute", top: 5, bottom: 5, left: 11, borderLeft: "2px solid #0f172a" }} />
+          <span style={{ position: "absolute", left: 5, right: 5, top: 11, borderTop: isCurrentStep ? "2px solid #2563eb" : "2px solid #0f172a" }} />
+          <span style={{ position: "absolute", top: 5, bottom: 5, left: 11, borderLeft: isCurrentStep ? "2px solid #2563eb" : "2px solid #0f172a" }} />
         </>
       ) : !isControl ? (
         <span>{data.label}{rotation === null ? null : <small style={{ display: "block", fontSize: 8 }}>({rotation})</small>}</span>
@@ -156,11 +162,33 @@ function GateNode({ data }: { data: GateNodeData }) {
 }
 
 function LaneNode({ data }: { data: GateNodeData }) {
+  const prob0 = data.prob0 !== undefined ? (data.prob0 * 100).toFixed(0) : undefined;
+  const prob1 = data.prob1 !== undefined ? (data.prob1 * 100).toFixed(0) : undefined;
+
   return (
     <div style={{ position: "relative", width: "100%", height: 20, pointerEvents: "none" }}>
-      <span style={{ position: "absolute", right: "100%", top: 1, width: 66, paddingRight: 10, color: "#475569", fontFamily: "monospace", fontSize: 13, textAlign: "right" }}>
-        {data.label}
-      </span>
+      <div
+        style={{
+          position: "absolute",
+          right: "100%",
+          top: -3,
+          width: 95,
+          paddingRight: 10,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          userSelect: "none",
+        }}
+      >
+        <span style={{ color: "#334155", fontFamily: "monospace", fontSize: 13, fontWeight: 700 }}>
+          {data.label}
+        </span>
+        {prob0 !== undefined && prob1 !== undefined && (
+          <span style={{ fontSize: 9, color: "#64748b", fontFamily: "monospace", whiteSpace: "nowrap" }}>
+            {prob0}% | {prob1}%
+          </span>
+        )}
+      </div>
       <span style={{ position: "absolute", left: 0, right: 0, top: 9, borderTop: "2px solid #94a3b8" }} />
     </div>
   );
@@ -175,10 +203,28 @@ export function CircuitEditor() {
   const [editorNotice, setEditorNotice] = React.useState<string | null>(null);
   const [selectedQubitForBloch, setSelectedQubitForBloch] = React.useState<number>(0);
   const [activeProbeTab, setActiveProbeTab] = React.useState<"both" | "bloch" | "phases" | "hidden">("both");
+  const maxCol = useMemo(() => ops.reduce((m, op) => Math.max(m, op.col), -1), [ops]);
+  const [activeStepCol, setActiveStepCol] = React.useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (!isPlaying || maxCol < 0) return;
+    const timer = setInterval(() => {
+      setActiveStepCol((prev) => {
+        const next = prev === null ? 0 : prev + 1;
+        if (next > maxCol) {
+          setIsPlaying(false);
+          return null;
+        }
+        return next;
+      });
+    }, 900);
+    return () => clearInterval(timer);
+  }, [isPlaying, maxCol]);
 
   const simState = useMemo(() => {
-    return simulateCircuit(nQubits, ops);
-  }, [nQubits, ops]);
+    return simulateCircuit(nQubits, ops, activeStepCol ?? undefined);
+  }, [nQubits, ops, activeStepCol]);
   const edges = useMemo<Edge[]>(() => {
     const out: Edge[] = [];
     for (const op of ops) {
@@ -201,10 +247,18 @@ export function CircuitEditor() {
       colToX(Math.max(0, ops.reduce((m, op) => Math.max(m, op.col), 0))) + LANE_END_PADDING - LANE_START_X
     );
     for (let qubit = 0; qubit < nQubits; qubit += 1) {
+      const bv = simState.blochVectors[qubit];
       out.push({
         id: `lane::${qubit}`,
         position: { x: LANE_START_X, y: qubitToLaneY(qubit) + 6 },
-        data: { opId: `lane::${qubit}`, role: "lane", label: `q[${qubit}]`, gate: { id: `lane::${qubit}`, name: "h", target: qubit, col: 0, x: 0, y: 0 } },
+        data: {
+          opId: `lane::${qubit}`,
+          role: "lane",
+          label: `q[${qubit}]`,
+          gate: { id: `lane::${qubit}`, name: "h", target: qubit, col: 0, x: 0, y: 0 },
+          prob0: bv?.prob0,
+          prob1: bv?.prob1,
+        },
         type: "laneNode",
         style: { width: laneWidth, height: 20 },
         draggable: false,
@@ -213,11 +267,12 @@ export function CircuitEditor() {
     }
     for (const op of ops) {
       const isTwoQ = op.name === "cx" || op.name === "cz";
+      const isActiveStep = activeStepCol !== null && op.col === activeStepCol;
       if (!isTwoQ) {
         out.push({
           id: op.id,
           position: { x: colToX(op.col), y: op.y },
-          data: { opId: op.id, role: "single", label: op.name.toUpperCase(), gate: op },
+          data: { opId: op.id, role: "single", label: op.name.toUpperCase(), gate: op, isActiveStep },
           type: "gateNode",
           style: { width: 64, height: 32 }
         });
@@ -227,7 +282,7 @@ export function CircuitEditor() {
       out.push({
         id: `${op.id}::c`,
         position: { x: colToX(op.col), y: qubitToLaneY(control) },
-        data: { opId: op.id, role: "control", label: "•", gate: op },
+        data: { opId: op.id, role: "control", label: "•", gate: op, isActiveStep },
         type: "gateNode",
         style: { width: 20, height: 20 },
         draggable: true
@@ -235,14 +290,14 @@ export function CircuitEditor() {
       out.push({
         id: `${op.id}::t`,
         position: { x: colToX(op.col), y: op.y },
-        data: { opId: op.id, role: "target", label: op.name.toUpperCase(), gate: op },
+        data: { opId: op.id, role: "target", label: op.name.toUpperCase(), gate: op, isActiveStep },
         type: "gateNode",
         style: { width: 64, height: 32 },
         draggable: true
       });
     }
     return out;
-  }, [nQubits, ops]);
+  }, [activeStepCol, nQubits, ops, simState.blochVectors]);
 
   const setNodesFromChanges = useCallback(
     (changes: NodeChange[]) => {
@@ -1144,6 +1199,151 @@ export function CircuitEditor() {
           </button>
         </div>
       </div>
+
+      {/* 3. Quantum Circuit Timeline & Execution Stepper Bar */}
+      {maxCol >= 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "5px 14px",
+            background: "#f8fafc",
+            borderBottom: "1px solid #e2e8f0",
+            fontSize: 12,
+            userSelect: "none",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontWeight: 700, color: "#334155", display: "flex", alignItems: "center", gap: 4 }}>
+              ⏱️ Timeline:
+            </span>
+            <span
+              style={{
+                padding: "2px 8px",
+                borderRadius: 4,
+                background: activeStepCol === null ? "#dcfce7" : "#dbeafe",
+                color: activeStepCol === null ? "#15803d" : "#1d4ed8",
+                fontWeight: 700,
+                fontSize: 11,
+              }}
+            >
+              {activeStepCol === null ? `Final State (Col ${maxCol})` : `Step ${activeStepCol} / ${maxCol}`}
+            </span>
+          </div>
+
+          {/* Stepper Buttons */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <button
+              onClick={() => { setIsPlaying(false); setActiveStepCol(-1); }}
+              title="Boshlang'ich holatga qaytish (|00...0>)"
+              style={{
+                padding: "3px 8px",
+                borderRadius: 4,
+                border: "1px solid #cbd5e1",
+                background: activeStepCol === -1 ? "#e2e8f0" : "#ffffff",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              ⏮ Initial
+            </button>
+            <button
+              onClick={() => {
+                setIsPlaying(false);
+                setActiveStepCol((prev) => {
+                  if (prev === null) return Math.max(-1, maxCol - 1);
+                  return Math.max(-1, prev - 1);
+                });
+              }}
+              title="Bir qadam orqaga (Oldingi ustun)"
+              style={{
+                padding: "3px 8px",
+                borderRadius: 4,
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              ◀ Step
+            </button>
+            <button
+              onClick={() => setIsPlaying((p) => !p)}
+              title={isPlaying ? "Pauza" : "Avtomatik ijro (Play)"}
+              style={{
+                padding: "3px 10px",
+                borderRadius: 4,
+                border: "1px solid #2563eb",
+                background: isPlaying ? "#ef4444" : "#2563eb",
+                color: "#ffffff",
+                cursor: "pointer",
+                fontWeight: 700,
+              }}
+            >
+              {isPlaying ? "⏸ Pause" : "▶ Play"}
+            </button>
+            <button
+              onClick={() => {
+                setIsPlaying(false);
+                setActiveStepCol((prev) => {
+                  if (prev === null || prev >= maxCol) return null;
+                  const next = prev + 1;
+                  return next > maxCol ? null : next;
+                });
+              }}
+              title="Bir qadam oldinga (Keyingi ustun)"
+              style={{
+                padding: "3px 8px",
+                borderRadius: 4,
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              Step ▶
+            </button>
+            <button
+              onClick={() => { setIsPlaying(false); setActiveStepCol(null); }}
+              title="Oxirgi natijaviy holatga o'tish"
+              style={{
+                padding: "3px 8px",
+                borderRadius: 4,
+                border: "1px solid #cbd5e1",
+                background: activeStepCol === null ? "#e2e8f0" : "#ffffff",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              ⏭ Final
+            </button>
+          </div>
+
+          {/* Range Slider for scrubbing */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 160, maxWidth: 280 }}>
+            <span style={{ fontSize: 10, color: "#64748b" }}>0</span>
+            <input
+              type="range"
+              min={-1}
+              max={maxCol}
+              value={activeStepCol === null ? maxCol : activeStepCol}
+              onChange={(e) => {
+                setIsPlaying(false);
+                const val = Number(e.target.value);
+                setActiveStepCol(val >= maxCol ? null : val);
+              }}
+              style={{ flex: 1, cursor: "pointer" }}
+            />
+            <span style={{ fontSize: 10, color: "#64748b" }}>{maxCol}</span>
+          </div>
+
+          <div style={{ marginLeft: "auto", fontSize: 11, color: "#64748b" }}>
+            💡 Ustunlarni bosib yoki slaydderni surib, kvant holatining qadamma-qadam evolyutsiyasini kuzating
+          </div>
+        </div>
+      )}
 
       {editorNotice ? <div role="status" style={{ padding: "6px 10px", color: "#92400e", background: "#fffbeb", borderBottom: "1px solid #fde68a", fontSize: 12 }}>{editorNotice}</div> : null}
       <div
