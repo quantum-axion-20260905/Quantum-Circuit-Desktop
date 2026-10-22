@@ -181,7 +181,9 @@ print(f"Loaded {len(terms)} Pauli Hamiltonian terms on {n_qubits} qubits")
 
   const [labTab, setLabTab] = React.useState<"overview" | "solvers" | "dynamics" | "ctmrg" | "convergence" | "all">("overview");
 
-  function applyModelPreset(type: "ising1d" | "heisenberg2d" | "hubbard2d" | "xxz1d") {
+  type PresetType = "ising1d" | "heisenberg2d" | "hubbard2d" | "xxz1d" | "cuprate_ybco" | "graphene" | "kitaev_rucl3" | "haldane_chain" | "mott_insulator";
+
+  function applyModelPreset(type: PresetType) {
     setError(null);
     if (type === "ising1d") {
       setDimension(1);
@@ -218,7 +220,79 @@ print(f"Loaded {len(terms)} Pauli Hamiltonian terms on {n_qubits} qubits")
       setCoupling(1);
       setField(0.0);
       setAnisotropy(1);
+    } else if (type === "cuprate_ybco") {
+      setDimension(2);
+      setSizes([4, 4, 2]);
+      setBoundary("open");
+      setMaterial("hubbard");
+      setHopping(1);
+      setOnsiteU(8);
+      setChemicalPotential(0);
+    } else if (type === "graphene") {
+      setDimension(2);
+      setSizes([4, 3, 2]);
+      setBoundary("periodic");
+      setMaterial("hubbard");
+      setHopping(2.8);
+      setOnsiteU(4.5);
+      setChemicalPotential(0);
+    } else if (type === "kitaev_rucl3") {
+      setDimension(2);
+      setSizes([4, 4, 2]);
+      setBoundary("open");
+      setMaterial("spin");
+      setModel("xxz");
+      setCoupling(1);
+      setField(0.25);
+      setAnisotropy(-0.2);
+    } else if (type === "haldane_chain") {
+      setDimension(1);
+      setSizes([12, 4, 2]);
+      setBoundary("open");
+      setMaterial("spin");
+      setModel("heisenberg");
+      setCoupling(1);
+      setField(0.0);
+      setAnisotropy(1);
+    } else if (type === "mott_insulator") {
+      setDimension(2);
+      setSizes([3, 3, 2]);
+      setBoundary("open");
+      setMaterial("hubbard");
+      setHopping(1);
+      setOnsiteU(6.5);
+      setChemicalPotential(0);
     }
+  }
+
+  function exportLatexPhysicsTable() {
+    const energyVal = dmrgEnergy ?? groundEnergy ?? energy ?? 0;
+    const tex = `% Quantum Circuit Studio - Many-body Physics & Materials Specification
+\\begin{table}[htbp]
+\\centering
+\\caption{Quantum Material Simulation: ${material === "spin" ? model.toUpperCase() : "Fermi-Hubbard"} on ${activeDimensions.join("$\\times$")} Lattice}
+\\begin{tabular}{ll|ll}
+\\hline\\hline
+\\textbf{Parameter} & \\textbf{Value} & \\textbf{Property} & \\textbf{Value} \\\\
+\\hline
+Lattice Dimension & ${dimension}D & Boundary & ${boundary} \\\\
+Total Sites ($N$) & ${siteCount} & Qubits ($2N$) & ${qubitCount} \\\\
+Material Framework & ${material === "spin" ? "Spin Lattice" : "Fermionic Hubbard"} & Model & ${material === "spin" ? model : "Electronic"} \\\\
+${material === "spin" ? `Coupling $J$ & ${coupling.toFixed(3)} & Transverse Field $h$ & ${field.toFixed(3)} \\\\` : `Hopping $t$ & ${hopping.toFixed(3)} eV & Coulomb On-site $U$ & ${onsiteU.toFixed(3)} eV \\\\`}
+Ground Energy $E_0$ & ${Number(energyVal).toFixed(6)} & Energy per site $E_0/N$ & ${(Number(energyVal) / siteCount).toFixed(6)} \\\\
+Bond Dimension $\\chi$ & ${bondDim} & Quantum Phase & ${getMaterialPhaseInsight().title} \\\\
+Order Parameter & \\multicolumn{3}{l}{${getMaterialPhaseInsight().orderParameter}} \\\\
+\\hline\\hline
+\\end{tabular}
+\\end{table}
+`;
+    const blob = new Blob([tex], { type: "text/x-tex" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `materials_table_${material}_${activeDimensions.join("x")}.tex`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   const [studyMode, setStudyMode] = React.useState<PhysicsStudyMode>("dmrg");
@@ -534,12 +608,12 @@ print(f"Loaded {len(terms)} Pauli Hamiltonian terms on {n_qubits} qubits")
 
         {/* Right: Presets Dropdown & Status Pill */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
-          {/* Quick Model Presets Dropdown */}
+          {/* Quick Model & Quantum Materials Presets Dropdown */}
           <select
             defaultValue=""
             onChange={(e) => {
               if (e.target.value) {
-                applyModelPreset(e.target.value as "ising1d" | "heisenberg2d" | "hubbard2d" | "xxz1d");
+                applyModelPreset(e.target.value as PresetType);
                 e.target.value = "";
               }
             }}
@@ -554,13 +628,22 @@ print(f"Loaded {len(terms)} Pauli Hamiltonian terms on {n_qubits} qubits")
               cursor: "pointer",
               outline: "none",
             }}
-            title="Kvant ko'p zarrali modellar shablonlari"
+            title="Kvant materiallari va ko'p zarrali fizik modellar shablonlari"
           >
-            <option value="" disabled>⚡ Model Presets...</option>
-            <option value="ising1d">🧲 1D Ising Chain (L=8, J=1, h=0.5)</option>
-            <option value="heisenberg2d">🔄 2D Heisenberg Grid (4×4, J=1)</option>
-            <option value="hubbard2d">⚛️ 2D Fermi-Hubbard (3×3, U=4, t=1)</option>
-            <option value="xxz1d">🧬 1D Critical XXZ (L=10, Δ=1)</option>
+            <option value="" disabled>⚡ Material & Model Presets...</option>
+            <optgroup label="🧪 Real Quantum Materials">
+              <option value="cuprate_ybco">💠 Cuprate High-Tc (YBCO CuO₂ plane, U=8t)</option>
+              <option value="graphene">🔷 Graphene Dirac Sheet (t=2.8eV, U=4.5eV)</option>
+              <option value="kitaev_rucl3">🌀 Kitaev Spin Liquid (α-RuCl₃ magnet)</option>
+              <option value="haldane_chain">⛓️ Haldane Spin-1 Chain (CsNiCl₃, L=12)</option>
+              <option value="mott_insulator">🧱 Mott Insulator (V₂O₃ strongly correlated)</option>
+            </optgroup>
+            <optgroup label="📐 Benchmark Spin & Lattice Models">
+              <option value="ising1d">🧲 1D Ising Chain (L=8, J=1, h=0.5)</option>
+              <option value="heisenberg2d">🔄 2D Heisenberg Grid (4×4, J=1)</option>
+              <option value="hubbard2d">⚛️ 2D Fermi-Hubbard (3×3, U=4, t=1)</option>
+              <option value="xxz1d">🧬 1D Critical XXZ (L=10, Δ=1)</option>
+            </optgroup>
           </select>
 
           {/* System & Model Status Pill */}
@@ -774,7 +857,15 @@ print(f"Loaded {len(terms)} Pauli Hamiltonian terms on {n_qubits} qubits")
                     <div style={{ fontSize: 12, color: "#94a3b8", lineHeight: 1.4 }}>{insight.description}</div>
                     <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>Order Parameter: <code style={{ color: "#e2e8f0" }}>{insight.orderParameter}</code></div>
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button
+                      onClick={exportLatexPhysicsTable}
+                      disabled={!hamiltonian}
+                      style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid rgba(168,85,247,0.4)", background: "rgba(168,85,247,0.12)", color: "#c084fc", fontSize: 12, fontWeight: 600, cursor: hamiltonian ? "pointer" : "not-allowed" }}
+                      title="Ilmiy maqola uchun LaTeX jadvalini yuklab olish"
+                    >
+                      📄 Export LaTeX Table
+                    </button>
                     <button
                       onClick={exportPythonModel}
                       disabled={!hamiltonian}
