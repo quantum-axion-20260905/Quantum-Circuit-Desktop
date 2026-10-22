@@ -16,6 +16,7 @@ import ReactFlow, {
 import "reactflow/dist/style.css";
 
 import { useCircuit, type GateName, type GateOp } from "../state/circuitStore";
+import { useUIContext } from "../state/uiContext";
 import { editorToIr, irToEditor, qasmToIr } from "../ir/converters";
 import { validateCircuitIrV1 } from "../ir/ir";
 import { invokeDesktop, isDesktop } from "../lib/desktop";
@@ -196,6 +197,7 @@ function LaneNode({ data }: { data: GateNodeData }) {
 
 export function CircuitEditor() {
   const { ops, setOps, nQubits, setNQubits, replaceCircuit, clear, undo, redo, canUndo, canRedo, analysis } = useCircuit();
+  const { setActiveTab } = useUIContext();
   const rfRef = React.useRef<ReactFlowInstance | null>(null);
   const reactFlowWrapper = React.useRef<HTMLDivElement | null>(null);
   const importInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -626,7 +628,7 @@ export function CircuitEditor() {
     }
   }, [replaceCircuit]);
 
-  const [openMenu, setOpenMenu] = React.useState<"file" | "edit" | "presets" | "export" | "view" | null>(null);
+  const [openMenu, setOpenMenu] = React.useState<"file" | "edit" | "presets" | "export" | "view" | "labs" | null>(null);
   const [showMiniMap, setShowMiniMap] = React.useState(true);
   const menuBarRef = React.useRef<HTMLDivElement>(null);
 
@@ -813,6 +815,97 @@ export function CircuitEditor() {
               >
                 <span>🗑 Clear All Gates</span>
                 <span style={{ fontSize: 11, color: "#f87171" }}>Reset</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* DEPLOY TO LAB MENU */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setOpenMenu(openMenu === "labs" ? null : "labs")}
+            style={{
+              padding: "4px 9px",
+              borderRadius: 4,
+              border: "none",
+              background: openMenu === "labs" ? "#e2e8f0" : "transparent",
+              fontWeight: 600,
+              color: "#0284c7",
+              cursor: "pointer",
+              fontSize: 12,
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            <span>🚀 Deploy to Lab ▾</span>
+          </button>
+          {openMenu === "labs" && (
+            <div
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                marginTop: 4,
+                width: 240,
+                background: "#ffffff",
+                border: "1px solid #cbd5e1",
+                borderRadius: 6,
+                boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
+                padding: "6px 0",
+                zIndex: 1000,
+              }}
+            >
+              <div style={{ padding: "4px 12px", fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
+                Quantum Compute Labs
+              </div>
+              <button
+                onClick={() => { setActiveTab("chemistry"); setOpenMenu(null); }}
+                style={{ width: "100%", padding: "7px 12px", border: "none", background: "transparent", textAlign: "left", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <span>🧪</span>
+                <div>
+                  <div style={{ fontWeight: 600, color: "#0f172a" }}>Quantum Chemistry</div>
+                  <div style={{ fontSize: 11, color: "#64748b" }}>VQE Molecular Dissociation</div>
+                </div>
+              </button>
+              <button
+                onClick={() => { setActiveTab("physics"); setOpenMenu(null); }}
+                style={{ width: "100%", padding: "7px 12px", border: "none", background: "transparent", textAlign: "left", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <span>⚛</span>
+                <div>
+                  <div style={{ fontWeight: 600, color: "#0f172a" }}>Many-Body Physics</div>
+                  <div style={{ fontSize: 11, color: "#64748b" }}>Spin Chains & DMRG</div>
+                </div>
+              </button>
+              <button
+                onClick={() => { setActiveTab("materials"); setOpenMenu(null); }}
+                style={{ width: "100%", padding: "7px 12px", border: "none", background: "transparent", textAlign: "left", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <span>🔬</span>
+                <div>
+                  <div style={{ fontWeight: 600, color: "#0f172a" }}>Materials Science</div>
+                  <div style={{ fontSize: 11, color: "#64748b" }}>Hubbard Bands & 2D PEPS</div>
+                </div>
+              </button>
+              <button
+                onClick={() => { setActiveTab("run"); setOpenMenu(null); }}
+                style={{ width: "100%", padding: "7px 12px", border: "none", background: "transparent", textAlign: "left", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <span>⚡</span>
+                <div>
+                  <div style={{ fontWeight: 600, color: "#0f172a" }}>Simulator & Run</div>
+                  <div style={{ fontSize: 11, color: "#64748b" }}>Tensor Networks & Sampling</div>
+                </div>
               </button>
             </div>
           )}

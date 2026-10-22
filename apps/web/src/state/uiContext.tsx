@@ -6,6 +6,8 @@ import { createExperimentId, HISTORY_EVENT, loadExperimentHistory, saveExperimen
 import { syncExperimentRecord } from "../lib/projectStore";
 
 type UIContextState = {
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
   selectedRunSummary: Record<string, unknown> | null;
   setSelectedRunSummary: React.Dispatch<React.SetStateAction<Record<string, unknown> | null>>;
   latestOutput: AgentResult | null;
@@ -21,6 +23,7 @@ const UIContext = createContext<UIContextState | null>(null);
 const EMPTY_EXPERIMENT_HISTORY: ExperimentRecord[] = [];
 
 export function UIContextProvider({ children }: { children: React.ReactNode }) {
+  const [activeTab, setActiveTab] = React.useState<string>("physics");
   const [selectedRunSummary, setSelectedRunSummary] = React.useState<Record<string, unknown> | null>(null);
   const [latestOutput, setLatestOutput] = React.useState<AgentResult | null>(null);
   const [notesText, setNotesText] = React.useState<string>("");
@@ -47,6 +50,8 @@ export function UIContextProvider({ children }: { children: React.ReactNode }) {
   return (
     <UIContext.Provider
       value={{
+        activeTab,
+        setActiveTab,
         selectedRunSummary,
         setSelectedRunSummary,
         latestOutput,

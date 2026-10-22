@@ -4,16 +4,19 @@ import React from "react";
 import { CircuitEditor } from "../src/components/CircuitEditor";
 import { PhysicsLab } from "../src/components/PhysicsLab";
 import { MaterialsLab } from "../src/components/MaterialsLab";
+import { ChemistryLab } from "../src/components/ChemistryLab";
 import { DesignSummary, ResearchWorkspace } from "../src/components/ResearchWorkspace";
 import { CircuitProvider } from "../src/state/circuitStore";
-import { UIContextProvider } from "../src/state/uiContext";
+import { UIContextProvider, useUIContext } from "../src/state/uiContext";
 import { invokeDesktop, isDesktop } from "../src/lib/desktop";
 import { AgentStatus } from "../src/components/AgentStatus";
 
-type Tab = "design" | "physics" | "materials" | "run" | "results";
+type Tab = "design" | "physics" | "materials" | "chemistry" | "run" | "results";
 
 function App() {
-  const [tab, setTab] = React.useState<Tab>("physics");
+  const { activeTab, setActiveTab } = useUIContext();
+  const tab = (activeTab as Tab) || "physics";
+
   React.useEffect(() => {
     if (isDesktop()) invokeDesktop("start_compute_agent").catch(() => undefined);
   }, []);
@@ -22,6 +25,7 @@ function App() {
     design: "Circuit Studio",
     physics: "Many-Body Physics",
     materials: "Materials Science",
+    chemistry: "Quantum Chemistry",
     run: "Simulator & Run",
     results: "History & Results",
   };
@@ -34,10 +38,10 @@ function App() {
           <span style={{ fontWeight: 800, letterSpacing: "-.02em" }}>Quantum Circuit Workbench</span>
         </div>
         <nav className="qc-nav" aria-label="Primary navigation">
-          {(["design", "physics", "materials", "run", "results"] as Tab[]).map((item) => (
+          {(["design", "physics", "materials", "chemistry", "run", "results"] as Tab[]).map((item) => (
             <button
               key={item}
-              onClick={() => setTab(item)}
+              onClick={() => setActiveTab(item)}
               className="qc-nav-button"
               aria-current={tab === item ? "page" : undefined}
               style={{ fontWeight: tab === item ? 700 : 500 }}
@@ -64,8 +68,12 @@ function App() {
         <div style={{ minHeight: 0, height: "100%", width: "100%", overflow: "auto", background: "#0b0f19" }}>
           <MaterialsLab />
         </div>
+      ) : tab === "chemistry" ? (
+        <div style={{ minHeight: 0, height: "100%", width: "100%", overflow: "auto", background: "#0b0f19" }}>
+          <ChemistryLab />
+        </div>
       ) : (
-        <div style={{ minHeight: 0, height: "100%", width: "100%", overflow: "auto" }}>
+        <div style={{ minHeight: 0, height: "100%", width: "100%", overflow: "auto", background: "#0b0f19" }}>
           <ResearchWorkspace mode={tab} />
         </div>
       )}

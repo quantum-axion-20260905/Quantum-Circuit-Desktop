@@ -18,7 +18,14 @@ type Optimizer = "auto" | "cotengra";
 type TNResultType = "samples" | "selected_amplitudes";
 type NoiseConfig = { one_qubit_depolarizing: number; two_qubit_depolarizing: number; readout_flip: number };
 
-const card: React.CSSProperties = { border: "1px solid var(--qc-border)", borderRadius: "var(--qc-radius-lg)", background: "var(--qc-surface)", padding: 16, boxShadow: "var(--qc-shadow-sm)" };
+const card: React.CSSProperties = {
+  border: "1px solid #334155",
+  borderRadius: 8,
+  background: "#111827",
+  color: "#f8fafc",
+  padding: 16,
+  boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+};
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -201,7 +208,7 @@ export function ResearchWorkspace({ mode }: { mode: WorkspaceMode }) {
     const twoQ = ops.filter((op) => op.name === "cx" || op.name === "cz").length;
 
     return (
-      <main style={{ maxWidth: "100%", width: "100%", margin: 0, padding: "16px 20px 48px", boxSizing: "border-box" }}>
+      <main className="qc-workspace-dark" style={{ maxWidth: "100%", width: "100%", margin: 0, padding: "16px 20px 48px", boxSizing: "border-box", background: "#0b0f19", color: "#f8fafc" }}>
         {/* Top Control Header */}
         <div
           style={{
@@ -210,10 +217,10 @@ export function ResearchWorkspace({ mode }: { mode: WorkspaceMode }) {
             alignItems: "center",
             gap: 16,
             padding: "10px 16px",
-            background: "#ffffff",
+            background: "#111827",
             borderRadius: 10,
-            border: "1px solid var(--qc-border)",
-            boxShadow: "var(--qc-shadow-sm)",
+            border: "1px solid #334155",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
             marginBottom: 16,
             flexWrap: "wrap",
           }}
@@ -223,11 +230,11 @@ export function ResearchWorkspace({ mode }: { mode: WorkspaceMode }) {
               <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: ".05em" }}>
                 Quantum Execution Engine
               </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#f8fafc" }}>
                 {nQubits} Qubits · {ops.length} Gates · Depth {depth}
               </div>
             </div>
-            <div style={{ width: 1, height: 28, background: "#e2e8f0" }} />
+            <div style={{ width: 1, height: 28, background: "#334155" }} />
             <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, color: "#475569" }}>
               <span>2-Qubit gates: <strong>{twoQ}</strong></span>
               <span>•</span>
@@ -267,7 +274,7 @@ export function ResearchWorkspace({ mode }: { mode: WorkspaceMode }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {/* Backend & Parameters Card */}
             <section style={card}>
-              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4, color: "#0f172a" }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4, color: "#f8fafc" }}>
                 Backend & Solver Configuration
               </div>
               <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
@@ -486,15 +493,15 @@ export function ResearchWorkspace({ mode }: { mode: WorkspaceMode }) {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, fontSize: 12 }}>
                   <div style={{ padding: 8, background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0" }}>
                     <div style={{ color: "#64748b", fontSize: 10, textTransform: "uppercase" }}>Estimated RAM</div>
-                    <div style={{ fontWeight: 700, marginTop: 2, color: "#0f172a" }}>{report.estimated_peak_memory_mb != null ? `${report.estimated_peak_memory_mb} MB` : "—"}</div>
+                    <div style={{ fontWeight: 700, marginTop: 2, color: "#f8fafc" }}>{report.estimated_peak_memory_mb != null ? `${report.estimated_peak_memory_mb} MB` : "—"}</div>
                   </div>
                   <div style={{ padding: 8, background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0" }}>
                     <div style={{ color: "#64748b", fontSize: 10, textTransform: "uppercase" }}>Estimated Time</div>
-                    <div style={{ fontWeight: 700, marginTop: 2, color: "#0f172a" }}>{report.estimated_time_ms != null ? `${report.estimated_time_ms} ms` : "—"}</div>
+                    <div style={{ fontWeight: 700, marginTop: 2, color: "#f8fafc" }}>{report.estimated_time_ms != null ? `${report.estimated_time_ms} ms` : "—"}</div>
                   </div>
                   <div style={{ padding: 8, background: "#f8fafc", borderRadius: 6, border: "1px solid #e2e8f0" }}>
                     <div style={{ color: "#64748b", fontSize: 10, textTransform: "uppercase" }}>Path Cost</div>
-                    <div style={{ fontWeight: 700, marginTop: 2, color: "#0f172a" }}>{report.path_cost ?? "—"}</div>
+                    <div style={{ fontWeight: 700, marginTop: 2, color: "#f8fafc" }}>{report.path_cost ?? "—"}</div>
                   </div>
                 </div>
               </section>
@@ -518,7 +525,7 @@ export function ResearchWorkspace({ mode }: { mode: WorkspaceMode }) {
                 {/* Result KPI Summary Card */}
                 <section style={card}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>Simulation Output & Metrics</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: "#f8fafc" }}>Simulation Output & Metrics</div>
                     <span style={{ fontSize: 12, padding: "3px 8px", borderRadius: 4, background: validation ? "#dcfce7" : "#fef3c7", color: validation ? "#166534" : "#92400e", fontWeight: 600 }}>
                       {validation ? "✓ State Validated" : "Review Needed"}
                     </span>
@@ -559,7 +566,7 @@ export function ResearchWorkspace({ mode }: { mode: WorkspaceMode }) {
                         const pct = totalCounts > 0 ? (item.value / totalCounts) * 100 : 0;
                         return (
                           <div key={item.key} style={{ display: "grid", gridTemplateColumns: "64px 1fr 70px 50px", gap: 10, alignItems: "center", fontSize: 12 }}>
-                            <code style={{ fontWeight: 700, color: "#0f172a", background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, textAlign: "center" }}>
+                            <code style={{ fontWeight: 700, color: "#f8fafc", background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, textAlign: "center" }}>
                               |{item.key}⟩
                             </code>
                             <div style={{ height: 18, background: "#f1f5f9", borderRadius: 4, overflow: "hidden", display: "flex", alignItems: "center" }}>
@@ -590,7 +597,7 @@ export function ResearchWorkspace({ mode }: { mode: WorkspaceMode }) {
                       {amplitudes.map((item) => (
                         <div key={item.key} style={{ display: "grid", gridTemplateColumns: "64px 1fr 60px", gap: 10, alignItems: "center", fontSize: 12 }}>
                           <code style={{ background: "#eff6ff", color: "#1d4ed8", padding: "2px 6px", borderRadius: 4, textAlign: "center" }}>|{item.key}⟩</code>
-                          <div style={{ height: 8, background: "#e2e8f0", borderRadius: 4, overflow: "hidden" }}>
+                          <div style={{ height: 8, background: "#334155", borderRadius: 4, overflow: "hidden" }}>
                             <div style={{ width: `${(item.value / maxAmplitude) * 100}%`, height: "100%", background: "#2563eb" }} />
                           </div>
                           <span style={{ textAlign: "right", fontWeight: 600 }}>{item.value.toFixed(4)}</span>
@@ -630,13 +637,13 @@ export function ResearchWorkspace({ mode }: { mode: WorkspaceMode }) {
                   alignItems: "center",
                   justifyContent: "center",
                   textAlign: "center",
-                  color: "#64748b",
-                  background: "#f8fafc",
-                  border: "2px dashed #cbd5e1",
+                  color: "#94a3b8",
+                  background: "#111827",
+                  border: "2px dashed #334155",
                 }}
               >
                 <div style={{ fontSize: 36, marginBottom: 12 }}>⚡</div>
-                <div style={{ fontSize: 17, fontWeight: 700, color: "#1e293b", marginBottom: 6 }}>
+                <div style={{ fontSize: 17, fontWeight: 700, color: "#f8fafc", marginBottom: 6 }}>
                   Ready to Run Simulation
                 </div>
                 <p style={{ maxWidth: 380, fontSize: 13, color: "#64748b", margin: "0 0 20px" }}>
@@ -658,8 +665,8 @@ export function ResearchWorkspace({ mode }: { mode: WorkspaceMode }) {
     );
   }
 
-  return <main style={{ maxWidth: 960, width: "100%", margin: "0 auto", padding: "42px 32px" }}>
-    <div style={{ marginBottom: 30 }}><h1 style={{ fontSize: 24, margin: 0 }}>Results</h1><p style={{ color: "#64748b", margin: "8px 0 0" }}>{output ? "Latest simulation result." : "Run a simulation to see its result here."}</p></div>
+  return <main className="qc-workspace-dark" style={{ maxWidth: 960, width: "100%", margin: "0 auto", padding: "42px 32px", background: "#0b0f19", color: "#f8fafc", minHeight: "100%" }}>
+    <div style={{ marginBottom: 30 }}><h1 style={{ fontSize: 24, margin: 0, color: "#f8fafc" }}>Results</h1><p style={{ color: "#64748b", margin: "8px 0 0" }}>{output ? "Latest simulation result." : "Run a simulation to see its result here."}</p></div>
     <ExperimentHistory />
     {output ? <ConvergenceDiagnostics result={output} /> : null}
     {output ? <><section style={card}><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 24 }}><Metric label="Validation" value={validation ? "Passed" : "Needs review"} tone={validation ? "success" : "warning"} /><Metric label="Backend" value={output.backend ?? "—"} /><Metric label="Method" value={output.method ?? "—"} /><Metric label="Simulation qubits" value={output.n_qubits ?? "—"} /><Metric label="Dominant outcome" value={dominant ? `|${dominant.key}⟩` : "—"} /><Metric label="Probability" value={dominant && totalCounts ? `${(dominant.value / totalCounts * 100).toFixed(1)}%` : "—"} /></div></section>
@@ -667,8 +674,8 @@ export function ResearchWorkspace({ mode }: { mode: WorkspaceMode }) {
     {output.approximate || (output.warnings && output.warnings.length > 0) ? <div style={{ marginTop: 16, color: "#92400e", fontSize: 13 }}>{output.warnings?.join(" · ") ?? "Approximate MPS result; inspect truncation diagnostics."}</div> : null}
     {output.provenance ? <section style={{ ...card, marginTop: 16 }}><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 24 }}><Metric label="Problem fingerprint" value={output.provenance.problem_sha256 ? `${output.provenance.problem_sha256.slice(0, 12)}…` : "—"} /><Metric label="Circuit fingerprint" value={output.provenance.circuit_sha256 ? `${output.provenance.circuit_sha256.slice(0, 12)}…` : "—"} /><Metric label="Resolved backend" value={output.provenance.resolved_backend ?? "—"} /><Metric label="Seed" value={output.provenance.seed ?? "Not set"} /><Metric label="Elapsed" value={output.provenance.elapsed_ms != null ? `${Number(output.provenance.elapsed_ms).toFixed(2)} ms` : "—"} /><Metric label="Hardware snapshot" value={output.provenance.device ? "Captured" : "—"} /></div></section> : null}
     {isSweep ? <section style={{ ...card, marginTop: 16 }}><strong>Parameter sweep</strong><div style={{ marginTop: 12, color: "#475569", fontSize: 13 }}>{sweepCompleted}/{sweepPoints} points completed · {sweepFailed} failed</div><div style={{ marginTop: 16, display: "grid", gap: 8 }}>{sweepRows.map((row, index) => { const point = row.result as Record<string, unknown> | undefined; const params = row.parameters as Record<string, unknown> | undefined; const pointCounts = point && typeof point.counts === "object" && point.counts !== null ? Object.entries(point.counts as Record<string, number>).sort((a, b) => Number(b[1]) - Number(a[1]))[0] : null; return <div key={index} style={{ display: "grid", gridTemplateColumns: "minmax(180px, 1fr) 1fr", gap: 12, padding: "8px 0", borderTop: "1px solid #e2e8f0", fontSize: 13 }}><code>{JSON.stringify(params ?? {})}</code><span>{point ? `${String(point.backend ?? "done")}${pointCounts ? ` · dominant ${String(pointCounts[0])} (${String(pointCounts[1])})` : ""}` : `Error: ${String(row.error ?? "unknown")}`}</span></div>; })}</div></section> : null}
-    {counts.length ? <section style={{ ...card, marginTop: 16 }}><strong>Probability distribution</strong><div style={{ marginTop: 16, display: "grid", gap: 10 }}>{counts.map((item) => <div key={item.key} style={{ display: "grid", gridTemplateColumns: "72px 1fr 60px", gap: 12, alignItems: "center", fontSize: 13 }}><code>{item.key}</code><div style={{ height: 8, background: "#e2e8f0", borderRadius: 8, overflow: "hidden" }}><div style={{ width: `${item.value / maxCount * 100}%`, height: "100%", background: "#0f766e" }} /></div><span>{item.value}</span></div>)}</div></section> : null}
-    {amplitudes.length ? <section style={{ ...card, marginTop: 16 }}><strong>Selected amplitudes</strong><div style={{ marginTop: 16, display: "grid", gap: 10 }}>{amplitudes.map((item) => <div key={item.key} style={{ display: "grid", gridTemplateColumns: "72px 1fr 60px", gap: 12, alignItems: "center", fontSize: 13 }}><code>{item.key}</code><div style={{ height: 8, background: "#e2e8f0", borderRadius: 8, overflow: "hidden" }}><div style={{ width: `${item.value / maxAmplitude * 100}%`, height: "100%", background: "#2563eb" }} /></div><span>{item.value.toFixed(4)}</span></div>)}</div></section> : null}
+    {counts.length ? <section style={{ ...card, marginTop: 16 }}><strong>Probability distribution</strong><div style={{ marginTop: 16, display: "grid", gap: 10 }}>{counts.map((item) => <div key={item.key} style={{ display: "grid", gridTemplateColumns: "72px 1fr 60px", gap: 12, alignItems: "center", fontSize: 13 }}><code>{item.key}</code><div style={{ height: 8, background: "#334155", borderRadius: 8, overflow: "hidden" }}><div style={{ width: `${item.value / maxCount * 100}%`, height: "100%", background: "#0f766e" }} /></div><span>{item.value}</span></div>)}</div></section> : null}
+    {amplitudes.length ? <section style={{ ...card, marginTop: 16 }}><strong>Selected amplitudes</strong><div style={{ marginTop: 16, display: "grid", gap: 10 }}>{amplitudes.map((item) => <div key={item.key} style={{ display: "grid", gridTemplateColumns: "72px 1fr 60px", gap: 12, alignItems: "center", fontSize: 13 }}><code>{item.key}</code><div style={{ height: 8, background: "#334155", borderRadius: 8, overflow: "hidden" }}><div style={{ width: `${item.value / maxAmplitude * 100}%`, height: "100%", background: "#2563eb" }} /></div><span>{item.value.toFixed(4)}</span></div>)}</div></section> : null}
     <details open={raw} onToggle={(e) => setRaw((e.target as HTMLDetailsElement).open)} style={{ marginTop: 24 }}><summary style={{ cursor: "pointer", color: "#475569", fontSize: 13 }}>Raw data</summary><pre style={{ marginTop: 12, padding: 12, overflow: "auto", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, fontSize: 12 }}>{JSON.stringify(output, null, 2)}</pre></details></> : null}
   </main>;
 }

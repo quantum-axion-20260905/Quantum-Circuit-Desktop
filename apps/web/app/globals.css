@@ -589,3 +589,97 @@ button:disabled {
     overflow-y: auto !important;
   }
 }
+
+/* Enterprise CAD Dark Workstation Theme for Simulator & History */
+.qc-workspace-dark {
+  background: #0b0f19 !important;
+  color: #f8fafc !important;
+  min-height: 100%;
+}
+
+.qc-workspace-dark .qc-card,
+.qc-workspace-dark .qc-history-card,
+.qc-workspace-dark .qc-diagnostics-card {
+  background: #111827 !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+}
+
+.qc-workspace-dark .qc-history-header strong,
+.qc-workspace-dark .qc-compare-header strong,
+.qc-workspace-dark .qc-diagnostics-header strong {
+  color: #f8fafc !important;
+}
+
+.qc-workspace-dark .qc-history-header p,
+.qc-workspace-dark .qc-compare-header p,
+.qc-workspace-dark .qc-diagnostics-header p {
+  color: #94a3b8 !important;
+}
+
+.qc-workspace-dark .qc-history-actions select {
+  background: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+
+.qc-workspace-dark .qc-history-row {
+  border-top-color: #1e293b !important;
+}
+
+.qc-workspace-dark .qc-history-main > strong {
+  color: #f8fafc !important;
+}
+
+.qc-workspace-dark .qc-history-main > span {
+  color: #94a3b8 !important;
+}
+
+.qc-workspace-dark .qc-history-status-done {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #34d399 !important;
+  border: 1px solid #059669;
+}
+
+.qc-workspace-dark .qc-history-status-failed {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: #f87171 !important;
+  border: 1px solid #dc2626;
+}
+
+.qc-workspace-dark .qc-history-status-canceled {
+  background: rgba(245, 158, 11, 0.15) !important;
+  color: #fbbf24 !important;
+  border: 1px solid #d97706;
+}
+
+.qc-workspace-dark .qc-compare-panel {
+  border-top-color: #334155 !important;
+}
+
+.qc-workspace-dark .qc-compare-table {
+  border-color: #334155 !important;
+  background: #090d16 !important;
+}
+
+.qc-workspace-dark .qc-compare-row {
+  border-top-color: #1e293b !important;
+}
+
+.qc-workspace-dark .qc-compare-row > span:first-child {
+  color: #94a3b8 !important;
+}
+
+.qc-workspace-dark .qc-compare-row code {
+  color: #38bdf8 !important;
+}
+
+.qc-workspace-dark .qc-metric-label {
+  color: #94a3b8 !important;
+}
+
+.qc-workspace-dark .qc-metric-value {
+  color: #f8fafc !important;
+}
+

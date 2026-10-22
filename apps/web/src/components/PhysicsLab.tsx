@@ -15,6 +15,7 @@ import {
 import { useUIContext } from "../state/uiContext";
 import { Button } from "../ui";
 import { EnergyChart, LatticeCanvas } from "./LatticeVisuals";
+import { Lattice3DView } from "./Lattice3DView";
 import { CTMRGLabPanel } from "./CTMRGLabPanel";
 import {
   CorrelationHeatmap,
@@ -47,7 +48,7 @@ export type PhysicsPreset =
   | "dimerized_ssh"
   | "kitaev_topo";
 
-export type PhysicsTab = "observables" | "solvers" | "dynamics" | "phase" | "ctmrg" | "export";
+export type PhysicsTab = "observables" | "solvers" | "dynamics" | "phase" | "ctmrg" | "lattice3d" | "export";
 
 const shell: React.CSSProperties = {
   maxWidth: "100%",
@@ -1524,6 +1525,31 @@ Order Parameter & \\multicolumn{3}{l}{${getPhaseInsight().orderParameter}} \\\\
           )}
 
           {/* TAB 6: DATA & CODE EXPORTERS */}
+          {physicsTab === "lattice3d" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <Lattice3DView
+                sites={graph ? graph.sites.map((s, i) => ({
+                  id: s.index ?? i,
+                  x: s.coordinate[0] ?? 0,
+                  y: s.coordinate[1] ?? 0,
+                  z: s.coordinate[2] ?? 0,
+                  label: `S${s.index ?? i}`,
+                  spin: (localMagnetizations && localMagnetizations[i] != null) ? localMagnetizations[i] : (i % 2 === 0 ? 0.5 : -0.5),
+                })) : []}
+                bonds={graph ? graph.edges.map((e) => ({
+                  source: e.source,
+                  target: e.target,
+                  weight: coupling,
+                  type: "hopping",
+                })) : []}
+                title={`${model.toUpperCase()} · 3D Quantum Spin Lattice`}
+                subtitle={`Interactive 3D geometry · ${graph?.sites.length ?? 0} spins · ${graph?.edges.length ?? 0} coupling interactions`}
+                colorMode="spin"
+                height={420}
+              />
+            </div>
+          )}
+
           {physicsTab === "export" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div style={card}>

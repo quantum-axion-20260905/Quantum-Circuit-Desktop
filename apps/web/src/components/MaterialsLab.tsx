@@ -14,6 +14,7 @@ import {
 import { useUIContext } from "../state/uiContext";
 import { Button } from "../ui";
 import { LatticeCanvas } from "./LatticeVisuals";
+import { Lattice3DView } from "./Lattice3DView";
 import {
   ElectronicBandDispersionChart,
   DensityOfStatesChart,
@@ -35,7 +36,7 @@ export type MaterialPreset =
   | "kagome_metal"
   | "kondo_lattice";
 
-export type MaterialsTab = "bands" | "occupancy" | "solvers" | "structure" | "export";
+export type MaterialsTab = "bands" | "occupancy" | "solvers" | "structure" | "crystal3d" | "export";
 
 const shell: React.CSSProperties = {
   maxWidth: "100%",
@@ -124,7 +125,9 @@ export function MaterialsLab() {
   const siteCount = activeDimensions.reduce((acc, dim) => acc * dim, 1);
   const qubitCount = siteCount * 2; // Jordan-Wigner requires 2 spin-orbitals (up & down) per site
 
+  const [activePreset, setActivePreset] = React.useState<MaterialPreset>("cuprate_ybco");
   function applyPreset(preset: MaterialPreset) {
+    setActivePreset(preset);
     setError(null);
     if (preset === "cuprate_ybco") {
       setDimension(2);
@@ -850,6 +853,7 @@ print(f"Loaded Fermi-Hubbard model on {n_sites} sites ({len(jordan_wigner_terms)
               { id: "occupancy", label: "Charge & Mott Localization" },
               { id: "solvers", label: "Electronic Solvers (DMRG / PEPS)", badge: dmrgEnergy != null || groundEnergy != null || pepsEnergy != null ? "Solved" : undefined },
               { id: "structure", label: "Neutron Structure S(q)" },
+              { id: "crystal3d", label: "3D Crystal Lattice" },
               { id: "export", label: "Data & Code Exporters" },
             ].map((t) => (
               <button
@@ -1045,6 +1049,33 @@ print(f"Loaded Fermi-Hubbard model on {n_sites} sites ({len(jordan_wigner_terms)
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {materialsTab === "crystal3d" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <Lattice3DView
+                sites={graph ? graph.sites.map((s, i) => ({
+                  id: s.index ?? i,
+                  x: s.coordinate[0] ?? 0,
+                  y: s.coordinate[1] ?? 0,
+                  z: s.coordinate[2] ?? 0,
+                  label: `Site ${s.index ?? i}`,
+                  element: activePreset === "cuprate_ybco" ? (i % 2 === 0 ? "Cu" : "O") : activePreset === "graphene" ? "C" : activePreset === "iron_pnictide" ? (i % 2 === 0 ? "Fe" : "Se") : "Cu",
+                  charge: 1.0 - holeDoping,
+                  spin: i % 2 === 0 ? 0.5 : -0.5,
+                })) : []}
+                bonds={graph ? graph.edges.map((e) => ({
+                  source: e.source,
+                  target: e.target,
+                  weight: hopping,
+                  type: "hopping",
+                })) : []}
+                title={`${activePreset.replace("_", " ").toUpperCase()} · 3D Crystal Lattice View`}
+                subtitle={`Interactive 3D geometry · ${graph?.sites.length ?? 0} sites · ${graph?.edges.length ?? 0} hopping bonds`}
+                colorMode={activePreset === "graphene" ? "element" : "spin"}
+                height={420}
+              />
             </div>
           )}
 
